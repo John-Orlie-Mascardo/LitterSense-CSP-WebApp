@@ -1,0 +1,38 @@
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "LitterSense - Feline Health Monitoring",
+  description: "IoT-enabled feline health monitoring for Filipino cat owners. Early detection, healthier cats.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192x192.svg",
+    apple: "/icons/icon-192x192.svg",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "LitterSense",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#1E6B5E",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body className="font-body antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
