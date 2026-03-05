@@ -7,9 +7,9 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { icon: Home, label: "Home", href: "/dashboard" },
-  { icon: Cat, label: "My Cats", href: "/cats" },
-  { icon: BarChart3, label: "Reports", href: "/reports" },
-  { icon: Settings, label: "Settings", href: "/settings" },
+  { icon: Cat, label: "My Cats", href: "/dashboard/cats" },
+  { icon: BarChart3, label: "Reports", href: "/dashboard/reports" },
+  { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
 export function BottomNav() {
