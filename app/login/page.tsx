@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff, Activity, Users, FileText } from "lucide-react";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Activity,
+  Users,
+  FileText,
+} from "lucide-react";
 import Link from "next/link";
 
 const containerVariants = {
@@ -105,7 +113,9 @@ export default function LoginPage() {
                 className="flex items-center gap-3 px-5 py-3 bg-white/10 backdrop-blur-sm rounded-full w-fit"
               >
                 <feature.icon className="w-5 h-5 text-white/90" />
-                <span className="text-white/90 font-medium">{feature.text}</span>
+                <span className="text-white/90 font-medium">
+                  {feature.text}
+                </span>
               </motion.div>
             ))}
           </motion.div>
