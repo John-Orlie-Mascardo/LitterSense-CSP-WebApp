@@ -1,1 +1,11 @@
-{"version":4,"routes":{"/dashboard/cats/1":{},"/dashboard/cats/2":{},"/dashboard/cats/3":{}},"dynamicRoutes":{"/dashboard/cats/[catId]":{"dataRoute":null,"dataRouteRegex":null,"fallback":null,"fallbackRevalidate":false,"fallbackSourceRoute":"/dashboard/cats/[catId]","routeRegex":"^\\/dashboard\\/cats\\/([^/]+?)(?:\\/)?$","allowHeader":[]}},"notFoundRoutes":[],"preview":{"previewModeId":"cd0919a55b046940ced4c1e1d94cc227","previewModeSigningKey":"4a075e50587c4879891b6d1a948a1afd9d0e5eaae2cfe315445429af16d154b5","previewModeEncryptionKey":"661f19e7725448752d2619258f9608890024ed8cf2d80605e69ac7360b09f615"}}
+{
+  "version": 4,
+  "routes": {},
+  "dynamicRoutes": {},
+  "notFoundRoutes": [],
+  "preview": {
+    "previewModeId": "8cd3a4d2ac8104f08e6cf1328e711293",
+    "previewModeSigningKey": "74ec677944e6a5553a30bf2f99299380d9dd07d4aea5cff19e9ea011f3576f2a",
+    "previewModeEncryptionKey": "c6ee2237c0ff313c0d32b9efadffffe90c5f9751d795f1312a8197bebcaf528e"
+  }
+}
