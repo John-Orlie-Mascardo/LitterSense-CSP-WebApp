@@ -1,0 +1,9 @@
+{
+  "/dashboard/cats/[catId]/page": "app/dashboard/cats/[catId]/page.js",
+  "/dashboard/cats/page": "app/dashboard/cats/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/reports/page": "app/dashboard/reports/page.js",
+  "/dashboard/settings/page": "app/dashboard/settings/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}
