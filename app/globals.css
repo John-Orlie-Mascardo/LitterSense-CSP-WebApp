@@ -6,7 +6,7 @@
 
 /* CSS Custom Properties - LitterSense Color Palette */
 :root {
-  --color-bg: #FDFAF6;
+  --color-bg: #F2F4F7;
   --color-primary: #1E6B5E;
   --color-primary-light: #D4EDE8;
   --color-accent: #E8924A;
@@ -28,7 +28,7 @@
   --font-body: 'DM Sans', sans-serif;
   
   /* Colors */
-  --color-litter-bg: #FDFAF6;
+  --color-litter-bg: #F2F4F7;
   --color-litter-primary: #1E6B5E;
   --color-litter-primary-light: #D4EDE8;
   --color-litter-accent: #E8924A;
