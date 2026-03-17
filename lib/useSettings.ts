@@ -2,12 +2,25 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+export interface PerCatNotificationPref {
+  catId: string;
+  catName: string;
+  healthAlerts: boolean;
+  visitAlerts: boolean;
+}
+
 export interface UserSettings {
   notifications: {
     healthAlerts: boolean;
     litterLevelWarnings: boolean;
     dailySummary: boolean;
     alertSensitivity: "low" | "medium" | "high";
+    quietHours: {
+      enabled: boolean;
+      from: string; // "HH:MM" 24h format e.g. "22:00"
+      to: string;   // "HH:MM" 24h format e.g. "07:00"
+    };
+    perCat: PerCatNotificationPref[];
   };
   device: {
     deviceName: string;
@@ -37,6 +50,16 @@ const defaultSettings: UserSettings = {
     litterLevelWarnings: true,
     dailySummary: false,
     alertSensitivity: "medium",
+    quietHours: {
+      enabled: false,
+      from: "22:00",
+      to: "07:00",
+    },
+    perCat: [
+      { catId: "cat_1", catName: "Mochi", healthAlerts: true, visitAlerts: true },
+      { catId: "cat_2", catName: "Luna", healthAlerts: true, visitAlerts: false },
+      { catId: "cat_3", catName: "Nala", healthAlerts: true, visitAlerts: true },
+    ],
   },
   device: {
     deviceName: "LitterSense Unit #1",
@@ -66,14 +89,26 @@ export function useSettings() {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load settings from localStorage on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (globalThis.window !== undefined) {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
-          setSettings((prev) => ({ ...prev, ...parsed }));
+          // Deep merge to preserve new fields added to defaultSettings
+          setSettings((prev) => ({
+            ...prev,
+            ...parsed,
+            notifications: {
+              ...prev.notifications,
+              ...(parsed.notifications && typeof parsed.notifications === "object" ? parsed.notifications : {}),
+              quietHours: {
+                ...prev.notifications.quietHours,
+                ...(parsed.notifications?.quietHours ?? undefined),
+              },
+              perCat: parsed.notifications?.perCat ?? prev.notifications.perCat,
+            },
+          }));
         } catch (e) {
           console.error("Failed to parse settings:", e);
         }
@@ -82,74 +117,110 @@ export function useSettings() {
     }
   }, []);
 
-  // Save settings to localStorage whenever they change
   useEffect(() => {
-    if (isLoaded && typeof window !== "undefined") {
+    if (isLoaded && globalThis.window !== undefined) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     }
   }, [settings, isLoaded]);
 
-  const updateNotificationSetting = useCallback(<K extends keyof UserSettings["notifications"]>(
-    key: K,
-    value: UserSettings["notifications"][K]
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      notifications: { ...prev.notifications, [key]: value },
-    }));
-  }, []);
+  const updateNotificationSetting = useCallback(
+    <K extends keyof UserSettings["notifications"]>(
+      key: K,
+      value: UserSettings["notifications"][K]
+    ) => {
+      setSettings((prev) => ({
+        ...prev,
+        notifications: { ...prev.notifications, [key]: value },
+      }));
+    },
+    []
+  );
 
-  const updateDeviceSetting = useCallback(<K extends keyof UserSettings["device"]>(
-    key: K,
-    value: UserSettings["device"][K]
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      device: { ...prev.device, [key]: value },
-    }));
-  }, []);
+  // Update quiet hours sub-fields
+  const updateQuietHours = useCallback(
+    (patch: Partial<UserSettings["notifications"]["quietHours"]>) => {
+      setSettings((prev) => ({
+        ...prev,
+        notifications: {
+          ...prev.notifications,
+          quietHours: { ...prev.notifications.quietHours, ...patch },
+        },
+      }));
+    },
+    []
+  );
 
-  const updateDataPrivacySetting = useCallback(<K extends keyof UserSettings["dataPrivacy"]>(
-    key: K,
-    value: UserSettings["dataPrivacy"][K]
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      dataPrivacy: { ...prev.dataPrivacy, [key]: value },
-    }));
-  }, []);
+  // Update a single cat's notification prefs
+  const updatePerCatPref = useCallback(
+    (catId: string, patch: Partial<Omit<PerCatNotificationPref, "catId" | "catName">>) => {
+      setSettings((prev) => ({
+        ...prev,
+        notifications: {
+          ...prev.notifications,
+          perCat: prev.notifications.perCat.map((c) =>
+            c.catId === catId ? { ...c, ...patch } : c
+          ),
+        },
+      }));
+    },
+    []
+  );
 
-  const updateAppearanceSetting = useCallback(<K extends keyof UserSettings["appearance"]>(
-    key: K,
-    value: UserSettings["appearance"][K]
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      appearance: { ...prev.appearance, [key]: value },
-    }));
-  }, []);
+  const updateDeviceSetting = useCallback(
+    <K extends keyof UserSettings["device"]>(key: K, value: UserSettings["device"][K]) => {
+      setSettings((prev) => ({
+        ...prev,
+        device: { ...prev.device, [key]: value },
+      }));
+    },
+    []
+  );
 
-  const updateAccountSetting = useCallback(<K extends keyof UserSettings["account"]>(
-    key: K,
-    value: UserSettings["account"][K]
-  ) => {
-    setSettings((prev) => ({
-      ...prev,
-      account: { ...prev.account, [key]: value },
-    }));
-  }, []);
+  const updateDataPrivacySetting = useCallback(
+    <K extends keyof UserSettings["dataPrivacy"]>(
+      key: K,
+      value: UserSettings["dataPrivacy"][K]
+    ) => {
+      setSettings((prev) => ({
+        ...prev,
+        dataPrivacy: { ...prev.dataPrivacy, [key]: value },
+      }));
+    },
+    []
+  );
+
+  const updateAppearanceSetting = useCallback(
+    <K extends keyof UserSettings["appearance"]>(
+      key: K,
+      value: UserSettings["appearance"][K]
+    ) => {
+      setSettings((prev) => ({
+        ...prev,
+        appearance: { ...prev.appearance, [key]: value },
+      }));
+    },
+    []
+  );
+
+  const updateAccountSetting = useCallback(
+    <K extends keyof UserSettings["account"]>(key: K, value: UserSettings["account"][K]) => {
+      setSettings((prev) => ({
+        ...prev,
+        account: { ...prev.account, [key]: value },
+      }));
+    },
+    []
+  );
 
   const resetSettings = useCallback(() => {
     setSettings(defaultSettings);
   }, []);
 
   const clearAllData = useCallback(() => {
-    // Mock clear data
     console.log("Clearing all data...");
   }, []);
 
   const exportAllData = useCallback(() => {
-    // Mock export data
     const data = {
       settings,
       exportDate: new Date().toISOString(),
@@ -167,6 +238,8 @@ export function useSettings() {
     settings,
     isLoaded,
     updateNotificationSetting,
+    updateQuietHours,
+    updatePerCatPref,
     updateDeviceSetting,
     updateDataPrivacySetting,
     updateAppearanceSetting,
