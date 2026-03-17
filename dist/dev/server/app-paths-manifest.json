@@ -1,7 +1,9 @@
 {
-  "/forgot-password/check-email/page": "app/forgot-password/check-email/page.js",
-  "/forgot-password/page": "app/forgot-password/page.js",
+  "/dashboard/cats/page": "app/dashboard/cats/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/playback/page": "app/dashboard/playback/page.js",
+  "/dashboard/reports/page": "app/dashboard/reports/page.js",
+  "/dashboard/settings/page": "app/dashboard/settings/page.js",
   "/login/page": "app/login/page.js",
-  "/page": "app/page.js",
-  "/signup/page": "app/signup/page.js"
+  "/page": "app/page.js"
 }
