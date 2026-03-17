@@ -4,24 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Bell,
-  Smartphone,
   Database,
-  Palette,
-  User,
-  Info,
   LogOut,
   ChevronRight,
-  Wifi,
   Lock,
   Shield,
-  Globe,
-  Moon,
   Upload,
   Loader2,
-  CheckCircle,
-  AlertTriangle,
-  LockIcon,
   Activity,
   Trash2,
   ChevronDown,
@@ -32,7 +21,6 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { SettingsSection } from "@/components/ui/SettingsSection";
 import { SettingsRow } from "@/components/ui/SettingsRow";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -47,8 +35,6 @@ export default function SettingsPage() {
   const {
     settings,
     updateNotificationSetting,
-    updateDeviceSetting,
-    updateDataPrivacySetting,
     updateAppearanceSetting,
     updateAccountSetting,
     clearAllData,
@@ -126,7 +112,7 @@ export default function SettingsPage() {
     let strength = 0;
     if (password.length >= 8) strength++;
     if (/[A-Z]/.test(password)) strength++;
-    if (/[0-9]/.test(password)) strength++;
+    if (/\d/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
 
     const labels = ["Weak", "Fair", "Good", "Strong"];
@@ -235,28 +221,28 @@ export default function SettingsPage() {
               }
             />
             <div className="border-t border-[#E8E2D9]">
-              <div 
+              <button 
                 onClick={exportAllData}
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <Download className="w-5 h-5 text-gray-400" />
                   <span className="text-sm font-medium text-[#1C1C1C]">Export All Data</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400" />
-              </div>
+              </button>
             </div>
             <div className="border-t border-[#E8E2D9]">
-              <div
+              <button
                 onClick={() => setShowClearConfirm(true)}
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <History className="w-5 h-5 text-red-500" />
                   <span className="text-sm font-medium text-red-500">Clear History</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400" />
-              </div>
+              </button>
             </div>
             <div className="border-t border-[#E8E2D9]">
               <SettingsRow
@@ -302,26 +288,26 @@ export default function SettingsPage() {
             ACCOUNT
           </h3>
           <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
-            <div 
+            <button 
               onClick={() => setShowChangePassword(true)}
-              className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
             >
               <div className="flex items-center gap-3">
                 <Lock className="w-5 h-5 text-gray-400" />
                 <span className="text-sm font-medium text-[#1C1C1C]">Change Password</span>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
-            </div>
+            </button>
             <div className="border-t border-[#E8E2D9]">
-              <div
+              <button
                 onClick={() => setShowDeleteAccountConfirm(true)}
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <XSquare className="w-5 h-5 text-red-500" />
                   <span className="text-sm font-medium text-red-500">Delete Account</span>
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </motion.div>
@@ -393,10 +379,11 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">
               Display Name
             </label>
             <input
+              id="displayName"
               type="text"
               value={editProfileForm.displayName}
               onChange={(e) =>
@@ -426,10 +413,11 @@ export default function SettingsPage() {
       >
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               Current Password
             </label>
             <input
+              id="currentPassword"
               type="password"
               value={passwordForm.current}
               onChange={(e) =>
@@ -440,10 +428,11 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               New Password
             </label>
             <input
+              id="newPassword"
               type="password"
               value={passwordForm.new}
               onChange={(e) =>
@@ -451,33 +440,35 @@ export default function SettingsPage() {
               }
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
-            {passwordForm.new && (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        passwordStrength.strength === 0
-                          ? "bg-red-500 w-1/4"
-                          : passwordStrength.strength === 1
-                          ? "bg-amber-500 w-1/2"
-                          : passwordStrength.strength === 2
-                          ? "bg-yellow-500 w-3/4"
-                          : "bg-green-500 w-full"
-                      }`}
-                    />
+            {passwordForm.new && (() => {
+              const getStrengthClass = () => {
+                if (passwordStrength.strength === 0) return "bg-red-500 w-1/4";
+                if (passwordStrength.strength === 1) return "bg-amber-500 w-1/2";
+                if (passwordStrength.strength === 2) return "bg-yellow-500 w-3/4";
+                return "bg-green-500 w-full";
+              };
+
+              const strengthClass = getStrengthClass();
+
+              return (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all ${strengthClass}`} />
+                    </div>
+                    <span className="text-xs text-gray-500">{passwordStrength.label}</span>
                   </div>
-                  <span className="text-xs text-gray-500">{passwordStrength.label}</span>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               Confirm New Password
             </label>
             <input
+              id="confirmPassword"
               type="password"
               value={passwordForm.confirm}
               onChange={(e) =>
