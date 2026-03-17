@@ -258,18 +258,6 @@ const itemVariants = {
 
 ---
 
-### Flutter (Context Only)
-
-**What it is:** Google's cross-platform UI toolkit for building natively compiled mobile apps.
-
-**Why mentioned:** The original capstone project included a Flutter prototype. The Next.js PWA you're reading about was built as a comparison/alternative to understand the tradeoffs. Flutter requires Dart knowledge and separate build pipelines for iOS/Android. The PWA approach won for faster iteration and zero app store dependencies.
-
-**Tradeoffs of Flutter vs PWA:**
-- Flutter: Native performance, full device access, but requires app store distribution
-- PWA: Instant updates, no installation friction, but limited native APIs
-
----
-
 ### ESP32 Microcontroller
 
 **What it is:** A low-cost WiFi and Bluetooth-enabled microcontroller (like a tiny computer) that can read sensors and connect to the internet.
