@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
-  ChevronRight,
-  Clock,
-  Timer,
   ScanLine,
   Upload,
   Loader2,
@@ -26,17 +23,9 @@ import {
 } from "@/lib/mockData";
 import {
   getStatusColor,
-  getStatusLabel,
   calculateAge,
   generateId,
 } from "@/lib/formatters";
-
-// Mock last seen data (in a real app this would come from the backend)
-const mockLastSeen: Record<string, string> = {
-  "1": "12 min ago",
-  "2": "34 min ago",
-  "3": "2 hr ago",
-};
 
 interface CatFormData {
   name: string;
@@ -80,7 +69,6 @@ export default function CatsPage() {
       newErrors.name = "Cat name is required";
     }
 
-    // Check for duplicate RFID
     const existingRfids = cats.map((c) => getCatDetailsById(c.id)?.rfidTag).filter(Boolean);
     if (formData.rfidTag && existingRfids.includes(formData.rfidTag)) {
       newErrors.rfidTag = "Already registered";
@@ -94,8 +82,6 @@ export default function CatsPage() {
     if (!validateForm()) return;
 
     setIsSaving(true);
-
-    // Mock delay
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const newCat: Cat = {
@@ -124,52 +110,53 @@ export default function CatsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFAF6] pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
         {/* Header */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="mb-6 flex items-start justify-between"
+          className="mb-8 pt-6 flex items-end justify-between"
         >
           <div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1C1C1C] mb-1">
+            <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-litter-text mb-1">
               My Cats
             </h1>
-            <p className="text-[#6B7280] text-sm sm:text-base">
+            <p className="text-litter-muted text-sm sm:text-base">
               Manage your feline companions
             </p>
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#1E6B5E] text-white rounded-lg font-medium hover:bg-[#165a4e] active:bg-[#124a40] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 bg-litter-primary text-white rounded-full font-semibold hover:bg-[#165a4e] active:bg-[#124a40] transition-colors shadow-sm text-sm"
           >
-            <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">Add Cat</span>
+            + Add Cat
           </button>
         </motion.section>
 
-        {/* Cats List */}
-        <section className="space-y-4">
+        {/* Cats Grid */}
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {cats.length === 0 ? (
-            <EmptyState
-              icon={CatIcon}
-              title="No cats yet"
-              description="Add your first cat to start monitoring their health."
-              action={
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#1E6B5E] text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add Your First Cat
-                </button>
-              }
-            />
+            <div className="col-span-full">
+              <EmptyState
+                icon={CatIcon}
+                title="No cats yet"
+                description="Add your first cat to start monitoring their health."
+                action={
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-xl font-medium hover:bg-[#165a4e] transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Add Your First Cat
+                  </button>
+                }
+              />
+            </div>
           ) : (
             cats.map((cat, index) => (
               <CatCard key={cat.id} cat={cat} index={index} />
@@ -194,27 +181,18 @@ export default function CatsPage() {
           {/* Photo Upload */}
           <div className="flex flex-col items-center">
             <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-[#D4EDE8] flex items-center justify-center overflow-hidden">
+              <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
                 {formData.photo ? (
-                  <img
-                    src={formData.photo}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={formData.photo} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-3xl font-display font-bold text-[#1E6B5E]">
+                  <span className="text-3xl font-display font-bold text-litter-primary">
                     {formData.name.charAt(0).toUpperCase() || "?"}
                   </span>
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-[#1E6B5E] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
+              <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
               </label>
             </div>
             <p className="text-xs text-gray-500 mt-2">Tap to upload photo</p>
@@ -228,95 +206,69 @@ export default function CatsPage() {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               placeholder="e.g. Whiskers"
-              className={`w-full px-4 py-3 rounded-xl border ${
-                errors.name ? "border-red-500" : "border-[#E8E2D9]"
-              } focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all`}
+              className={`w-full px-4 py-3 rounded-xl border ${errors.name ? "border-red-500" : "border-litter-border"} focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
             />
-            {errors.name && (
-              <p className="text-red-500 text-xs mt-1">{errors.name}</p>
-            )}
+            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
           {/* Breed */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Breed
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Breed</label>
             <input
               type="text"
               value={formData.breed}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, breed: e.target.value }))
-              }
+              onChange={(e) => setFormData((prev) => ({ ...prev, breed: e.target.value }))}
               placeholder="e.g. Domestic Shorthair"
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
             />
           </div>
 
           {/* Date of Birth */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Date of Birth
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Birth</label>
             <input
               type="month"
               value={formData.dob}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, dob: e.target.value }))
-              }
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              onChange={(e) => setFormData((prev) => ({ ...prev, dob: e.target.value }))}
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
             />
           </div>
 
           {/* Weight */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Weight (kg)
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
             <input
               type="number"
               step="0.1"
               value={formData.weightKg}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, weightKg: e.target.value }))
-              }
+              onChange={(e) => setFormData((prev) => ({ ...prev, weightKg: e.target.value }))}
               placeholder="e.g. 4.2"
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
             />
           </div>
 
           {/* RFID Tag */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              RFID Tag ID
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">RFID Tag ID</label>
             <div className="relative">
               <input
                 type="text"
                 value={formData.rfidTag}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, rfidTag: e.target.value }))
-                }
+                onChange={(e) => setFormData((prev) => ({ ...prev, rfidTag: e.target.value }))}
                 placeholder="Scan or enter RFID tag"
-                className={`w-full px-4 py-3 pr-12 rounded-xl border ${
-                  errors.rfidTag ? "border-red-500" : "border-[#E8E2D9]"
-                } focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all`}
+                className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
               />
               <button
                 type="button"
                 title="Tap the RFID button on your LitterSense device to auto-fill"
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#1E6B5E] transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-litter-primary transition-colors"
               >
                 <ScanLine className="w-5 h-5" />
               </button>
             </div>
-            {errors.rfidTag && (
-              <p className="text-red-500 text-xs mt-1">{errors.rfidTag}</p>
-            )}
+            {errors.rfidTag && <p className="text-red-500 text-xs mt-1">{errors.rfidTag}</p>}
             <p className="text-xs text-gray-400 mt-1">
               Tap the RFID button on your LitterSense device to auto-fill
             </p>
@@ -339,7 +291,7 @@ export default function CatsPage() {
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="flex-1 px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] active:bg-[#124a40] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] active:bg-[#124a40] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSaving ? (
                 <>
@@ -357,18 +309,25 @@ export default function CatsPage() {
   );
 }
 
-// Cat Card Component
+// ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
   index: number;
 }
 
+const badgeLabel: Record<string, string> = { healthy: "HEALTHY", watch: "WATCH", alert: "ALERT" };
+
 function CatCard({ cat, index }: CatCardProps) {
   const details = getCatDetailsById(cat.id);
   const stats = mockStats[cat.id];
   const statusColors = getStatusColor(cat.status);
-  const statusLabel = getStatusLabel(cat.status);
-  const lastSeen = mockLastSeen[cat.id] || "Unknown";
+
+  const dotColor =
+    cat.status === "healthy"
+      ? "bg-green-500"
+      : cat.status === "watch"
+      ? "bg-amber-500"
+      : "bg-red-500";
 
   return (
     <motion.div
@@ -377,61 +336,50 @@ function CatCard({ cat, index }: CatCardProps) {
       transition={{ duration: 0.4, delay: index * 0.1 }}
     >
       <Link href={`/dashboard/cats/${cat.id}`}>
-        <div
-          className={`bg-white rounded-xl shadow-sm border border-[#E8E2D9] overflow-hidden hover:shadow-md active:scale-[0.99] transition-all cursor-pointer`}
-        >
-          {/* Left border indicator */}
-          <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusColors.indicator}`} />
-
-          <div className="p-4 flex items-center gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-litter-border hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all cursor-pointer overflow-hidden">
+          {/* Card top */}
+          <div className="p-5 flex items-center gap-4">
             {/* Avatar */}
-            <div className="w-14 h-14 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-semibold text-xl shrink-0">
+            <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-xl shrink-0">
               {cat.avatar ? (
-                <img
-                  src={cat.avatar}
-                  alt={cat.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
+                <img src={cat.avatar} alt={cat.name} className="w-full h-full rounded-full object-cover" />
               ) : (
                 cat.name.charAt(0).toUpperCase()
               )}
             </div>
 
-            {/* Info */}
+            {/* Name + breed */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-[#1C1C1C] text-lg">{cat.name}</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-bold text-litter-text text-lg leading-tight">{cat.name}</h3>
+              <p className="text-sm text-litter-muted mt-0.5">
                 {details?.breed || "Unknown breed"} · {details ? calculateAge(details.dob) : "Unknown age"}
               </p>
-
-              {/* Status badge */}
-              <div className="flex items-center gap-2 mt-2">
-                <span
-                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors.bg} ${statusColors.text}`}
-                >
-                  {statusLabel}
-                </span>
-              </div>
-
-              {/* Mini stats */}
-              <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  Visits today: {stats?.visits || 0}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Timer className="w-3.5 h-3.5" />
-                  Avg: {stats?.avgDuration || "--"}
-                </span>
-                <span className="hidden sm:flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                  Last: {lastSeen}
-                </span>
-              </div>
             </div>
 
-            {/* Chevron */}
-            <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />
+            {/* Status badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${statusColors.bg} ${statusColors.text} shrink-0`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+              {badgeLabel[cat.status]}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-litter-border mx-5" />
+
+          {/* Stats row */}
+          <div className="grid grid-cols-3 divide-x divide-litter-border px-5 py-4">
+            <div className="pr-4">
+              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
+              <p className="font-bold text-litter-text text-lg">{stats?.visits ?? "--"}</p>
+            </div>
+            <div className="px-4">
+              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
+              <p className="font-bold text-litter-text text-lg">{stats?.avgDuration?.replace("s", "") ?? "--"}</p>
+            </div>
+            <div className="pl-4">
+              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
+              <p className="font-bold text-litter-text text-lg">{stats?.lastVisit ?? "--"}</p>
+            </div>
           </div>
         </div>
       </Link>
