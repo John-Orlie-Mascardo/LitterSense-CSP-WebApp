@@ -324,28 +324,6 @@ const itemVariants = {
 
 ---
 
-### Load Cell with HX711 Amplifier
-
-**What it is:** A strain gauge-based weight sensor (like in bathroom scales) paired with a precision analog-to-digital converter (HX711).
-
-**Why chosen for LitterSense:**
-- Measures cat weight accurately (±10g precision possible)
-- Durable and waterproof (when enclosed properly)
-- HX711 handles the tiny voltage signals and converts to digital
-
-**What it does:**
-- Placed under litter box to detect when cat enters/exits
-- Weight delta (change) indicates entry vs. exit
-- Absolute weight helps identify which cat (if weights are different)
-- Also detects litter level (gradual weight increase over time as litter accumulates)
-
-**Limitations:**
-- Requires calibration with known weights
-- Temperature affects readings (thermal expansion)
-- Drift over time requires periodic recalibration
-
----
-
 ### Ultrasonic Sensor (HC-SR04)
 
 **What it is:** A sensor that measures distance by emitting ultrasonic sound waves and timing the echo return.
