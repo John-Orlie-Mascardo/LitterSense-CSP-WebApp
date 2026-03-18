@@ -60,7 +60,9 @@ export default function CatsPage() {
   const [cats, setCats] = useState<Cat[]>(mockCats);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CatFormData>(initialFormData);
-  const [errors, setErrors] = useState<Partial<Record<keyof CatFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof CatFormData, string>>
+  >({});
   const [isSaving, setIsSaving] = useState(false);
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
 
@@ -81,7 +83,9 @@ export default function CatsPage() {
     }
 
     // Check for duplicate RFID
-    const existingRfids = cats.map((c) => getCatDetailsById(c.id)?.rfidTag).filter(Boolean);
+    const existingRfids = cats
+      .map((c) => getCatDetailsById(c.id)?.rfidTag)
+      .filter(Boolean);
     if (formData.rfidTag && existingRfids.includes(formData.rfidTag)) {
       newErrors.rfidTag = "Already registered";
     }
@@ -381,7 +385,9 @@ function CatCard({ cat, index }: CatCardProps) {
           className={`bg-white rounded-xl shadow-sm border border-[#E8E2D9] overflow-hidden hover:shadow-md active:scale-[0.99] transition-all cursor-pointer`}
         >
           {/* Left border indicator */}
-          <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusColors.indicator}`} />
+          <div
+            className={`absolute left-0 top-0 bottom-0 w-1 ${statusColors.indicator}`}
+          />
 
           <div className="p-4 flex items-center gap-4">
             {/* Avatar */}
@@ -399,9 +405,12 @@ function CatCard({ cat, index }: CatCardProps) {
 
             {/* Info */}
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-[#1C1C1C] text-lg">{cat.name}</h3>
+              <h3 className="font-semibold text-[#1C1C1C] text-lg">
+                {cat.name}
+              </h3>
               <p className="text-sm text-gray-500">
-                {details?.breed || "Unknown breed"} · {details ? calculateAge(details.dob) : "Unknown age"}
+                {details?.breed || "Unknown breed"} ·{" "}
+                {details ? calculateAge(details.dob) : "Unknown age"}
               </p>
 
               {/* Status badge */}

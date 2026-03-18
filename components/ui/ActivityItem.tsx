@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import { getCatById } from "@/lib/mockData";
 
@@ -14,7 +13,7 @@ interface ActivityItemProps {
 }
 
 const borderColors = {
-  normal: "border-l-[#1E6B5E]",
+  normal: "border-l-[#1B7A6E]",
   warning: "border-l-amber-500",
   alert: "border-l-red-500",
 };
@@ -31,16 +30,17 @@ export function ActivityItem({
   const borderColor = anomaly ? borderColors.warning : borderColors.normal;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-      className={`flex items-center gap-3 p-3 bg-white rounded-xl border border-[#E8E2D9] border-l-4 ${borderColor} shadow-sm`}
+    <div
+      className={`flex items-center gap-3 p-3 bg-white rounded-xl border border-[#D1D5DB] border-l-4 ${borderColor} shadow-sm`}
     >
       {/* Cat Avatar */}
-      <div className="w-10 h-10 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-medium text-sm shrink-0">
+      <div className="w-10 h-10 rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-medium text-sm shrink-0">
         {cat?.avatar ? (
-          <img src={cat.avatar} alt={cat?.name} className="w-full h-full rounded-full object-cover" />
+          <img
+            src={cat.avatar}
+            alt={cat?.name}
+            className="w-full h-full rounded-full object-cover"
+          />
         ) : (
           cat?.name.charAt(0).toUpperCase()
         )}
@@ -61,6 +61,6 @@ export function ActivityItem({
           <span className="hidden sm:inline">{anomalyNote || "Alert"}</span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

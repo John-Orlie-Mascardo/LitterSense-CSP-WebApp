@@ -1,3 +1,14 @@
+/**
+ * LitterSense Mock Data
+ *
+ * This file contains all dummy data used for frontend development and testing.
+ * Replace with Firebase queries once backend integration begins (03.03.03).
+ *
+ * Data is split into two categories:
+ * - Per-cat data: visits, duration, sessions, health logs (changes per cat)
+ * - Device-level data: air quality, litter level (shared across all cats — one litter box)
+ */
+
 export interface Cat {
   id: string;
   name: string;
@@ -8,8 +19,6 @@ export interface Cat {
 export interface CatStats {
   visits: number;
   avgDuration: string;
-  airQuality: "Normal" | "Elevated" | "Poor";
-  litterLevel: number;
 }
 
 export interface ActivityItemData {
@@ -62,26 +71,83 @@ export interface PastReport {
   generatedOn: string;
   filename: string;
 }
-
+// Mock data for testing and development
 export const mockCats: Cat[] = [
   { id: "1", name: "Mochi", status: "healthy", avatar: null },
-  { id: "2", name: "Luna", status: "watch", avatar: null },
-  { id: "3", name: "Tigger", status: "alert", avatar: null },
+  { id: "2", name: "Luna", status: "healthy", avatar: null },
+  { id: "3", name: "Tigger", status: "healthy", avatar: null },
+  { id: "4", name: "Bella", status: "healthy", avatar: null },
+  { id: "5", name: "Max", status: "healthy", avatar: null },
 ];
 
+/**
+ * Per-cat stats — visits and duration are unique to each cat.
+ * Every cat in mockCats must have a matching entry here or the dashboard
+ * will show "undefined" values when that cat is selected.
+ */
 export const mockStats: Record<string, CatStats> = {
-  "1": { visits: 4, avgDuration: "2m 14s", airQuality: "Normal", litterLevel: 68 },
-  "2": { visits: 7, avgDuration: "4m 01s", airQuality: "Elevated", litterLevel: 45 },
-  "3": { visits: 2, avgDuration: "1m 30s", airQuality: "Normal", litterLevel: 80 },
+  "1": {
+    visits: 4,
+    avgDuration: "2m 14s",
+  },
+  "2": {
+    visits: 7,
+    avgDuration: "4m 01s",
+  },
+  "3": {
+    visits: 2,
+    avgDuration: "1m 30s",
+  },
+  "4": {
+    visits: 3,
+    avgDuration: "2m 45s",
+  },
+  "5": {
+    visits: 5,
+    avgDuration: "1m 55s",
+  },
 };
 
+/**
+ * Device-level stats — these belong to the LitterSense hardware unit, NOT individual cats.
+ * Air quality and litter level are the same regardless of which cat is selected
+ * because all cats share the same physical litter box.
+ */
+export const deviceStats = {
+  airQuality: "Normal" as "Normal" | "Elevated" | "Poor",
+  litterLevel: 68,
+};
+
+/** Recent activity feed items — displayed on the dashboard. catId must match a mockCats entry. */
 export const mockActivity: ActivityItemData[] = [
-  { catId: "1", action: "visited the litter box", time: "12 minutes ago", anomaly: false },
-  { catId: "2", action: "visited the litter box", time: "34 minutes ago", anomaly: true, anomalyNote: "Unusual duration" },
-  { catId: "1", action: "visited the litter box", time: "1 hour ago", anomaly: false },
-  { catId: "3", action: "visited the litter box", time: "2 hours ago", anomaly: false },
+  {
+    catId: "1",
+    action: "visited the litter box",
+    time: "12 minutes ago",
+    anomaly: false,
+  },
+  {
+    catId: "2",
+    action: "visited the litter box",
+    time: "34 minutes ago",
+    anomaly: true,
+    anomalyNote: "Unusual duration",
+  },
+  {
+    catId: "1",
+    action: "visited the litter box",
+    time: "1 hour ago",
+    anomaly: false,
+  },
+  {
+    catId: "3",
+    action: "visited the litter box",
+    time: "2 hours ago",
+    anomaly: false,
+  },
 ];
 
+/** Extended cat profile data — used on the Cat Profile Detail Page (03.01.11). */
 export const mockCatDetails: Record<string, CatDetails> = {
   "1": {
     breed: "Domestic Shorthair",
@@ -93,8 +159,8 @@ export const mockCatDetails: Record<string, CatDetails> = {
       avgDurationSecs: 134,
       mq135DeltaPercent: 8,
       mq136DeltaPercent: 5,
-      lastUpdated: "2025-06-02"
-    }
+      lastUpdated: "2025-06-02",
+    },
   },
   "2": {
     breed: "Persian Mix",
@@ -106,8 +172,8 @@ export const mockCatDetails: Record<string, CatDetails> = {
       avgDurationSecs: 180,
       mq135DeltaPercent: 10,
       mq136DeltaPercent: 7,
-      lastUpdated: "2025-06-01"
-    }
+      lastUpdated: "2025-06-01",
+    },
   },
   "3": {
     breed: "Siamese",
@@ -119,93 +185,166 @@ export const mockCatDetails: Record<string, CatDetails> = {
       avgDurationSecs: 90,
       mq135DeltaPercent: 6,
       mq136DeltaPercent: 4,
-      lastUpdated: "2025-06-03"
-    }
-  }
+      lastUpdated: "2025-06-03",
+    },
+  },
 };
 
+/** Raw session logs — used on the Cat Profile Detail Page session history table. */
 export const mockSessions: Session[] = [
   {
-    id: "s1", catId: "1", date: "2025-06-05", time: "07:14",
-    durationSecs: 142, mq135Delta: 9, mq136Delta: 4,
-    anomaly: false, anomalyType: null
+    id: "s1",
+    catId: "1",
+    date: "2025-06-05",
+    time: "07:14",
+    durationSecs: 142,
+    mq135Delta: 9,
+    mq136Delta: 4,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s2", catId: "2", date: "2025-06-05", time: "08:32",
-    durationSecs: 421, mq135Delta: 28, mq136Delta: 19,
-    anomaly: true, anomalyType: "Extended duration + elevated gas"
+    id: "s2",
+    catId: "2",
+    date: "2025-06-05",
+    time: "08:32",
+    durationSecs: 421,
+    mq135Delta: 28,
+    mq136Delta: 19,
+    anomaly: true,
+    anomalyType: "Extended duration + elevated gas",
   },
   {
-    id: "s3", catId: "1", date: "2025-06-05", time: "11:05",
-    durationSecs: 98, mq135Delta: 6, mq136Delta: 3,
-    anomaly: false, anomalyType: null
+    id: "s3",
+    catId: "1",
+    date: "2025-06-05",
+    time: "11:05",
+    durationSecs: 98,
+    mq135Delta: 6,
+    mq136Delta: 3,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s4", catId: "1", date: "2025-06-05", time: "14:22",
-    durationSecs: 156, mq135Delta: 11, mq136Delta: 6,
-    anomaly: false, anomalyType: null
+    id: "s4",
+    catId: "1",
+    date: "2025-06-05",
+    time: "14:22",
+    durationSecs: 156,
+    mq135Delta: 11,
+    mq136Delta: 6,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s5", catId: "2", date: "2025-06-05", time: "16:45",
-    durationSecs: 380, mq135Delta: 25, mq136Delta: 16,
-    anomaly: true, anomalyType: "Extended duration"
+    id: "s5",
+    catId: "2",
+    date: "2025-06-05",
+    time: "16:45",
+    durationSecs: 380,
+    mq135Delta: 25,
+    mq136Delta: 16,
+    anomaly: true,
+    anomalyType: "Extended duration",
   },
   {
-    id: "s6", catId: "3", date: "2025-06-05", time: "09:30",
-    durationSecs: 85, mq135Delta: 5, mq136Delta: 3,
-    anomaly: false, anomalyType: null
+    id: "s6",
+    catId: "3",
+    date: "2025-06-05",
+    time: "09:30",
+    durationSecs: 85,
+    mq135Delta: 5,
+    mq136Delta: 3,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s7", catId: "1", date: "2025-06-04", time: "06:50",
-    durationSecs: 128, mq135Delta: 8, mq136Delta: 4,
-    anomaly: false, anomalyType: null
+    id: "s7",
+    catId: "1",
+    date: "2025-06-04",
+    time: "06:50",
+    durationSecs: 128,
+    mq135Delta: 8,
+    mq136Delta: 4,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s8", catId: "2", date: "2025-06-04", time: "10:15",
-    durationSecs: 295, mq135Delta: 18, mq136Delta: 12,
-    anomaly: true, anomalyType: "Elevated gas levels"
+    id: "s8",
+    catId: "2",
+    date: "2025-06-04",
+    time: "10:15",
+    durationSecs: 295,
+    mq135Delta: 18,
+    mq136Delta: 12,
+    anomaly: true,
+    anomalyType: "Elevated gas levels",
   },
   {
-    id: "s9", catId: "1", date: "2025-06-04", time: "19:20",
-    durationSecs: 145, mq135Delta: 10, mq136Delta: 5,
-    anomaly: false, anomalyType: null
+    id: "s9",
+    catId: "1",
+    date: "2025-06-04",
+    time: "19:20",
+    durationSecs: 145,
+    mq135Delta: 10,
+    mq136Delta: 5,
+    anomaly: false,
+    anomalyType: null,
   },
   {
-    id: "s10", catId: "3", date: "2025-06-04", time: "08:00",
-    durationSecs: 92, mq135Delta: 6, mq136Delta: 4,
-    anomaly: false, anomalyType: null
+    id: "s10",
+    catId: "3",
+    date: "2025-06-04",
+    time: "08:00",
+    durationSecs: 92,
+    mq135Delta: 6,
+    mq136Delta: 4,
+    anomaly: false,
+    anomalyType: null,
   },
 ];
 
 export const mockHealthLogs: HealthLog[] = [
   {
-    id: "l1", catId: "2", date: "2025-05-28",
+    id: "l1",
+    catId: "2",
+    date: "2025-05-28",
     type: "Vet Visit",
-    note: "Dr. Santos at Paws & Claws Clinic. Prescribed Hills c/d urinary diet. Follow-up in 2 weeks."
+    note: "Dr. Santos at Paws & Claws Clinic. Prescribed Hills c/d urinary diet. Follow-up in 2 weeks.",
   },
   {
-    id: "l2", catId: "2", date: "2025-06-01",
+    id: "l2",
+    catId: "2",
+    date: "2025-06-01",
     type: "Observation",
-    note: "Luna visited the box 8 times today. Seems restless."
+    note: "Luna visited the box 8 times today. Seems restless.",
   },
   {
-    id: "l3", catId: "1", date: "2025-05-15",
+    id: "l3",
+    catId: "1",
+    date: "2025-05-15",
     type: "Vet Visit",
-    note: "Annual checkup. All vitals normal. Weight stable at 4.2kg."
-  }
+    note: "Annual checkup. All vitals normal. Weight stable at 4.2kg.",
+  },
 ];
 
 export const mockPastReports: PastReport[] = [
   {
-    id: "r1", catId: "2", catName: "Luna",
-    range: "May 1–31, 2025", generatedOn: "2025-06-01",
-    filename: "LitterSense_Luna_2025-05.pdf"
+    id: "r1",
+    catId: "2",
+    catName: "Luna",
+    range: "May 1–31, 2025",
+    generatedOn: "2025-06-01",
+    filename: "LitterSense_Luna_2025-05.pdf",
   },
   {
-    id: "r2", catId: "1", catName: "Mochi",
-    range: "May 1–31, 2025", generatedOn: "2025-06-01",
-    filename: "LitterSense_Mochi_2025-05.pdf"
-  }
+    id: "r2",
+    catId: "1",
+    catName: "Mochi",
+    range: "May 1–31, 2025",
+    generatedOn: "2025-06-01",
+    filename: "LitterSense_Mochi_2025-05.pdf",
+  },
 ];
 
 export function getCatById(id: string): Cat | undefined {
@@ -232,7 +371,7 @@ export function getHealthLogsByCatId(id: string): HealthLog[] {
 export function getTrendData(catId: string) {
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const baseline = mockCatDetails[catId]?.baseline;
-  
+
   if (!baseline) return null;
 
   return days.map((day, index) => {
@@ -240,7 +379,7 @@ export function getTrendData(catId: string) {
     const visitVariation = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
     const durationVariation = Math.floor(Math.random() * 60) - 30; // +/- 30 seconds
     const mq135Variation = Math.floor(Math.random() * 10) - 3; // +/- 3%
-    
+
     return {
       day,
       visits: Math.max(0, baseline.avgVisitsPerDay + visitVariation),

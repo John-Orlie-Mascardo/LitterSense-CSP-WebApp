@@ -1,3 +1,11 @@
+/**
+ * Forgot Password — Step 1 (03.01.03)
+ *
+ * User enters email to request a password reset link.
+ * Currently mocks the request — replace with Firebase sendPasswordResetEmail.
+ * On submit, navigates to check-email page with email as query param.
+ */
+
 "use client";
 
 import { useState } from "react";

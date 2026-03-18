@@ -1,3 +1,12 @@
+/**
+ * Login Page (03.01.01)
+ *
+ * Split-screen on desktop (branding left, form right).
+ * Teal branded header on mobile, form below.
+ * Auth is email/password + Google OAuth via Firebase Auth (03.02.01).
+ * Currently using mock navigation — replace handleSubmit with Firebase signIn.
+ */
+
 "use client";
 
 import { useState } from "react";
