@@ -185,18 +185,6 @@ export default function SettingsPage() {
                 }
               />
             </div>
-            <div className="border-t border-[#E8E2D9] p-4">
-              <p className="font-medium text-[#1C1C1C] text-sm mb-3">Alert Sensitivity</p>
-              <SegmentedControl
-                options={[
-                  { value: "low", label: "Low" },
-                  { value: "medium", label: "Medium" },
-                  { value: "high", label: "High" },
-                ]}
-                value={settings.notifications.alertSensitivity}
-                onChange={(v) => updateNotificationSetting("alertSensitivity", v)}
-              />
-            </div>
           </div>
         </motion.div>
 
