@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
@@ -25,8 +25,10 @@ import {
   mockStats,
   mockActivity,
   getCatById,
-  deviceStats,
 } from "@/lib/mockData";
+import { useNotificationPermission } from "@/lib/useNotificationPermission";
+import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -72,31 +74,94 @@ const getVisitsLabel = (visits: number) => {
 };
 
 const getDurationLabel = (duration: string) => {
-  const mins = parseInt(duration);
+  const mins = Number.parseInt(duration);
   if (mins >= 5) return "High";
   if (mins >= 3) return "Unusual";
   return "Healthy";
 };
 
 const getDurationStatus = (duration: string) => {
-  const mins = parseInt(duration);
+  const mins = Number.parseInt(duration);
   if (mins >= 5) return "alert";
   if (mins >= 3) return "watch";
   return "healthy";
+};
+
+const getStatusClass = (status: string) => {
+  switch (status) {
+    case "healthy":
+      return "bg-green-100 text-green-700";
+    case "watch":
+      return "bg-amber-100 text-amber-700";
+    case "alert":
+      return "bg-red-100 text-red-700";
+    default:
+      return "bg-green-100 text-green-700";
+  }
+};
+
+const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
+  let baseLabel: string;
+  switch (status) {
+    case "healthy":
+      baseLabel = "Healthy";
+      break;
+    case "watch":
+      baseLabel = "Watch";
+      break;
+    case "alert":
+      baseLabel = "Alert";
+      break;
+    default:
+      baseLabel = "Healthy";
+  }
+  return includeIcon ? `● ${baseLabel}` : baseLabel;
+};
+
+const getAirQualityStatusLabel = (airQuality: string) => {
+  switch (airQuality) {
+    case "Normal":
+      return "Healthy";
+    case "Elevated":
+      return "Unusual";
+    case "Poor":
+      return "Alert";
+    default:
+      return "Healthy";
+  }
 };
 
 export default function DashboardPage() {
   const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
 
-  // Toggle this to test empty state during development — remove before production
-  const isEmpty = mockCats.length === 0;
+  // ── Notification permission hook — MUST be inside the component ──
+  const {
+    status: notifStatus,
+    showBanner,
+    requestPermission,
+    dismissBanner,
+    triggerOnAnomaly,
+  } = useNotificationPermission();
 
   const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId]);
   const stats = useMemo(() => mockStats[selectedCatId], [selectedCatId]);
 
   const hasAnomaly = useMemo(() => mockCats.some((cat) => cat.status !== "healthy"), []);
   const alertCat = useMemo(() => mockCats.find((cat) => cat.status !== "healthy"), []);
+
+  // ── Trigger permission prompt when anomaly is detected ──
+  useEffect(() => {
+    if (hasAnomaly) {
+      triggerOnAnomaly();
+    }
+  }, [hasAnomaly, triggerOnAnomaly]);
+
+  const selectedCatStatusClass = getStatusClass(selectedCat?.status || "healthy");
+  const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
+  const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
+  const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
+  const airQualityStatusLabel = getAirQualityStatusLabel(stats?.airQuality || "Normal");
 
   const greeting = getGreeting();
   const todayDate = formatDate();
@@ -105,7 +170,17 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      {/* ── Notification Permission Banner — sits between TopBar and main ── */}
+      <div className="pt-20">
+        <NotificationPermissionBanner
+          show={showBanner}
+          status={notifStatus}
+          onEnable={requestPermission}
+          onDismiss={dismissBanner}
+        />
+      </div>
+
+      <main className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
         {/* Desktop two-column layout */}
         <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
 
@@ -199,15 +274,9 @@ export default function DashboardPage() {
                 </div>
               </div>
               <span
-                className={`text-xs px-3 py-1.5 rounded-full font-semibold ${
-                  selectedCat?.status === "healthy"
-                    ? "bg-green-100 text-green-700"
-                    : selectedCat?.status === "watch"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-red-100 text-red-700"
-                }`}
+                className={`text-xs px-3 py-1.5 rounded-full font-semibold ${selectedCatStatusClass}`}
               >
-                {selectedCat?.status === "healthy" ? "● Healthy" : selectedCat?.status === "watch" ? "● Watch" : "● Alert"}
+                {selectedCatStatusLabel}
               </span>
             </motion.div>
           </div>
@@ -228,15 +297,9 @@ export default function DashboardPage() {
                 </h2>
                 {/* Mobile-only status badge */}
                 <span
-                  className={`lg:hidden text-xs px-2 py-1 rounded-full font-medium ${
-                    selectedCat?.status === "healthy"
-                      ? "bg-green-100 text-green-700"
-                      : selectedCat?.status === "watch"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
+                  className={`lg:hidden text-xs px-2 py-1 rounded-full font-medium ${selectedCatMobileStatusClass}`}
                 >
-                  {selectedCat?.status === "healthy" ? "Healthy" : selectedCat?.status === "watch" ? "Watch" : "Alert"}
+                  {selectedCatMobileStatusLabel}
                 </span>
               </div>
 
@@ -262,7 +325,7 @@ export default function DashboardPage() {
                   value={stats?.airQuality || "--"}
                   label="Air Quality"
                   status={getAirQualityStatus(stats?.airQuality || "Normal")}
-                  statusLabel={stats?.airQuality === "Normal" ? "Healthy" : stats?.airQuality === "Elevated" ? "Unusual" : "Alert"}
+                  statusLabel={airQualityStatusLabel}
                   delay={0.2}
                 />
                 <StatCard
@@ -293,7 +356,7 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {mockActivity.map((activity, index) => (
                   <ActivityItem
-                    key={index}
+                    key={`${activity.catId}-${activity.time}-${index}`}
                     catId={activity.catId}
                     action={activity.action}
                     time={activity.time}

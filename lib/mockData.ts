@@ -282,6 +282,11 @@ export const mockHealthLogs: HealthLog[] = [
   },
 ];
 
+export const deviceStats = {
+  airQuality: "Normal",
+  litterLevel: 42,
+};
+
 export const mockPastReports: PastReport[] = [
   {
     id: "r1",
