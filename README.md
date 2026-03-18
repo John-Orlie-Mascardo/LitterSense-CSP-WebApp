@@ -258,18 +258,6 @@ const itemVariants = {
 
 ---
 
-### Flutter (Context Only)
-
-**What it is:** Google's cross-platform UI toolkit for building natively compiled mobile apps.
-
-**Why mentioned:** The original capstone project included a Flutter prototype. The Next.js PWA you're reading about was built as a comparison/alternative to understand the tradeoffs. Flutter requires Dart knowledge and separate build pipelines for iOS/Android. The PWA approach won for faster iteration and zero app store dependencies.
-
-**Tradeoffs of Flutter vs PWA:**
-- Flutter: Native performance, full device access, but requires app store distribution
-- PWA: Instant updates, no installation friction, but limited native APIs
-
----
-
 ### ESP32 Microcontroller
 
 **What it is:** A low-cost WiFi and Bluetooth-enabled microcontroller (like a tiny computer) that can read sensors and connect to the internet.
@@ -333,28 +321,6 @@ const itemVariants = {
 **Limitations:**
 - Same calibration issues as MQ-135
 - More sensitive to temperature than MQ-135
-
----
-
-### Load Cell with HX711 Amplifier
-
-**What it is:** A strain gauge-based weight sensor (like in bathroom scales) paired with a precision analog-to-digital converter (HX711).
-
-**Why chosen for LitterSense:**
-- Measures cat weight accurately (±10g precision possible)
-- Durable and waterproof (when enclosed properly)
-- HX711 handles the tiny voltage signals and converts to digital
-
-**What it does:**
-- Placed under litter box to detect when cat enters/exits
-- Weight delta (change) indicates entry vs. exit
-- Absolute weight helps identify which cat (if weights are different)
-- Also detects litter level (gradual weight increase over time as litter accumulates)
-
-**Limitations:**
-- Requires calibration with known weights
-- Temperature affects readings (thermal expansion)
-- Drift over time requires periodic recalibration
 
 ---
 

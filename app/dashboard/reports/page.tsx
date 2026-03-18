@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { motion } from "framer-motion";
 import {
   FileText,
   Download,
@@ -12,15 +11,19 @@ import {
   Loader2,
   FileSpreadsheet,
   AlertTriangle,
-  Clock,
   CheckCircle,
   Wind,
   Timer,
+  Clock,
+  PlusCircle,
+  Lightbulb,
+  MoreVertical,
+  ArrowLeft,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/ui/SparklineChart";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { mockCats, getTrendData, type PastReport } from "@/lib/mockData";
@@ -34,12 +37,13 @@ import {
 } from "@/lib/formatters";
 
 const dateRanges = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
+  { value: "7", label: "Last 7 Days" },
+  { value: "30", label: "Last 30 Days" },
+  { value: "90", label: "Last 90 Days" },
 ];
 
 export default function ReportsPage() {
+  const router = useRouter();
   const {
     isGenerating,
     progress,
@@ -47,7 +51,6 @@ export default function ReportsPage() {
     pastReports,
     generateReport,
     deleteReport,
-    setCurrentReport,
   } = useReports();
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
@@ -66,8 +69,6 @@ export default function ReportsPage() {
       catId: selectedCat,
       dateRange: selectedRange as "7" | "30" | "90" | "custom",
     });
-
-    // Scroll to report
     setTimeout(() => {
       reportRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
@@ -75,13 +76,14 @@ export default function ReportsPage() {
 
   const handleExportPDF = () => {
     if (!currentReport) return;
-    addToast(`Report saved as ${currentReport.catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`, "success");
+    addToast(
+      `Report saved as ${currentReport.catName.replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+      "success"
+    );
   };
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-
-    // Generate CSV content
     const headers = "Date,Time,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
     const rows = currentReport.sessions
       .map(
@@ -89,36 +91,29 @@ export default function ReportsPage() {
           `${s.date},${s.time},${s.durationSecs},${s.mq135Delta},${s.mq136Delta},${s.anomaly ? "Yes" : "No"}`
       )
       .join("\n");
-
     const blob = new Blob([headers + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `LitterSense_${currentReport.catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `LitterSense_${currentReport.catName.replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-
     addToast("CSV exported successfully", "success");
   };
 
   const handleShare = async () => {
     if (!currentReport) return;
-
     const shareData = {
       title: `LitterSense Health Report - ${currentReport.catName}`,
       text: `Health report for ${currentReport.catName} (${currentReport.period})`,
-      url: window.location.href,
+      url: globalThis.location.href,
     };
-
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch {
-        // User cancelled
-      }
+      } catch {}
     } else {
-      // Fallback: copy to clipboard
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(globalThis.location.href);
       addToast("Link copied to clipboard", "success");
     }
   };
@@ -130,73 +125,86 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFAF6] pb-24">
+    <div className="min-h-screen bg-[#F2F2F2] pb-24">
       <TopBar />
-      <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+      <ToastContainer
+        toasts={toasts}
+        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
+      />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* Header */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6"
-        >
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1C1C1C] mb-1">
-            Health Reports
-          </h1>
-          <p className="text-[#6B7280] text-sm sm:text-base">
-            Generate and share reports with your vet
-          </p>
-        </motion.section>
+      <main className="pt-20 px-4 max-w-lg mx-auto">
 
-        {/* Generate Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-[#1E6B5E] rounded-2xl p-5 sm:p-6 text-white mb-6"
-        >
-          <h2 className="font-display text-xl font-semibold mb-4">Generate New Report</h2>
-
-          <div className="grid sm:grid-cols-2 gap-4 mb-4">
-            {/* Cat Selector */}
+        {/* ── Page Header ── */}
+        <div className="flex items-start justify-between pt-4 mb-5">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => router.back()}
+              className="mt-0.5 w-9 h-9 rounded-full bg-[#D4EDE8] flex items-center justify-center shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4 text-[#1E6B5E]" />
+            </button>
             <div>
-              <label className="block text-sm text-white/80 mb-1.5">Select Cat</label>
-              <div className="relative">
-                <select
-                  value={selectedCat}
-                  onChange={(e) => setSelectedCat(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-white/50"
-                >
-                  <option value="all" className="text-[#1C1C1C]">All Cats</option>
-                  {mockCats.map((cat) => (
-                    <option key={cat.id} value={cat.id} className="text-[#1C1C1C]">
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60 pointer-events-none" />
-              </div>
+              <h1 className="text-xl font-bold text-[#1C1C1C]">Health Reports</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Generate and share reports with your vet
+              </p>
             </div>
+          </div>
+          <button className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
+            <MoreVertical className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
 
-            {/* Date Range Selector */}
-            <div>
-              <label className="block text-sm text-white/80 mb-1.5">Date Range</label>
-              <div className="relative">
-                <select
-                  value={selectedRange}
-                  onChange={(e) => setSelectedRange(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-white/50"
-                >
-                  {dateRanges.map((range) => (
-                    <option key={range.value} value={range.value} className="text-[#1C1C1C]">
-                      {range.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60 pointer-events-none" />
-              </div>
+        {/* ── Generate New Report Card ── */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E8E2D9] mb-6">
+          {/* Card title */}
+          <div className="flex items-center gap-2 mb-4">
+            <PlusCircle className="w-5 h-5 text-[#1C1C1C]" strokeWidth={2} />
+            <h2 className="text-base font-bold text-[#1C1C1C]">Generate New Report</h2>
+          </div>
+
+          {/* Select Pet */}
+          <div className="mb-4">
+            <label htmlFor="select-cat" className="block text-sm font-medium text-[#1C1C1C] mb-1.5">
+              Select Pet
+            </label>
+            <div className="relative">
+              <select
+                id="select-cat"
+                value={selectedCat}
+                onChange={(e) => setSelectedCat(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] bg-white text-[#1C1C1C] appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
+              >
+                <option value="all">All Cats</option>
+                {mockCats.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Date Range */}
+          <div className="mb-5">
+            <label htmlFor="select-range" className="block text-sm font-medium text-[#1C1C1C] mb-1.5">
+              Date Range
+            </label>
+            <div className="relative">
+              <select
+                id="select-range"
+                value={selectedRange}
+                onChange={(e) => setSelectedRange(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] bg-white text-[#1C1C1C] appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
+              >
+                {dateRanges.map((range) => (
+                  <option key={range.value} value={range.value}>
+                    {range.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
@@ -204,7 +212,7 @@ export default function ReportsPage() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="w-full sm:w-auto px-6 py-3 bg-[#E8924A] text-white rounded-xl font-medium hover:bg-[#d4803d] active:bg-[#c07235] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-xl bg-[#1E6B5E] text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
               <>
@@ -221,80 +229,70 @@ export default function ReportsPage() {
 
           {/* Progress bar */}
           {isGenerating && (
-            <div className="mt-4 h-1 bg-white/20 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-white"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.3 }}
+            <div className="mt-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#1E6B5E] rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
               />
             </div>
           )}
-        </motion.section>
+        </div>
 
-        {/* Generated Report Preview */}
+        {/* ── Generated Report Preview ── */}
         {currentReport && (
-          <motion.section
-            ref={reportRef}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-8"
-          >
-            <h2 className="font-display text-xl font-semibold text-[#1C1C1C] mb-4">
-              Generated Report
-            </h2>
+          <div ref={reportRef} className="mb-6">
+            <h2 className="text-base font-bold text-[#1C1C1C] mb-3">Generated Report</h2>
             <ReportPreview report={currentReport} />
 
             {/* Export Controls */}
-            <div className="sticky bottom-20 bg-white rounded-xl p-4 shadow-lg border border-[#E8E2D9] flex flex-wrap gap-3 justify-center">
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-[#E8E2D9] mt-3 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#1E6B5E] text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#1E6B5E] text-white rounded-lg font-medium text-sm hover:bg-[#165a4e] transition-colors"
               >
-                <Download className="w-5 h-5" />
+                <Download className="w-4 h-4" />
                 Export as PDF
               </button>
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
               >
-                <Table className="w-5 h-5" />
+                <Table className="w-4 h-4" />
                 Export as CSV
               </button>
               <button
                 onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
               >
-                <Share2 className="w-5 h-5" />
+                <Share2 className="w-4 h-4" />
                 Share with Vet
               </button>
             </div>
-          </motion.section>
+          </div>
         )}
 
-        {/* Past Reports List */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <h2 className="font-display text-xl font-semibold text-[#1C1C1C] mb-4">
-            Previous Reports
-          </h2>
+        {/* ── Previous Reports ── */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-[#1C1C1C]">Previous Reports</h2>
+            <button className="text-sm font-semibold text-[#1E6B5E] hover:underline">
+              VIEW ALL
+            </button>
+          </div>
 
           {pastReports.length === 0 ? (
-            <EmptyState
-              icon={FileSpreadsheet}
-              title="No reports generated yet"
-              description="Create your first report above."
-            />
+            <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm p-8 text-center">
+              <FileSpreadsheet className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No reports generated yet</p>
+              <p className="text-xs text-gray-400 mt-1">Create your first report above.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {pastReports.map((report) => (
+            <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm overflow-hidden">
+              {pastReports.map((report, idx) => (
                 <PastReportCard
                   key={report.id}
                   report={report}
+                  isLast={idx === pastReports.length - 1}
                   onDelete={() => setDeleteConfirmId(report.id)}
                   onDownload={() => addToast(`Downloading ${report.filename}...`, "info")}
                   onView={() => addToast("Report preview coming soon", "info")}
@@ -302,7 +300,17 @@ export default function ReportsPage() {
               ))}
             </div>
           )}
-        </motion.section>
+        </div>
+
+        {/* ── Pro Tip Banner ── */}
+        <div className="bg-[#EAF7F5] border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
+          <Lightbulb className="w-5 h-5 text-[#1E6B5E] shrink-0 mt-0.5" />
+          <p className="text-sm text-[#1C1C1C] leading-relaxed">
+            <span className="font-semibold">Pro Tip:</span> You can directly email these reports to
+            your veterinarian by tapping the share icon after downloading.
+          </p>
+        </div>
+
       </main>
 
       <BottomNav />
@@ -321,36 +329,37 @@ export default function ReportsPage() {
   );
 }
 
-// Report Preview Component
+// ─── Report Preview ───────────────────────────────────────────────────────────
+
 interface ReportPreviewProps {
-  report: {
-    catId: string;
-    catName: string;
-    period: string;
-    generatedOn: string;
-    ownerName: string;
-    summary: {
-      totalSessions: number;
-      avgSessionsPerDay: number;
-      avgDuration: string;
-      anomaliesDetected: number;
-      overallStatus: "healthy" | "watch" | "alert";
-      statusMessage: string;
+  readonly report: {
+    readonly catId: string;
+    readonly catName: string;
+    readonly period: string;
+    readonly generatedOn: string;
+    readonly ownerName: string;
+    readonly summary: {
+      readonly totalSessions: number;
+      readonly avgSessionsPerDay: number;
+      readonly avgDuration: string;
+      readonly anomaliesDetected: number;
+      readonly overallStatus: "healthy" | "watch" | "alert";
+      readonly statusMessage: string;
     };
-    sessions: Array<{
-      id: string;
-      date: string;
-      time: string;
-      durationSecs: number;
-      mq135Delta: number;
-      mq136Delta: number;
-      anomaly: boolean;
+    readonly sessions: ReadonlyArray<{
+      readonly id: string;
+      readonly date: string;
+      readonly time: string;
+      readonly durationSecs: number;
+      readonly mq135Delta: number;
+      readonly mq136Delta: number;
+      readonly anomaly: boolean;
     }>;
-    healthLogs: Array<{
-      id: string;
-      date: string;
-      type: string;
-      note: string;
+    readonly healthLogs: ReadonlyArray<{
+      readonly id: string;
+      readonly date: string;
+      readonly type: string;
+      readonly note: string;
     }>;
   };
 }
@@ -361,81 +370,78 @@ function ReportPreview({ report }: ReportPreviewProps) {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-[#E8E2D9] overflow-hidden">
-      {/* Report Header */}
-      <div className="p-6 border-b border-[#E8E2D9]">
+
+      {/* Report header */}
+      <div className="p-5 border-b border-[#E8E2D9]">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-[#1E6B5E] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-[#1E6B5E] flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
               <path d="M12 2C10.9 2 10 2.9 10 4C10 5.1 10.9 6 12 6C13.1 6 14 5.1 14 4C14 2.9 13.1 2 12 2ZM6 5C4.9 5 4 5.9 4 7C4 8.1 4.9 9 6 9C7.1 9 8 8.1 8 7C8 5.9 7.1 5 6 5ZM18 5C16.9 5 16 5.9 16 7C16 8.1 16.9 9 18 9C19.1 9 20 8.1 20 7C20 5.9 19.1 5 18 5ZM12 8C9.5 8 7.2 9.2 6 11.2V18C6 20.2 7.8 22 10 22H14C16.2 22 18 20.2 18 18V11.2C16.8 9.2 14.5 8 12 8Z" />
             </svg>
           </div>
           <div>
-            <h3 className="font-display text-lg font-bold text-[#1E6B5E]">LitterSense</h3>
-            <p className="text-sm text-gray-500">Health Report</p>
+            <p className="font-bold text-[#1E6B5E]">LitterSense</p>
+            <p className="text-xs text-gray-500">Health Report</p>
           </div>
         </div>
-
-        <div className="grid sm:grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-gray-500">Generated</p>
+            <p className="text-gray-400 text-xs">Generated</p>
             <p className="font-medium text-[#1C1C1C]">{report.generatedOn}</p>
           </div>
           <div>
-            <p className="text-gray-500">Cat</p>
+            <p className="text-gray-400 text-xs">Cat</p>
             <p className="font-medium text-[#1C1C1C]">{report.catName}</p>
           </div>
           <div>
-            <p className="text-gray-500">Period</p>
+            <p className="text-gray-400 text-xs">Period</p>
             <p className="font-medium text-[#1C1C1C]">{report.period}</p>
           </div>
           <div>
-            <p className="text-gray-500">Owner</p>
+            <p className="text-gray-400 text-xs">Owner</p>
             <p className="font-medium text-[#1C1C1C]">{report.ownerName}</p>
           </div>
         </div>
       </div>
 
-      {/* Summary Section */}
-      <div className="p-6 border-b border-[#E8E2D9]">
-        <h4 className="font-semibold text-[#1C1C1C] mb-4">Summary</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-[#FDFAF6] rounded-xl p-3">
-            <p className="text-2xl font-bold text-[#1C1C1C]">{report.summary.totalSessions}</p>
-            <p className="text-sm text-gray-500">Total Sessions</p>
+      {/* Summary */}
+      <div className="p-5 border-b border-[#E8E2D9]">
+        <p className="font-semibold text-[#1C1C1C] text-sm mb-3">Summary</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="bg-[#F5F5F5] rounded-xl p-3">
+            <p className="text-xl font-bold text-[#1C1C1C]">{report.summary.totalSessions}</p>
+            <p className="text-xs text-gray-500">Total Sessions</p>
           </div>
-          <div className="bg-[#FDFAF6] rounded-xl p-3">
-            <p className="text-2xl font-bold text-[#1C1C1C]">{report.summary.avgSessionsPerDay}</p>
-            <p className="text-sm text-gray-500">Avg/Day</p>
+          <div className="bg-[#F5F5F5] rounded-xl p-3">
+            <p className="text-xl font-bold text-[#1C1C1C]">{report.summary.avgSessionsPerDay}</p>
+            <p className="text-xs text-gray-500">Avg/Day</p>
           </div>
-          <div className="bg-[#FDFAF6] rounded-xl p-3">
-            <p className="text-2xl font-bold text-[#1C1C1C]">{report.summary.avgDuration}</p>
-            <p className="text-sm text-gray-500">Avg Duration</p>
+          <div className="bg-[#F5F5F5] rounded-xl p-3">
+            <p className="text-xl font-bold text-[#1C1C1C]">{report.summary.avgDuration}</p>
+            <p className="text-xs text-gray-500">Avg Duration</p>
           </div>
-          <div className="bg-[#FDFAF6] rounded-xl p-3">
-            <p className="text-2xl font-bold text-[#1C1C1C]">{report.summary.anomaliesDetected}</p>
-            <p className="text-sm text-gray-500">Anomalies</p>
+          <div className="bg-[#F5F5F5] rounded-xl p-3">
+            <p className="text-xl font-bold text-[#1C1C1C]">{report.summary.anomaliesDetected}</p>
+            <p className="text-xs text-gray-500">Anomalies</p>
           </div>
         </div>
-
-        <div className={`mt-4 p-3 rounded-xl ${statusColors.bg} ${statusColors.text}`}>
-          <div className="flex items-center gap-2">
-            {report.summary.overallStatus === "healthy" ? (
-              <CheckCircle className="w-5 h-5" />
-            ) : (
-              <AlertTriangle className="w-5 h-5" />
-            )}
-            <span className="font-medium">{report.summary.statusMessage}</span>
-          </div>
+        <div className={`p-3 rounded-xl ${statusColors.bg} ${statusColors.text} flex items-center gap-2`}>
+          {report.summary.overallStatus === "healthy" ? (
+            <CheckCircle className="w-4 h-4 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+          )}
+          <span className="text-sm font-medium">{report.summary.statusMessage}</span>
         </div>
       </div>
 
-      {/* Session Log Table */}
-      <div className="p-6 border-b border-[#E8E2D9]">
-        <h4 className="font-semibold text-[#1C1C1C] mb-4">Session Log</h4>
+      {/* Session Log */}
+      <div className="p-5 border-b border-[#E8E2D9]">
+        <p className="font-semibold text-[#1C1C1C] text-sm mb-3">Session Log</p>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-gray-500 border-b border-[#E8E2D9]">
+              <tr className="text-left text-gray-400 border-b border-[#E8E2D9]">
                 <th className="pb-2 font-medium">Date</th>
                 <th className="pb-2 font-medium">Time</th>
                 <th className="pb-2 font-medium">Duration</th>
@@ -446,18 +452,15 @@ function ReportPreview({ report }: ReportPreviewProps) {
             </thead>
             <tbody>
               {report.sessions.slice(0, 10).map((session) => (
-                <tr
-                  key={session.id}
-                  className={session.anomaly ? "bg-amber-50" : ""}
-                >
-                  <td className="py-2">{session.date}</td>
-                  <td className="py-2">{session.time}</td>
-                  <td className="py-2">{formatDuration(session.durationSecs)}</td>
-                  <td className="py-2">{session.mq135Delta}%</td>
-                  <td className="py-2">{session.mq136Delta}%</td>
-                  <td className="py-2">
+                <tr key={session.id} className={session.anomaly ? "bg-amber-50" : ""}>
+                  <td className="py-1.5 text-[#1C1C1C]">{session.date}</td>
+                  <td className="py-1.5 text-[#1C1C1C]">{session.time}</td>
+                  <td className="py-1.5 text-[#1C1C1C]">{formatDuration(session.durationSecs)}</td>
+                  <td className="py-1.5 text-[#1C1C1C]">{session.mq135Delta}%</td>
+                  <td className="py-1.5 text-[#1C1C1C]">{session.mq136Delta}%</td>
+                  <td className="py-1.5">
                     {session.anomaly && (
-                      <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
+                      <span className="px-1.5 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
                         Flagged
                       </span>
                     )}
@@ -468,7 +471,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </table>
         </div>
         {report.sessions.length > 10 && (
-          <p className="text-sm text-gray-500 mt-3">
+          <p className="text-xs text-gray-400 mt-2">
             Full log included in export ({report.sessions.length - 10} more entries)
           </p>
         )}
@@ -476,13 +479,13 @@ function ReportPreview({ report }: ReportPreviewProps) {
 
       {/* Trend Charts */}
       {trendData && (
-        <div className="p-6 border-b border-[#E8E2D9]">
-          <h4 className="font-semibold text-[#1C1C1C] mb-4">Trends</h4>
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="bg-[#FDFAF6] rounded-xl p-4">
+        <div className="p-5 border-b border-[#E8E2D9]">
+          <p className="font-semibold text-[#1C1C1C] text-sm mb-3">Trends</p>
+          <div className="grid grid-cols-1 gap-3">
+            <div className="bg-[#F5F5F5] rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-[#1E6B5E]" />
-                <span className="text-sm font-medium text-gray-700">Visit Frequency</span>
+                <span className="text-xs font-medium text-gray-600">Visit Frequency</span>
               </div>
               <SparklineChart
                 data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
@@ -490,10 +493,10 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 showArea={false}
               />
             </div>
-            <div className="bg-[#FDFAF6] rounded-xl p-4">
+            <div className="bg-[#F5F5F5] rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Timer className="w-4 h-4 text-[#1E6B5E]" />
-                <span className="text-sm font-medium text-gray-700">Avg Duration</span>
+                <span className="text-xs font-medium text-gray-600">Avg Duration</span>
               </div>
               <SparklineChart
                 data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
@@ -502,10 +505,10 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 showArea={false}
               />
             </div>
-            <div className="bg-[#FDFAF6] rounded-xl p-4">
+            <div className="bg-[#F5F5F5] rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Wind className="w-4 h-4 text-[#1E6B5E]" />
-                <span className="text-sm font-medium text-gray-700">Gas Quality</span>
+                <span className="text-xs font-medium text-gray-600">Gas Quality</span>
               </div>
               <SparklineChart
                 data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
@@ -518,21 +521,21 @@ function ReportPreview({ report }: ReportPreviewProps) {
       )}
 
       {/* Vet Notes */}
-      <div className="p-6 border-b border-[#E8E2D9]">
-        <h4 className="font-semibold text-[#1C1C1C] mb-4">Vet Notes</h4>
+      <div className="p-5 border-b border-[#E8E2D9]">
+        <p className="font-semibold text-[#1C1C1C] text-sm mb-3">Vet Notes</p>
         {report.healthLogs.length === 0 ? (
-          <p className="text-gray-500 text-sm">No vet notes for this period</p>
+          <p className="text-sm text-gray-400">No vet notes for this period</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {report.healthLogs.map((log) => {
               const typeColors = getHealthLogTypeColor(log.type);
               return (
-                <div key={log.id} className="bg-[#FDFAF6] rounded-xl p-3">
+                <div key={log.id} className="bg-[#F5F5F5] rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}>
                       {log.type}
                     </span>
-                    <span className="text-sm text-gray-500">{formatDate(log.date)}</span>
+                    <span className="text-xs text-gray-400">{formatDate(log.date)}</span>
                   </div>
                   <p className="text-sm text-[#1C1C1C]">{log.note}</p>
                 </div>
@@ -543,9 +546,9 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Recommendations */}
-      <div className="p-6">
-        <h4 className="font-semibold text-[#1C1C1C] mb-3">Recommendations</h4>
-        <p className="text-sm text-gray-600">
+      <div className="p-5">
+        <p className="font-semibold text-[#1C1C1C] text-sm mb-2">Recommendations</p>
+        <p className="text-sm text-gray-500 leading-relaxed">
           {report.summary.anomaliesDetected === 0
             ? "No behavioral anomalies detected during this period. Continue regular monitoring."
             : `${report.summary.anomaliesDetected} anomalous sessions detected. Increased visit frequency and extended duration may indicate early signs of FLUTD or urinary discomfort. Veterinary consultation is recommended.`}
@@ -555,41 +558,54 @@ function ReportPreview({ report }: ReportPreviewProps) {
   );
 }
 
-// Past Report Card
+// ─── Past Report Card ─────────────────────────────────────────────────────────
+
 interface PastReportCardProps {
-  report: PastReport;
-  onDelete: () => void;
-  onDownload: () => void;
-  onView: () => void;
+  readonly report: PastReport;
+  readonly isLast: boolean;
+  readonly onDelete: () => void;
+  readonly onDownload: () => void;
+  readonly onView: () => void;
 }
 
-function PastReportCard({ report, onDelete, onDownload, onView }: PastReportCardProps) {
+function PastReportCard({ report, isLast, onDelete, onDownload, onView }: PastReportCardProps) {
   return (
-    <div className="bg-white rounded-xl p-4 border border-[#E8E2D9] shadow-sm flex items-center gap-4">
-      <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-        <FileText className="w-5 h-5 text-red-600" />
+    <button
+      className={`w-full flex items-center gap-3 px-4 py-4 hover:bg-gray-50 transition-colors text-left ${
+        isLast ? "" : "border-b border-[#E8E2D9]"
+      }`}
+      onClick={onView}
+    >
+      {/* Teal file icon */}
+      <div className="w-10 h-10 rounded-xl bg-[#D4EDE8] flex items-center justify-center shrink-0 pointer-events-none">
+        <FileText className="w-5 h-5 text-[#1E6B5E]" />
       </div>
+
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-[#1C1C1C] truncate">{report.catName}</h4>
-        <p className="text-sm text-gray-500">{report.range}</p>
-        <p className="text-xs text-gray-400">Generated {formatDate(report.generatedOn)}</p>
+        <p className="text-sm font-semibold text-[#1C1C1C] truncate">{report.filename ?? report.catName}</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {report.range} · Generated {formatDate(report.generatedOn)}
+        </p>
       </div>
-      <div className="flex items-center gap-2">
+
+      {/* Download + Delete */}
+      <div className="flex items-center gap-1 shrink-0">
         <button
-          onClick={onDownload}
-          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onDownload(); }}
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-[#1E6B5E] transition-colors"
           aria-label="Download"
         >
-          <Download className="w-5 h-5" />
+          <Download className="w-4 h-4" />
         </button>
         <button
-          onClick={onDelete}
-          className="p-2 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-500 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
           aria-label="Delete"
         >
-          <Trash2 className="w-5 h-5" />
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
-    </div>
+    </button>
   );
 }

@@ -4,28 +4,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Bell,
-  Smartphone,
   Database,
-  Palette,
-  User,
-  Info,
   LogOut,
   ChevronRight,
-  Wifi,
   Lock,
   Shield,
-  Globe,
-  Moon,
   Upload,
   Loader2,
-  CheckCircle,
-  AlertTriangle,
-  LockIcon,
+  Activity,
+  Trash2,
+  ChevronDown,
+  Download,
+  History,
+  XSquare,
+  ExternalLink
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { SettingsSection } from "@/components/ui/SettingsSection";
 import { SettingsRow } from "@/components/ui/SettingsRow";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -40,8 +35,6 @@ export default function SettingsPage() {
   const {
     settings,
     updateNotificationSetting,
-    updateDeviceSetting,
-    updateDataPrivacySetting,
     updateAppearanceSetting,
     updateAccountSetting,
     clearAllData,
@@ -119,7 +112,7 @@ export default function SettingsPage() {
     let strength = 0;
     if (password.length >= 8) strength++;
     if (/[A-Z]/.test(password)) strength++;
-    if (/[0-9]/.test(password)) strength++;
+    if (/\d/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
 
     const labels = ["Weak", "Fair", "Good", "Strong"];
@@ -133,42 +126,27 @@ export default function SettingsPage() {
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* Header */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-6"
-        >
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1C1C1C] mb-1">
-            Settings
-          </h1>
-          <p className="text-[#6B7280] text-sm sm:text-base">
-            Manage your account and preferences
-          </p>
-        </motion.section>
-
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
         {/* User Profile Card */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-2xl p-6 shadow-sm border border-[#E8E2D9] mb-6"
+          className="bg-white rounded-2xl p-4 shadow-sm border border-[#E8E2D9] mb-2 mt-4"
         >
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-bold text-2xl">
+            <div className="w-16 h-16 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-bold text-2xl shrink-0">
               {settings.account.displayName.charAt(0).toUpperCase()}
             </div>
-            <div className="flex-1">
-              <h2 className="font-semibold text-lg text-[#1C1C1C]">
+            <div className="flex-1 overflow-hidden">
+              <h2 className="font-semibold text-lg text-[#1C1C1C] truncate">
                 {settings.account.displayName}
               </h2>
-              <p className="text-sm text-gray-500">{settings.account.email}</p>
+              <p className="text-sm text-gray-500 truncate">{settings.account.email}</p>
             </div>
             <button
               onClick={() => setShowEditProfile(true)}
-              className="text-[#1E6B5E] font-medium text-sm hover:underline"
+              className="border border-[#1E6B5E] text-[#1E6B5E] bg-[#EAF7F5] rounded-full px-3 py-1 text-sm font-medium hover:bg-[#d9f2ee] transition-colors shrink-0"
             >
               Edit Profile
             </button>
@@ -181,11 +159,13 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <SettingsSection title="Notifications">
+          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+            NOTIFICATIONS
+          </h3>
+          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
             <SettingsRow
-              icon={Bell}
+              icon={Activity}
               label="Health Alerts"
-              description="Get notified when a cat shows abnormal behavior"
               control={
                 <Toggle
                   checked={settings.notifications.healthAlerts}
@@ -195,9 +175,8 @@ export default function SettingsPage() {
             />
             <div className="border-t border-[#E8E2D9]">
               <SettingsRow
-                icon={AlertTriangle}
+                icon={Trash2}
                 label="Litter Level Warnings"
-                description="Notify when litter substrate needs replacement"
                 control={
                   <Toggle
                     checked={settings.notifications.litterLevelWarnings}
@@ -206,108 +185,19 @@ export default function SettingsPage() {
                 }
               />
             </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={CheckCircle}
-                label="Daily Summary"
-                description="Receive a morning summary of yesterday's activity"
-                control={
-                  <Toggle
-                    checked={settings.notifications.dailySummary}
-                    onChange={(v) => updateNotificationSetting("dailySummary", v)}
-                  />
-                }
-              />
-            </div>
             <div className="border-t border-[#E8E2D9] p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-medium text-[#1C1C1C]">Alert Sensitivity</p>
-                  <p className="text-sm text-gray-500">How sensitive anomaly detection should be</p>
-                </div>
-                <SegmentedControl
-                  options={[
-                    { value: "low", label: "Low" },
-                    { value: "medium", label: "Medium" },
-                    { value: "high", label: "High" },
-                  ]}
-                  value={settings.notifications.alertSensitivity}
-                  onChange={(v) => updateNotificationSetting("alertSensitivity", v)}
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                Low: Fewer alerts, may miss subtle changes. High: More alerts, may include false positives.
-              </p>
-            </div>
-          </SettingsSection>
-        </motion.div>
-
-        {/* Device Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <SettingsSection title="LitterSense Device">
-            <SettingsRow
-              icon={Smartphone}
-              label="Connected Device"
-              description={`${settings.device.deviceName} · Last synced ${settings.device.lastSynced}`}
-              control={
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-sm text-gray-500">Manage</span>
-                </div>
-              }
-            />
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Wifi}
-                label="Wi-Fi Network"
-                description={settings.device.wifiNetwork}
-                control={<span className="text-sm text-[#1E6B5E]">Change</span>}
+              <p className="font-medium text-[#1C1C1C] text-sm mb-3">Alert Sensitivity</p>
+              <SegmentedControl
+                options={[
+                  { value: "low", label: "Low" },
+                  { value: "medium", label: "Medium" },
+                  { value: "high", label: "High" },
+                ]}
+                value={settings.notifications.alertSensitivity}
+                onChange={(v) => updateNotificationSetting("alertSensitivity", v)}
               />
             </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Shield}
-                label="Edge Processing Mode"
-                description="Process data locally when internet is unavailable"
-                control={
-                  <div className="flex items-center gap-2" title="Required for reliable monitoring under Philippine network conditions">
-                    <LockIcon className="w-4 h-4 text-gray-400" />
-                    <Toggle checked={true} onChange={() => {}} disabled />
-                  </div>
-                }
-              />
-            </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Globe}
-                label="Sync Interval"
-                description="How often data syncs to the cloud when online"
-                control={
-                  <select
-                    value={settings.device.syncInterval}
-                    onChange={(e) => updateDeviceSetting("syncInterval", e.target.value as "30s" | "1m" | "5m")}
-                    className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                  >
-                    <option value="30s">Every 30 sec</option>
-                    <option value="1m">Every 1 min</option>
-                    <option value="5m">Every 5 min</option>
-                  </select>
-                }
-              />
-            </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Info}
-                label="Firmware Version"
-                description={`${settings.device.firmwareVersion} · Up to date`}
-                control={<span className="text-sm text-[#1E6B5E]">Check for updates</span>}
-              />
-            </div>
-          </SettingsSection>
+          </div>
         </motion.div>
 
         {/* Data & Privacy Section */}
@@ -316,63 +206,52 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
         >
-          <SettingsSection title="Data & Privacy">
+          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+            DATA & PRIVACY
+          </h3>
+          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
             <SettingsRow
               icon={Database}
               label="Data Retention"
-              description="How long session history is stored"
               control={
-                <select
-                  value={settings.dataPrivacy.dataRetention}
-                  onChange={(e) => updateDataPrivacySetting("dataRetention", e.target.value as "3m" | "6m" | "1y" | "forever")}
-                  className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                >
-                  <option value="3m">3 months</option>
-                  <option value="6m">6 months</option>
-                  <option value="1y">1 year</option>
-                  <option value="forever">Forever</option>
-                </select>
+                <div className="flex items-center gap-1 cursor-pointer">
+                  <span className="text-sm text-gray-600">30 Days</span>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </div>
               }
             />
             <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Upload}
-                label="Export All Data"
-                description="Download a full archive of all your cats' data"
-                control={
-                  <button
-                    onClick={exportAllData}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Export
-                  </button>
-                }
-              />
+              <button 
+                onClick={exportAllData}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Download className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm font-medium text-[#1C1C1C]">Export All Data</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
             <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={AlertTriangle}
-                label="Clear History"
-                description="Delete all session logs (cannot be undone)"
-                control={
-                  <button
-                    onClick={() => setShowClearConfirm(true)}
-                    className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Clear
-                  </button>
-                }
-              />
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <History className="w-5 h-5 text-red-500" />
+                  <span className="text-sm font-medium text-red-500">Clear History</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
             <div className="border-t border-[#E8E2D9]">
               <SettingsRow
                 icon={Shield}
                 label="Privacy Policy"
-                description=""
-                control={<ChevronRight className="w-5 h-5 text-gray-400" />}
+                control={<ExternalLink className="w-4 h-4 text-gray-400" />}
               />
             </div>
-          </SettingsSection>
+          </div>
         </motion.div>
 
         {/* Appearance Section */}
@@ -381,41 +260,22 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.5 }}
         >
-          <SettingsSection title="Appearance">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-medium text-[#1C1C1C]">Theme</p>
-                  <p className="text-sm text-gray-500">Choose your preferred color scheme</p>
-                </div>
-                <SegmentedControl
-                  options={[
-                    { value: "light", label: "Light" },
-                    { value: "dark", label: "Dark", disabled: true },
-                    { value: "system", label: "System", disabled: true },
-                  ]}
-                  value={settings.appearance.theme}
-                  onChange={(v) => updateAppearanceSetting("theme", v)}
-                />
-              </div>
-            </div>
-            <div className="border-t border-[#E8E2D9] p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-[#1C1C1C]">Language</p>
-                  <p className="text-sm text-gray-500">App display language</p>
-                </div>
-                <select
-                  value={settings.appearance.language}
-                  onChange={(e) => updateAppearanceSetting("language", e.target.value as "en" | "fil")}
-                  className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                >
-                  <option value="en">English</option>
-                  <option value="fil" disabled>Filipino (Tagalog) - Soon</option>
-                </select>
-              </div>
-            </div>
-          </SettingsSection>
+          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+            APPEARANCE
+          </h3>
+          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2 p-4">
+            <p className="font-medium text-[#1C1C1C] text-sm mb-3">Theme</p>
+            <SegmentedControl
+              options={[
+                { value: "light", label: "Light" },
+                { value: "dark", label: "Dark", disabled: true },
+                { value: "system", label: "System", disabled: true },
+              ]}
+              value={settings.appearance.theme}
+              onChange={(v) => updateAppearanceSetting("theme", v)}
+            />
+            <p className="text-xs text-gray-400 text-center mt-3">Dark & System modes coming soon</p>
+          </div>
         </motion.div>
 
         {/* Account Section */}
@@ -424,67 +284,32 @@ export default function SettingsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
         >
-          <SettingsSection title="Account">
-            <SettingsRow
-              icon={Lock}
-              label="Change Password"
-              description=""
-              control={<ChevronRight className="w-5 h-5 text-gray-400" />}
+          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+            ACCOUNT
+          </h3>
+          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
+            <button 
               onClick={() => setShowChangePassword(true)}
-            />
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Globe}
-                label="Linked Accounts"
-                description="Google · Connected"
-                control={<span className="text-sm text-gray-500">Disconnect</span>}
-              />
-            </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={AlertTriangle}
-                label="Delete Account"
-                description="Permanently delete your account and all data"
-                control={
-                  <button
-                    onClick={() => setShowDeleteAccountConfirm(true)}
-                    className="text-sm text-red-600 font-medium"
-                  >
-                    Delete Account
-                  </button>
-                }
-              />
-            </div>
-          </SettingsSection>
-        </motion.div>
-
-        {/* About Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-        >
-          <SettingsSection title="About">
-            <div className="p-4 text-center">
-              <div className="w-12 h-12 rounded-xl bg-[#D4EDE8] flex items-center justify-center mx-auto mb-3">
-                <svg viewBox="0 0 24 24" className="w-7 h-7 text-[#1E6B5E]" fill="currentColor">
-                  <path d="M12 2C10.9 2 10 2.9 10 4C10 5.1 10.9 6 12 6C13.1 6 14 5.1 14 4C14 2.9 13.1 2 12 2ZM6 5C4.9 5 4 5.9 4 7C4 8.1 4.9 9 6 9C7.1 9 8 8.1 8 7C8 5.9 7.1 5 6 5ZM18 5C16.9 5 16 5.9 16 7C16 8.1 16.9 9 18 9C19.1 9 20 8.1 20 7C20 5.9 19.1 5 18 5ZM12 8C9.5 8 7.2 9.2 6 11.2V18C6 20.2 7.8 22 10 22H14C16.2 22 18 20.2 18 18V11.2C16.8 9.2 14.5 8 12 8Z" />
-                </svg>
+              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="w-5 h-5 text-gray-400" />
+                <span className="text-sm font-medium text-[#1C1C1C]">Change Password</span>
               </div>
-              <p className="font-display font-bold text-[#1E6B5E] text-lg mb-1">LitterSense</p>
-              <p className="text-sm text-gray-500 mb-1">Version 1.0.0 · Build PWA (Next.js 14)</p>
-              <p className="text-sm text-[#1E6B5E] italic">
-                Built for Filipino cat owners. Because your cat's health matters.
-              </p>
-              <div className="flex items-center justify-center gap-4 mt-4 text-sm">
-                <button className="text-gray-500 hover:text-[#1E6B5E]">Terms of Service</button>
-                <span className="text-gray-300">·</span>
-                <button className="text-gray-500 hover:text-[#1E6B5E]">Privacy Policy</button>
-                <span className="text-gray-300">·</span>
-                <button className="text-gray-500 hover:text-[#1E6B5E]">Contact Support</button>
-              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </button>
+            <div className="border-t border-[#E8E2D9]">
+              <button
+                onClick={() => setShowDeleteAccountConfirm(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <XSquare className="w-5 h-5 text-red-500" />
+                  <span className="text-sm font-medium text-red-500">Delete Account</span>
+                </div>
+              </button>
             </div>
-          </SettingsSection>
+          </div>
         </motion.div>
 
         {/* Sign Out Button */}
@@ -497,7 +322,7 @@ export default function SettingsPage() {
           <button
             onClick={() => setShowSignOutConfirm(true)}
             disabled={isSigningOut}
-            className="w-full py-3 px-4 border-2 border-red-300 text-red-600 rounded-xl font-medium hover:bg-red-50 active:bg-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+            className="w-full py-3 px-4 border-2 border-red-400 text-red-500 rounded-xl font-medium hover:bg-red-50 active:bg-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
           >
             {isSigningOut ? (
               <>
@@ -511,6 +336,9 @@ export default function SettingsPage() {
               </>
             )}
           </button>
+          <p className="text-center text-xs text-gray-400 mt-2">
+            App Version 3.12.0 · Made with care for your cat
+          </p>
         </motion.div>
       </main>
 
@@ -523,7 +351,6 @@ export default function SettingsPage() {
         title="Edit Profile"
       >
         <div className="space-y-5">
-          {/* Photo */}
           <div className="flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-[#D4EDE8] flex items-center justify-center overflow-hidden">
@@ -551,12 +378,12 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Display Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">
               Display Name
             </label>
             <input
+              id="displayName"
               type="text"
               value={editProfileForm.displayName}
               onChange={(e) =>
@@ -586,10 +413,11 @@ export default function SettingsPage() {
       >
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               Current Password
             </label>
             <input
+              id="currentPassword"
               type="password"
               value={passwordForm.current}
               onChange={(e) =>
@@ -600,10 +428,11 @@ export default function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               New Password
             </label>
             <input
+              id="newPassword"
               type="password"
               value={passwordForm.new}
               onChange={(e) =>
@@ -611,33 +440,35 @@ export default function SettingsPage() {
               }
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
-            {passwordForm.new && (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        passwordStrength.strength === 0
-                          ? "bg-red-500 w-1/4"
-                          : passwordStrength.strength === 1
-                          ? "bg-amber-500 w-1/2"
-                          : passwordStrength.strength === 2
-                          ? "bg-yellow-500 w-3/4"
-                          : "bg-green-500 w-full"
-                      }`}
-                    />
+            {passwordForm.new && (() => {
+              const getStrengthClass = () => {
+                if (passwordStrength.strength === 0) return "bg-red-500 w-1/4";
+                if (passwordStrength.strength === 1) return "bg-amber-500 w-1/2";
+                if (passwordStrength.strength === 2) return "bg-yellow-500 w-3/4";
+                return "bg-green-500 w-full";
+              };
+
+              const strengthClass = getStrengthClass();
+
+              return (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div className={`h-full transition-all ${strengthClass}`} />
+                    </div>
+                    <span className="text-xs text-gray-500">{passwordStrength.label}</span>
                   </div>
-                  <span className="text-xs text-gray-500">{passwordStrength.label}</span>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
               Confirm New Password
             </label>
             <input
+              id="confirmPassword"
               type="password"
               value={passwordForm.confirm}
               onChange={(e) =>

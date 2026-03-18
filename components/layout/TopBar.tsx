@@ -1,6 +1,8 @@
 "use client";
 
 import { Bell, User } from "lucide-react";
+import { motion } from "framer-motion";
+import Link from "next/link";
 
 export function TopBar() {
   return (
@@ -24,12 +26,14 @@ export function TopBar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          {/* Notification bell */}
-          <button className="relative p-2 rounded-xl hover:bg-[#F5F5F5] transition-colors">
-            <Bell className="w-6 h-6 text-[#1C1C1C]" />
-            {/* Red dot badge */}
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
-          </button>
+          {/* Notification bell — links to /dashboard/notifications */}
+          <Link href="/dashboard/notifications">
+            <button className="relative p-2 rounded-xl hover:bg-[#FDFAF6] transition-colors">
+              <Bell className="w-6 h-6 text-[#1C1C1C]" />
+              {/* Unread indicator — remove this span once all notifications are read */}
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+            </button>
+          </Link>
 
           {/* User avatar */}
           <button className="w-10 h-10 rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-medium hover:bg-[#1B7A6E] hover:text-white transition-colors">

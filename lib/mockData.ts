@@ -19,12 +19,16 @@ export interface Cat {
 export interface CatStats {
   visits: number;
   avgDuration: string;
+  airQuality: "Normal" | "Elevated" | "Poor";
+  litterLevel: number;
+  lastVisit: string;
 }
 
 export interface ActivityItemData {
   catId: string;
   action: string;
   time: string;
+  duration?: string;
   anomaly: boolean;
   anomalyNote?: string;
 }
@@ -73,11 +77,9 @@ export interface PastReport {
 }
 // Mock data for testing and development
 export const mockCats: Cat[] = [
-  { id: "1", name: "Mochi", status: "healthy", avatar: null },
+  { id: "1", name: "Mochi", status: "watch", avatar: null },
   { id: "2", name: "Luna", status: "healthy", avatar: null },
   { id: "3", name: "Tigger", status: "healthy", avatar: null },
-  { id: "4", name: "Bella", status: "healthy", avatar: null },
-  { id: "5", name: "Max", status: "healthy", avatar: null },
 ];
 
 /**
@@ -86,72 +88,24 @@ export const mockCats: Cat[] = [
  * will show "undefined" values when that cat is selected.
  */
 export const mockStats: Record<string, CatStats> = {
-  "1": {
-    visits: 4,
-    avgDuration: "2m 14s",
-  },
-  "2": {
-    visits: 7,
-    avgDuration: "4m 01s",
-  },
-  "3": {
-    visits: 2,
-    avgDuration: "1m 30s",
-  },
-  "4": {
-    visits: 3,
-    avgDuration: "2m 45s",
-  },
-  "5": {
-    visits: 5,
-    avgDuration: "1m 55s",
-  },
-};
-
-/**
- * Device-level stats — these belong to the LitterSense hardware unit, NOT individual cats.
- * Air quality and litter level are the same regardless of which cat is selected
- * because all cats share the same physical litter box.
- */
-export const deviceStats = {
-  airQuality: "Normal" as "Normal" | "Elevated" | "Poor",
-  litterLevel: 68,
+  "1": { visits: 8,  avgDuration: "30m",  airQuality: "Elevated", litterLevel: 55, lastVisit: "Sep 28" },
+  "2": { visits: 12, avgDuration: "45m",  airQuality: "Normal",   litterLevel: 42, lastVisit: "Oct 12" },
+  "3": { visits: 4,  avgDuration: "20m",  airQuality: "Normal",   litterLevel: 80, lastVisit: "Oct 05" },
 };
 
 /** Recent activity feed items — displayed on the dashboard. catId must match a mockCats entry. */
 export const mockActivity: ActivityItemData[] = [
-  {
-    catId: "1",
-    action: "visited the litter box",
-    time: "12 minutes ago",
-    anomaly: false,
-  },
-  {
-    catId: "2",
-    action: "visited the litter box",
-    time: "34 minutes ago",
-    anomaly: true,
-    anomalyNote: "Unusual duration",
-  },
-  {
-    catId: "1",
-    action: "visited the litter box",
-    time: "1 hour ago",
-    anomaly: false,
-  },
-  {
-    catId: "3",
-    action: "visited the litter box",
-    time: "2 hours ago",
-    anomaly: false,
-  },
+  { catId: "1", action: "visited", time: "12m ago", duration: "1m 45s", anomaly: false },
+  { catId: "2", action: "visited", time: "34m ago", duration: "2m 10s", anomaly: false },
+  { catId: "3", action: "visited", time: "1h ago",  duration: "1m 12s", anomaly: false },
+  { catId: "1", action: "visited", time: "2h ago",  duration: "8m",     anomaly: true, anomalyNote: "Unusual duration" },
 ];
 
 /** Extended cat profile data — used on the Cat Profile Detail Page (03.01.11). */
 export const mockCatDetails: Record<string, CatDetails> = {
   "1": {
-    breed: "Domestic Shorthair",
-    dob: "2022-03",
+    breed: "Tabby",
+    dob: "2021-03",
     weightKg: 4.2,
     rfidTag: "A1B2C3D4",
     baseline: {
@@ -163,8 +117,8 @@ export const mockCatDetails: Record<string, CatDetails> = {
     },
   },
   "2": {
-    breed: "Persian Mix",
-    dob: "2021-07",
+    breed: "Siamese",
+    dob: "2023-03",
     weightKg: 3.8,
     rfidTag: "E5F6G7H8",
     baseline: {
@@ -176,8 +130,8 @@ export const mockCatDetails: Record<string, CatDetails> = {
     },
   },
   "3": {
-    breed: "Siamese",
-    dob: "2020-11",
+    breed: "Bombay",
+    dob: "2024-03",
     weightKg: 3.5,
     rfidTag: "I9J0K1L2",
     baseline: {

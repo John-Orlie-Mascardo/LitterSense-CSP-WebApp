@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Cat, BarChart3, Settings } from "lucide-react";
+import { Home, Cat, BarChart3, Settings, Video } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -9,6 +9,7 @@ const navItems = [
   { icon: Home, label: "Home", href: "/dashboard" },
   { icon: Cat, label: "My Cats", href: "/dashboard/cats" },
   { icon: BarChart3, label: "Reports", href: "/dashboard/reports" },
+  { icon: Video, label: "Playback", href: "/dashboard/playback" },
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
@@ -16,17 +17,18 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8E2D9] px-4 py-2 z-50 safe-area-pb">
-      <div className="max-w-md mx-auto flex items-center justify-around">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E8E2D9] px-2 py-2 z-50 safe-area-pb">
+      <div className="max-w-lg mx-auto flex items-center justify-around">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+          const isActive =
+            pathname === item.href || pathname?.startsWith(`${item.href}/`);
           const Icon = item.icon;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className="relative flex flex-col items-center gap-1 py-2 px-4 min-w-[64px]"
+              className="relative flex flex-col items-center gap-1 py-2 px-3 min-w-[52px]"
             >
               {isActive && (
                 <motion.div

@@ -13,6 +13,7 @@
 
 "use client";
 
+import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
@@ -20,46 +21,61 @@ interface StatCardProps {
   value: string | number;
   label: string;
   status?: "healthy" | "watch" | "alert" | "normal";
+  statusLabel?: string;
+  delay?: number;
 }
 
-const statusColors = {
-  healthy: "bg-green-100 text-green-600 border-green-200",
-  watch: "bg-amber-100 text-amber-600 border-amber-200",
-  alert: "bg-red-100 text-red-600 border-red-200",
-  normal: "bg-[#E8F5F1] text-[#1B7A6E] border-[#1B7A6E]/20",
+const iconColors = {
+  healthy: "text-[#1E6B5E]",
+  watch:   "text-amber-500",
+  alert:   "text-red-500",
+  normal:  "text-[#1E6B5E]",
 };
 
 const statusBarColors = {
-  healthy: "bg-green-500",
-  watch: "bg-amber-500",
-  alert: "bg-red-500",
-  normal: "bg-[#1B7A6E]",
+  healthy: "bg-[#1E6B5E]",
+  watch:   "bg-amber-500",
+  alert:   "bg-red-500",
+  normal:  "bg-[#1E6B5E]",
 };
 
-export function StatCard({
-  icon: Icon,
-  value,
-  label,
-  status = "normal",
-}: StatCardProps) {
+const statusLabelColors = {
+  healthy: "text-[#1E6B5E]",
+  watch:   "text-amber-500",
+  alert:   "text-red-500",
+  normal:  "text-[#1E6B5E]",
+};
+
+export function StatCard({ icon: Icon, value, label, status = "normal", statusLabel, delay = 0 }: Readonly<StatCardProps>) {
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-[#D1D5DB] relative overflow-hidden">
-      <div className="flex items-start gap-3">
-        <div className={`p-2.5 rounded-xl ${statusColors[status]}`}>
-          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-2xl sm:text-3xl font-bold text-[#1C1C1C] font-display tracking-tight">
-            {value}
-          </p>
-          <p className="text-sm text-[#6B7280] mt-0.5">{label}</p>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden"
+    >
+      {/* Top row: icon left, status label right */}
+      <div className="flex items-center justify-between mb-3">
+        <Icon className={`w-6 h-6 ${iconColors[status]}`} />
+        {statusLabel && (
+          <span className={`text-xs font-semibold tracking-wide uppercase ${statusLabelColors[status]}`}>
+            {statusLabel}
+          </span>
+        )}
       </div>
+
+      {/* Value */}
+      <p className="text-2xl sm:text-3xl font-bold text-litter-text font-display tracking-tight leading-none">
+        {value}
+      </p>
+
+      {/* Label */}
+      <p className="text-sm text-litter-muted mt-1">{label}</p>
 
       {/* Status indicator bar */}
       <div
         className={`absolute bottom-0 left-0 right-0 h-1 ${statusBarColors[status]}`}
       />
-    </div>
+    </motion.div>
   );
 }
