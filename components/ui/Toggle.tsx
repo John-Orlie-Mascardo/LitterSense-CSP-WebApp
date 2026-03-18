@@ -8,7 +8,7 @@ interface ToggleProps {
   disabled?: boolean;
 }
 
-export function Toggle({ checked, onChange, disabled = false }: ToggleProps) {
+export function Toggle({ checked, onChange, disabled = false }: Readonly<ToggleProps>) {
   return (
     <button
       type="button"
@@ -16,15 +16,17 @@ export function Toggle({ checked, onChange, disabled = false }: ToggleProps) {
       aria-checked={checked}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}
-      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E6B5E] focus-visible:ring-offset-2 ${
+      style={{ width: 60, height: 30, minHeight: 0, overflow: "hidden", borderRadius: 500 }}
+      className={`relative inline-flex items-center transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E6B5E] focus-visible:ring-offset-2 ${
         checked ? "bg-[#1E6B5E]" : "bg-gray-300"
       } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <motion.span
         layout
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md ${
-          checked ? "translate-x-6" : "translate-x-1"
+        transition={{ type: "spring", stiffness: 500, damping: 30}}
+        style={{ width: 18, height: 18, borderRadius: "50%" }}
+        className={`inline-block bg-white shadow-md transform ${
+          checked ? "translate-x-[37px]" : "translate-x-[5px]"
         }`}
       />
     </button>
