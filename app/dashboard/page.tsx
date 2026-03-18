@@ -1,3 +1,15 @@
+/**
+ * Dashboard / Home Page (03.01.04)
+ *
+ * Three states:
+ * 1. Empty — no cats registered, shows onboarding prompt
+ * 2. Normal — cats registered, all healthy, no alert banner
+ * 3. Anomaly — at least one cat flagged, alert banner visible
+ *
+ * The cat selector switches per-cat data (visits, duration).
+ * Air quality and litter level come from deviceStats (device-level, not per-cat).
+ */
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -8,7 +20,13 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/ui/StatCard";
 import { CatChip } from "@/components/ui/CatChip";
 import { ActivityItem } from "@/components/ui/ActivityItem";
-import { mockCats, mockStats, mockActivity, getCatById } from "@/lib/mockData";
+import {
+  mockCats,
+  mockStats,
+  mockActivity,
+  getCatById,
+  deviceStats,
+} from "@/lib/mockData";
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -68,8 +86,11 @@ const getDurationStatus = (duration: string) => {
 };
 
 export default function DashboardPage() {
-  const [selectedCatId, setSelectedCatId] = useState(mockCats[0].id);
+  const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
+
+  // Toggle this to test empty state during development — remove before production
+  const isEmpty = mockCats.length === 0;
 
   const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId]);
   const stats = useMemo(() => mockStats[selectedCatId], [selectedCatId]);

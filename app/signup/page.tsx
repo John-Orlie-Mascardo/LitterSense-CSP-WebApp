@@ -1,3 +1,10 @@
+/**
+ * Sign Up Page (03.01.02)
+ *
+ * Same layout structure as login but with additional fields (name, confirm password).
+ * Currently using mock navigation — replace handleSubmit with Firebase createUser.
+ */
+
 "use client";
 
 import { useState } from "react";

@@ -49,7 +49,9 @@ export default function CatsPage() {
   const [cats, setCats] = useState<Cat[]>(mockCats);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CatFormData>(initialFormData);
-  const [errors, setErrors] = useState<Partial<Record<keyof CatFormData, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof CatFormData, string>>
+  >({});
   const [isSaving, setIsSaving] = useState(false);
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
 

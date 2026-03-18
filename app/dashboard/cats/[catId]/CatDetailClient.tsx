@@ -33,6 +33,7 @@ import {
   getHealthLogsByCatId,
   getTrendData,
   mockStats,
+  deviceStats,
   type Session,
   type HealthLog,
 } from "@/lib/mockData";
@@ -74,14 +75,14 @@ export default function CatDetailClient() {
 
   if (!cat || !details) {
     return (
-      <div className="min-h-screen bg-[#FDFAF6] flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-display font-bold text-[#1C1C1C] mb-2">
             Cat not found
           </h1>
           <button
             onClick={() => router.push("/dashboard/cats")}
-            className="text-[#1E6B5E] hover:underline"
+            className="text-[#1B7A6E] hover:underline"
           >
             Back to My Cats
           </button>
@@ -94,9 +95,12 @@ export default function CatDetailClient() {
   const statusLabel = getStatusLabel(cat.status);
 
   return (
-    <div className="min-h-screen bg-[#FDFAF6] pb-24">
+    <div className="min-h-screen bg-white pb-24">
       <TopBar />
-      <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+      <ToastContainer
+        toasts={toasts}
+        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
+      />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         {/* Back button */}
@@ -104,7 +108,7 @@ export default function CatDetailClient() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           onClick={() => router.push("/dashboard/cats")}
-          className="flex items-center gap-2 text-gray-500 hover:text-[#1E6B5E] mb-4 transition-colors"
+          className="flex items-center gap-2 text-gray-500 hover:text-[#1B7A6E] mb-4 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back to My Cats</span>
@@ -115,7 +119,7 @@ export default function CatDetailClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="relative bg-white rounded-2xl p-6 shadow-sm border border-[#E8E2D9] mb-6"
+          className="relative bg-white rounded-2xl p-6 shadow-sm border border-[#D1D5DB] mb-6"
         >
           {/* Edit button */}
           <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -124,7 +128,7 @@ export default function CatDetailClient() {
 
           <div className="flex flex-col items-center text-center">
             {/* Avatar */}
-            <div className="w-24 h-24 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-bold text-3xl mb-4">
+            <div className="w-24 h-24 rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-bold text-3xl mb-4">
               {cat.avatar ? (
                 <img
                   src={cat.avatar}
@@ -143,7 +147,8 @@ export default function CatDetailClient() {
 
             {/* Details row */}
             <p className="text-gray-500 mb-3">
-              {details.breed} · {calculateAge(details.dob)} · {details.weightKg}kg
+              {details.breed} · {calculateAge(details.dob)} · {details.weightKg}
+              kg
             </p>
 
             {/* Status badge */}
@@ -160,7 +165,7 @@ export default function CatDetailClient() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-sm border border-[#E8E2D9] overflow-hidden mb-6"
+          className="bg-white rounded-2xl shadow-sm border border-[#D1D5DB] overflow-hidden mb-6"
         >
           <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
@@ -187,11 +192,7 @@ export default function CatDetailClient() {
                 />
               )}
               {activeTab === "health" && (
-                <HealthLogTab
-                  key="health"
-                  catId={catId}
-                  addToast={addToast}
-                />
+                <HealthLogTab key="health" catId={catId} addToast={addToast} />
               )}
             </AnimatePresence>
           </div>
@@ -206,8 +207,21 @@ export default function CatDetailClient() {
 // Overview Tab
 interface OverviewTabProps {
   catId: string;
-  stats: { visits: number; avgDuration: string; airQuality: string; litterLevel: number } | undefined;
-  details: { baseline: { avgVisitsPerDay: number; avgDurationSecs: number; mq135DeltaPercent: number; mq136DeltaPercent: number; lastUpdated: string } };
+  stats:
+    | {
+        visits: number;
+        avgDuration: string;
+      }
+    | undefined;
+  details: {
+    baseline: {
+      avgVisitsPerDay: number;
+      avgDurationSecs: number;
+      mq135DeltaPercent: number;
+      mq136DeltaPercent: number;
+      lastUpdated: string;
+    };
+  };
   statusColors: { bg: string; text: string };
 }
 
@@ -225,47 +239,58 @@ function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
     >
       {/* Today's Summary */}
       <div>
-        <h3 className="font-semibold text-[#1C1C1C] mb-3">Today's Summary</h3>
+        <h3 className="font-semibold text-[#1C1C1C] mb-3">
+          Today&apos;s Summary
+        </h3>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Clock}
             value={stats?.visits || 0}
             label="Visits Today"
             status="normal"
-            delay={0}
           />
           <StatCard
             icon={Timer}
             value={stats?.avgDuration || "--"}
             label="Avg Duration"
             status="normal"
-            delay={0.1}
           />
           <StatCard
             icon={Wind}
-            value={stats?.airQuality || "--"}
+            value={deviceStats.airQuality}
             label="Air Quality"
-            status={stats?.airQuality === "Normal" ? "healthy" : stats?.airQuality === "Elevated" ? "watch" : "alert"}
-            delay={0.2}
+            status={
+              deviceStats.airQuality === "Normal"
+                ? "healthy"
+                : deviceStats.airQuality === "Elevated"
+                  ? "watch"
+                  : "alert"
+            }
           />
           <StatCard
             icon={Droplets}
-            value={`${stats?.litterLevel || 0}%`}
+            value={`${deviceStats.litterLevel}%`}
             label="Litter Level"
-            status={stats && stats.litterLevel >= 80 ? "alert" : stats && stats.litterLevel >= 60 ? "watch" : "healthy"}
-            delay={0.3}
+            status={
+              deviceStats.litterLevel >= 80
+                ? "alert"
+                : deviceStats.litterLevel >= 60
+                  ? "watch"
+                  : "healthy"
+            }
           />
         </div>
       </div>
 
       {/* Baseline Profile */}
-      <div className="bg-[#FDFAF6] rounded-xl p-4 border border-[#E8E2D9]">
+      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
         <div className="flex items-center gap-2 mb-3">
           <h3 className="font-semibold text-[#1C1C1C]">Baseline Profile</h3>
           <div className="group relative">
             <Info className="w-4 h-4 text-gray-400 cursor-help" />
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-              Baseline is recalculated every 7 days using a rolling average of recorded sessions.
+              Baseline is recalculated every 7 days using a rolling average of
+              recorded sessions.
             </div>
           </div>
         </div>
@@ -274,22 +299,28 @@ function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
           <div className="bg-white rounded-lg p-3">
             <p className="text-gray-500">Normal visits/day</p>
             <p className="font-semibold text-[#1C1C1C]">
-              {details.baseline.avgVisitsPerDay - 1}–{details.baseline.avgVisitsPerDay + 1}
+              {details.baseline.avgVisitsPerDay - 1}–
+              {details.baseline.avgVisitsPerDay + 1}
             </p>
           </div>
           <div className="bg-white rounded-lg p-3">
             <p className="text-gray-500">Normal duration</p>
             <p className="font-semibold text-[#1C1C1C]">
-              {formatDuration(details.baseline.avgDurationSecs - 30)} – {formatDuration(details.baseline.avgDurationSecs + 30)}
+              {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
+              {formatDuration(details.baseline.avgDurationSecs + 30)}
             </p>
           </div>
           <div className="bg-white rounded-lg p-3">
             <p className="text-gray-500">Normal MQ-135 Δ</p>
-            <p className="font-semibold text-[#1C1C1C]">&lt; {details.baseline.mq135DeltaPercent + 7}%</p>
+            <p className="font-semibold text-[#1C1C1C]">
+              &lt; {details.baseline.mq135DeltaPercent + 7}%
+            </p>
           </div>
           <div className="bg-white rounded-lg p-3">
             <p className="text-gray-500">Normal MQ-136 Δ</p>
-            <p className="font-semibold text-[#1C1C1C]">&lt; {details.baseline.mq136DeltaPercent + 5}%</p>
+            <p className="font-semibold text-[#1C1C1C]">
+              &lt; {details.baseline.mq136DeltaPercent + 5}%
+            </p>
           </div>
         </div>
 
@@ -313,8 +344,12 @@ function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
                 className="flex items-center justify-between bg-amber-50 rounded-xl p-3 border border-amber-100"
               >
                 <div>
-                  <p className="font-medium text-amber-800">{anomaly.anomalyType}</p>
-                  <p className="text-sm text-amber-600">{formatDate(anomaly.date)} at {anomaly.time}</p>
+                  <p className="font-medium text-amber-800">
+                    {anomaly.anomalyType}
+                  </p>
+                  <p className="text-sm text-amber-600">
+                    {formatDate(anomaly.date)} at {anomaly.time}
+                  </p>
                 </div>
                 <span className="px-2 py-1 bg-amber-200 text-amber-800 text-xs rounded-full font-medium">
                   Watch
@@ -336,7 +371,8 @@ interface HistoryTabProps {
 function HistoryTab({ catId }: HistoryTabProps) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
   const sessions = getSessionsByCatId(catId);
-  const filteredSessions = filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
+  const filteredSessions =
+    filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
 
   return (
     <motion.div
@@ -350,7 +386,9 @@ function HistoryTab({ catId }: HistoryTabProps) {
         <button
           onClick={() => setFilter("all")}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            filter === "all" ? "bg-[#1E6B5E] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            filter === "all"
+              ? "bg-[#1B7A6E] text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
           All
@@ -358,7 +396,9 @@ function HistoryTab({ catId }: HistoryTabProps) {
         <button
           onClick={() => setFilter("anomalies")}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            filter === "anomalies" ? "bg-[#1E6B5E] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            filter === "anomalies"
+              ? "bg-[#1B7A6E] text-white"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           }`}
         >
           Anomalies Only
@@ -388,7 +428,9 @@ function SessionRow({ session }: { session: Session }) {
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-xl border ${
-        session.anomaly ? "bg-amber-50 border-amber-200" : "bg-white border-[#E8E2D9]"
+        session.anomaly
+          ? "bg-amber-50 border-amber-200"
+          : "bg-white border-[#D1D5DB]"
       }`}
     >
       <div>
@@ -396,7 +438,9 @@ function SessionRow({ session }: { session: Session }) {
         <p className="text-sm text-gray-500">{session.time}</p>
       </div>
       <div className="text-center">
-        <p className="font-medium text-[#1C1C1C]">{formatDuration(session.durationSecs)}</p>
+        <p className="font-medium text-[#1C1C1C]">
+          {formatDuration(session.durationSecs)}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
@@ -416,8 +460,19 @@ function SessionRow({ session }: { session: Session }) {
 // Trends Tab
 interface TrendsTabProps {
   catId: string;
-  trendData: Array<{ day: string; visits: number; avgDuration: number; mq135Delta: number }> | null;
-  details: { baseline: { avgVisitsPerDay: number; avgDurationSecs: number; mq135DeltaPercent: number } };
+  trendData: Array<{
+    day: string;
+    visits: number;
+    avgDuration: number;
+    mq135Delta: number;
+  }> | null;
+  details: {
+    baseline: {
+      avgVisitsPerDay: number;
+      avgDurationSecs: number;
+      mq135DeltaPercent: number;
+    };
+  };
 }
 
 function TrendsTab({ trendData, details }: TrendsTabProps) {
@@ -440,23 +495,27 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       className="space-y-6"
     >
       {/* Visit Frequency */}
-      <div className="bg-[#FDFAF6] rounded-xl p-4 border border-[#E8E2D9]">
+      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
         <div className="flex items-center gap-2 mb-3">
-          <Clock className="w-5 h-5 text-[#1E6B5E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">Visit Frequency (7 days)</h4>
+          <Clock className="w-5 h-5 text-[#1B7A6E]" />
+          <h4 className="font-semibold text-[#1C1C1C]">
+            Visit Frequency (7 days)
+          </h4>
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
           baseline={details.baseline.avgVisitsPerDay}
-          color="#1E6B5E"
+          color="#1B7A6E"
         />
       </div>
 
       {/* Average Duration */}
-      <div className="bg-[#FDFAF6] rounded-xl p-4 border border-[#E8E2D9]">
+      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
         <div className="flex items-center gap-2 mb-3">
-          <Timer className="w-5 h-5 text-[#1E6B5E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">Average Duration (7 days)</h4>
+          <Timer className="w-5 h-5 text-[#1B7A6E]" />
+          <h4 className="font-semibold text-[#1C1C1C]">
+            Average Duration (7 days)
+          </h4>
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
@@ -466,22 +525,24 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       </div>
 
       {/* Gas Quality */}
-      <div className="bg-[#FDFAF6] rounded-xl p-4 border border-[#E8E2D9]">
+      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
         <div className="flex items-center gap-2 mb-3">
-          <Wind className="w-5 h-5 text-[#1E6B5E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">MQ-135 Delta (7 days)</h4>
+          <Wind className="w-5 h-5 text-[#1B7A6E]" />
+          <h4 className="font-semibold text-[#1C1C1C]">
+            MQ-135 Delta (7 days)
+          </h4>
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
           baseline={details.baseline.mq135DeltaPercent}
-          color="#1E6B5E"
+          color="#1B7A6E"
         />
       </div>
 
       {/* Link to Reports */}
       <a
         href="/dashboard/reports"
-        className="block text-center text-[#1E6B5E] font-medium hover:underline"
+        className="block text-center text-[#1B7A6E] font-medium hover:underline"
       >
         View full report →
       </a>
@@ -537,7 +598,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
       {/* Add Note button */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#1E6B5E] text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
+        className="flex items-center gap-2 px-4 py-2.5 bg-[#1B7A6E] text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
       >
         <Plus className="w-5 h-5" />
         Add Note
@@ -575,9 +636,12 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
             <select
               value={newLog.type}
               onChange={(e) =>
-                setNewLog((prev) => ({ ...prev, type: e.target.value as HealthLog["type"] }))
+                setNewLog((prev) => ({
+                  ...prev,
+                  type: e.target.value as HealthLog["type"],
+                }))
               }
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all"
             >
               <option value="Vet Visit">Vet Visit</option>
               <option value="Medication">Medication</option>
@@ -598,7 +662,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
               placeholder="Describe the event..."
               maxLength={500}
               rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all resize-none"
             />
             <p className="text-xs text-gray-400 mt-1 text-right">
               {newLog.note.length}/500
@@ -608,7 +672,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
           <button
             onClick={handleSave}
             disabled={!newLog.note.trim()}
-            className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-[#1B7A6E] text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Save Note
           </button>
@@ -633,7 +697,7 @@ function LogCard({ log, onDelete }: { log: HealthLog; onDelete: () => void }) {
   const typeColors = getHealthLogTypeColor(log.type);
 
   return (
-    <div className="bg-white rounded-xl p-4 border border-[#E8E2D9] shadow-sm">
+    <div className="bg-white rounded-xl p-4 border border-[#D1D5DB] shadow-sm">
       <div className="flex items-start justify-between mb-2">
         <div>
           <p className="text-sm text-gray-500">{formatDate(log.date)}</p>

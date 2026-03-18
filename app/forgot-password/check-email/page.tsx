@@ -1,3 +1,11 @@
+/**
+ * Forgot Password — Step 2 (03.01.03)
+ *
+ * Confirmation screen after reset link is sent.
+ * Displays the user's email (from URL query param) and offers resend option.
+ * Currently mocks the resend — replace with Firebase sendPasswordResetEmail.
+ */
+
 "use client";
 
 import { useState } from "react";
