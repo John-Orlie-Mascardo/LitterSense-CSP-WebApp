@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
@@ -27,6 +27,9 @@ import {
   getCatById,
   deviceStats,
 } from "@/lib/mockData";
+import { useNotificationPermission } from "@/lib/useNotificationPermission";
+import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -89,6 +92,15 @@ export default function DashboardPage() {
   const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
 
+  // ── Notification permission hook — MUST be inside the component ──
+  const {
+    status: notifStatus,
+    showBanner,
+    requestPermission,
+    dismissBanner,
+    triggerOnAnomaly,
+  } = useNotificationPermission();
+
   // Toggle this to test empty state during development — remove before production
   const isEmpty = mockCats.length === 0;
 
@@ -98,6 +110,13 @@ export default function DashboardPage() {
   const hasAnomaly = useMemo(() => mockCats.some((cat) => cat.status !== "healthy"), []);
   const alertCat = useMemo(() => mockCats.find((cat) => cat.status !== "healthy"), []);
 
+  // ── Trigger permission prompt when anomaly is detected ──
+  useEffect(() => {
+    if (hasAnomaly) {
+      triggerOnAnomaly();
+    }
+  }, [hasAnomaly, triggerOnAnomaly]);
+
   const greeting = getGreeting();
   const todayDate = formatDate();
 
@@ -105,7 +124,17 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      {/* ── Notification Permission Banner — sits between TopBar and main ── */}
+      <div className="pt-20">
+        <NotificationPermissionBanner
+          show={showBanner}
+          status={notifStatus}
+          onEnable={requestPermission}
+          onDismiss={dismissBanner}
+        />
+      </div>
+
+      <main className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
         {/* Desktop two-column layout */}
         <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
 
