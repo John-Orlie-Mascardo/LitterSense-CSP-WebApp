@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Bell, X, Settings } from "lucide-react";
 
 interface NotificationPermissionBannerProps {
-  show: boolean;
-  status: "idle" | "granted" | "denied" | "dismissed";
-  onEnable: () => void;
-  onDismiss: () => void;
+  readonly show: boolean;
+  readonly status: "idle" | "granted" | "denied" | "dismissed";
+  readonly onEnable: () => void;
+  readonly onDismiss: () => void;
 }
 
 export function NotificationPermissionBanner({

@@ -14,10 +14,10 @@ export function useNotificationPermission() {
 
   // On mount — check stored state and browser permission
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (globalThis.window === undefined) return;
 
     // If browser doesn't support notifications at all, bail silently
-    if (!("Notification" in window)) return;
+    if (!("Notification" in globalThis.window)) return;
 
     const stored = localStorage.getItem(STORAGE_KEY) as PermissionStatus | null;
     const browserPerm = Notification.permission;
@@ -39,7 +39,7 @@ export function useNotificationPermission() {
     if (stored === "dismissed") {
       const dismissedAt = localStorage.getItem(DISMISSED_KEY);
       if (dismissedAt) {
-        const elapsed = Date.now() - parseInt(dismissedAt, 10);
+        const elapsed = Date.now() - Number.parseInt(dismissedAt, 10);
         if (elapsed < REPROMPT_DELAY_MS) return; // too soon, don't show
       }
     }
@@ -52,8 +52,8 @@ export function useNotificationPermission() {
 
   // Trigger banner on anomaly event (call this from anywhere in the app)
   const triggerOnAnomaly = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window)) return;
+    if (globalThis.window === undefined) return;
+    if (!("Notification" in globalThis.window)) return;
     if (Notification.permission === "granted") return;
     if (Notification.permission === "denied") return;
 
@@ -61,7 +61,7 @@ export function useNotificationPermission() {
     if (stored === "dismissed") {
       const dismissedAt = localStorage.getItem(DISMISSED_KEY);
       if (dismissedAt) {
-        const elapsed = Date.now() - parseInt(dismissedAt, 10);
+        const elapsed = Date.now() - Number.parseInt(dismissedAt, 10);
         if (elapsed < REPROMPT_DELAY_MS) return;
       }
     }
@@ -70,7 +70,7 @@ export function useNotificationPermission() {
 
   // User clicks "Enable Notifications"
   const requestPermission = useCallback(async () => {
-    if (!("Notification" in window)) return;
+    if (!("Notification" in globalThis.window)) return;
 
     const result = await Notification.requestPermission();
 
@@ -114,4 +114,4 @@ async function registerServiceWorker() {
   } catch (err) {
     console.error("[LitterSense] Service worker registration failed:", err);
   }
-}
+}   

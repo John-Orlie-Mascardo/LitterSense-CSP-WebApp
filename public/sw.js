@@ -1,7 +1,7 @@
 // public/sw.js
 // LitterSense Service Worker — handles push notification display
 
-self.addEventListener("push", (event) => {
+globalThis.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
   const title = data.title || "LitterSense Alert";
   const options = {
@@ -14,10 +14,10 @@ self.addEventListener("push", (event) => {
       url: data.url || "/dashboard",
     },
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(globalThis.registration.showNotification(title, options));
 });
 
-self.addEventListener("notificationclick", (event) => {
+globalThis.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/dashboard";
   event.waitUntil(
