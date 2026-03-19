@@ -24,8 +24,10 @@ import {
   mockStats,
   mockActivity,
   getCatById,
-  deviceStats,
 } from "@/lib/mockData";
+import { useNotificationPermission } from "@/lib/useNotificationPermission";
+import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -75,25 +77,75 @@ const getVisitsLabel = (visits: number) => {
 };
 
 const getDurationLabel = (duration: string) => {
-  const mins = parseInt(duration);
+  const mins = Number.parseInt(duration);
   if (mins >= 5) return "High";
   if (mins >= 3) return "Unusual";
   return "Healthy";
 };
 
 const getDurationStatus = (duration: string) => {
-  const mins = parseInt(duration);
+  const mins = Number.parseInt(duration);
   if (mins >= 5) return "alert";
   if (mins >= 3) return "watch";
   return "healthy";
+};
+
+const getStatusClass = (status: string) => {
+  switch (status) {
+    case "healthy":
+      return "bg-green-100 text-green-700";
+    case "watch":
+      return "bg-amber-100 text-amber-700";
+    case "alert":
+      return "bg-red-100 text-red-700";
+    default:
+      return "bg-green-100 text-green-700";
+  }
+};
+
+const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
+  let baseLabel: string;
+  switch (status) {
+    case "healthy":
+      baseLabel = "Healthy";
+      break;
+    case "watch":
+      baseLabel = "Watch";
+      break;
+    case "alert":
+      baseLabel = "Alert";
+      break;
+    default:
+      baseLabel = "Healthy";
+  }
+  return includeIcon ? `● ${baseLabel}` : baseLabel;
+};
+
+const getAirQualityStatusLabel = (airQuality: string) => {
+  switch (airQuality) {
+    case "Normal":
+      return "Healthy";
+    case "Elevated":
+      return "Unusual";
+    case "Poor":
+      return "Alert";
+    default:
+      return "Healthy";
+  }
 };
 
 export default function DashboardPage() {
   const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
 
-  // Toggle this to test empty state during development — remove before production
-  const isEmpty = mockCats.length === 0;
+  // ── Notification permission hook — MUST be inside the component ──
+  const {
+    status: notifStatus,
+    showBanner,
+    requestPermission,
+    dismissBanner,
+    triggerOnAnomaly,
+  } = useNotificationPermission();
 
   const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId]);
   const stats = useMemo(() => mockStats[selectedCatId], [selectedCatId]);
@@ -106,6 +158,19 @@ export default function DashboardPage() {
     () => mockCats.find((cat) => cat.status !== "healthy"),
     [],
   );
+
+  // ── Trigger permission prompt when anomaly is detected ──
+  useEffect(() => {
+    if (hasAnomaly) {
+      triggerOnAnomaly();
+    }
+  }, [hasAnomaly, triggerOnAnomaly]);
+
+  const selectedCatStatusClass = getStatusClass(selectedCat?.status || "healthy");
+  const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
+  const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
+  const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
+  const airQualityStatusLabel = getAirQualityStatusLabel(stats?.airQuality || "Normal");
 
   const greeting = getGreeting();
   const todayDate = formatDate();

@@ -17,7 +17,8 @@ import {
   Download,
   History,
   XSquare,
-  ExternalLink
+  ExternalLink,
+  Check,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -29,6 +30,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { useSettings } from "@/lib/useSettings";
 import { generateId } from "@/lib/formatters";
+
+const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -48,6 +51,10 @@ export default function SettingsPage() {
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // Data Retention dropdown
+  const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
+  const [selectedRetention, setSelectedRetention] = useState("30 Days");
 
   // Edit profile form
   const [editProfileForm, setEditProfileForm] = useState({
@@ -114,7 +121,6 @@ export default function SettingsPage() {
     if (/[A-Z]/.test(password)) strength++;
     if (/\d/.test(password)) strength++;
     if (/[^A-Za-z0-9]/.test(password)) strength++;
-
     const labels = ["Weak", "Fair", "Good", "Strong"];
     return { strength, label: labels[strength - 1] || "Too short" };
   };
@@ -127,6 +133,7 @@ export default function SettingsPage() {
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
+
         {/* User Profile Card */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -185,18 +192,6 @@ export default function SettingsPage() {
                 }
               />
             </div>
-            <div className="border-t border-[#E8E2D9] p-4">
-              <p className="font-medium text-[#1C1C1C] text-sm mb-3">Alert Sensitivity</p>
-              <SegmentedControl
-                options={[
-                  { value: "low", label: "Low" },
-                  { value: "medium", label: "Medium" },
-                  { value: "high", label: "High" },
-                ]}
-                value={settings.notifications.alertSensitivity}
-                onChange={(v) => updateNotificationSetting("alertSensitivity", v)}
-              />
-            </div>
           </div>
         </motion.div>
 
@@ -210,18 +205,58 @@ export default function SettingsPage() {
             DATA & PRIVACY
           </h3>
           <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
-            <SettingsRow
-              icon={Database}
-              label="Data Retention"
-              control={
-                <div className="flex items-center gap-1 cursor-pointer">
-                  <span className="text-sm text-gray-600">30 Days</span>
-                  <ChevronDown className="w-4 h-4 text-gray-400" />
+
+            {/* Data Retention — interactive dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowRetentionDropdown((v) => !v)}
+                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left rounded-t-2xl"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#F5F5F5] flex items-center justify-center shrink-0">
+                    <Database className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <span className="text-sm font-medium text-[#1C1C1C]">Data Retention</span>
                 </div>
-              }
-            />
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-500">{selectedRetention}</span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                      showRetentionDropdown ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+              </button>
+
+              {/* Dropdown options */}
+              {showRetentionDropdown && (
+                <div className="absolute right-4 top-full mt-1 bg-white rounded-xl border border-[#E8E2D9] shadow-lg z-20 overflow-hidden min-w-[150px]">
+                  {RETENTION_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => {
+                        setSelectedRetention(option);
+                        setShowRetentionDropdown(false);
+                        addToast(`Data retention set to ${option}`, "success");
+                      }}
+                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-[#F5F5F5] ${
+                        selectedRetention === option
+                          ? "text-[#1E6B5E] font-semibold bg-[#EAF7F5]"
+                          : "text-[#1C1C1C]"
+                      }`}
+                    >
+                      {option}
+                      {selectedRetention === option && (
+                        <Check className="w-4 h-4 text-[#1E6B5E]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="border-t border-[#E8E2D9]">
-              <button 
+              <button
                 onClick={exportAllData}
                 className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
               >
@@ -288,7 +323,7 @@ export default function SettingsPage() {
             ACCOUNT
           </h3>
           <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
-            <button 
+            <button
               onClick={() => setShowChangePassword(true)}
               className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
             >
@@ -342,24 +377,31 @@ export default function SettingsPage() {
         </motion.div>
       </main>
 
+      {/* Backdrop — closes dropdown when clicking outside */}
+      {showRetentionDropdown && (
+        <button
+          className="fixed inset-0 z-10"
+          onClick={() => setShowRetentionDropdown(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Space" || e.key === "Escape") {
+              setShowRetentionDropdown(false);
+            }
+          }}
+          aria-label="Close dropdown"
+          style={{ background: 'transparent', border: 'none', padding: 0, margin: 0 }}
+        />
+      )}
+
       <BottomNav />
 
       {/* Edit Profile Bottom Sheet */}
-      <BottomSheet
-        isOpen={showEditProfile}
-        onClose={() => setShowEditProfile(false)}
-        title="Edit Profile"
-      >
+      <BottomSheet isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
         <div className="space-y-5">
           <div className="flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-[#D4EDE8] flex items-center justify-center overflow-hidden">
                 {editProfileForm.photo ? (
-                  <img
-                    src={editProfileForm.photo}
-                    alt="Preview"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={editProfileForm.photo} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-3xl font-display font-bold text-[#1E6B5E]">
                     {editProfileForm.displayName.charAt(0).toUpperCase()}
@@ -368,35 +410,21 @@ export default function SettingsPage() {
               </div>
               <label className="absolute bottom-0 right-0 w-8 h-8 bg-[#1E6B5E] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfilePhotoChange}
-                  className="hidden"
-                />
+                <input type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
               </label>
             </div>
           </div>
-
           <div>
-            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Display Name
-            </label>
+            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">Display Name</label>
             <input
               id="displayName"
               type="text"
               value={editProfileForm.displayName}
-              onChange={(e) =>
-                setEditProfileForm((prev) => ({ ...prev, displayName: e.target.value }))
-              }
+              onChange={(e) => setEditProfileForm((prev) => ({ ...prev, displayName: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
-
-          <button
-            onClick={handleSaveProfile}
-            className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] transition-colors"
-          >
+          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] transition-colors">
             Save Changes
           </button>
         </div>
@@ -405,39 +433,21 @@ export default function SettingsPage() {
       {/* Change Password Bottom Sheet */}
       <BottomSheet
         isOpen={showChangePassword}
-        onClose={() => {
-          setShowChangePassword(false);
-          setPasswordForm({ current: "", new: "", confirm: "" });
-        }}
+        onClose={() => { setShowChangePassword(false); setPasswordForm({ current: "", new: "", confirm: "" }); }}
         title="Change Password"
       >
         <div className="space-y-5">
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Current Password
-            </label>
-            <input
-              id="currentPassword"
-              type="password"
-              value={passwordForm.current}
-              onChange={(e) =>
-                setPasswordForm((prev) => ({ ...prev, current: e.target.value }))
-              }
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+            <input id="currentPassword" type="password" value={passwordForm.current}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
-
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
-              New Password
-            </label>
-            <input
-              id="newPassword"
-              type="password"
-              value={passwordForm.new}
-              onChange={(e) =>
-                setPasswordForm((prev) => ({ ...prev, new: e.target.value }))
-              }
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+            <input id="newPassword" type="password" value={passwordForm.new}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, new: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
             {passwordForm.new && (() => {
@@ -447,14 +457,11 @@ export default function SettingsPage() {
                 if (passwordStrength.strength === 2) return "bg-yellow-500 w-3/4";
                 return "bg-green-500 w-full";
               };
-
-              const strengthClass = getStrengthClass();
-
               return (
                 <div className="mt-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-                      <div className={`h-full transition-all ${strengthClass}`} />
+                      <div className={`h-full transition-all ${getStrengthClass()}`} />
                     </div>
                     <span className="text-xs text-gray-500">{passwordStrength.label}</span>
                   </div>
@@ -462,30 +469,16 @@ export default function SettingsPage() {
               );
             })()}
           </div>
-
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Confirm New Password
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={passwordForm.confirm}
-              onChange={(e) =>
-                setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))
-              }
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+            <input id="confirmPassword" type="password" value={passwordForm.confirm}
+              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
-
           <button
             onClick={handleChangePassword}
-            disabled={
-              !passwordForm.current ||
-              !passwordForm.new ||
-              !passwordForm.confirm ||
-              passwordForm.new !== passwordForm.confirm
-            }
+            disabled={!passwordForm.current || !passwordForm.new || !passwordForm.confirm || passwordForm.new !== passwordForm.confirm}
             className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password
@@ -494,38 +487,13 @@ export default function SettingsPage() {
       </BottomSheet>
 
       {/* Confirm Dialogs */}
-      <ConfirmDialog
-        isOpen={showClearConfirm}
-        onClose={() => setShowClearConfirm(false)}
-        onConfirm={handleClearHistory}
-        title="Clear History"
-        message="Are you sure? This will permanently delete all session data for all cats. This cannot be undone."
-        confirmText="Clear"
-        variant="danger"
-      />
-
-      <ConfirmDialog
-        isOpen={showDeleteAccountConfirm}
-        onClose={() => setShowDeleteAccountConfirm(false)}
-        onConfirm={() => {
-          setShowDeleteAccountConfirm(false);
-          addToast("Account deletion request submitted", "info");
-        }}
-        title="Delete Account"
-        message="This will permanently delete your account and all data. This action cannot be undone. Please contact support to proceed."
-        confirmText="Contact Support"
-        variant="danger"
-      />
-
-      <ConfirmDialog
-        isOpen={showSignOutConfirm}
-        onClose={() => setShowSignOutConfirm(false)}
-        onConfirm={handleSignOut}
-        title="Sign Out"
-        message="Are you sure you want to sign out?"
-        confirmText="Sign Out"
-        variant="info"
-      />
+      <ConfirmDialog isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} onConfirm={handleClearHistory}
+        title="Clear History" message="Are you sure? This will permanently delete all session data for all cats. This cannot be undone." confirmText="Clear" variant="danger" />
+      <ConfirmDialog isOpen={showDeleteAccountConfirm} onClose={() => setShowDeleteAccountConfirm(false)}
+        onConfirm={() => { setShowDeleteAccountConfirm(false); addToast("Account deletion request submitted", "info"); }}
+        title="Delete Account" message="This will permanently delete your account and all data. This action cannot be undone. Please contact support to proceed." confirmText="Contact Support" variant="danger" />
+      <ConfirmDialog isOpen={showSignOutConfirm} onClose={() => setShowSignOutConfirm(false)} onConfirm={handleSignOut}
+        title="Sign Out" message="Are you sure you want to sign out?" confirmText="Sign Out" variant="info" />
     </div>
   );
 }
