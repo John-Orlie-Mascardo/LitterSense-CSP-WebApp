@@ -13,7 +13,6 @@
 
 "use client";
 
-import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
@@ -22,7 +21,6 @@ interface StatCardProps {
   label: string;
   status?: "healthy" | "watch" | "alert" | "normal";
   statusLabel?: string;
-  delay?: number;
 }
 
 const iconColors = {
@@ -46,14 +44,9 @@ const statusLabelColors = {
   normal:  "text-[#1E6B5E]",
 };
 
-export function StatCard({ icon: Icon, value, label, status = "normal", statusLabel, delay = 0 }: Readonly<StatCardProps>) {
+export function StatCard({ icon: Icon, value, label, status = "normal", statusLabel }: Readonly<StatCardProps>) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden"
-    >
+    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden">
       {/* Top row: icon left, status label right */}
       <div className="flex items-center justify-between mb-3">
         <Icon className={`w-6 h-6 ${iconColors[status]}`} />
@@ -76,6 +69,6 @@ export function StatCard({ icon: Icon, value, label, status = "normal", statusLa
       <div
         className={`absolute bottom-0 left-0 right-0 h-1 ${statusBarColors[status]}`}
       />
-    </motion.div>
+    </div>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { getCatById } from "@/lib/mockData";
 
 interface ActivityItemProps {
@@ -10,7 +9,6 @@ interface ActivityItemProps {
   duration?: string;
   anomaly?: boolean;
   anomalyNote?: string;
-  index?: number;
 }
 
 export function ActivityItem({
@@ -20,17 +18,11 @@ export function ActivityItem({
   duration,
   anomaly = false,
   anomalyNote,
-  index = 0,
 }: ActivityItemProps) {
   const cat = getCatById(catId);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.1 }}
-      className="flex items-center gap-3 p-4 bg-white rounded-xl border border-litter-border shadow-sm"
-    >
+    <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-litter-border shadow-sm">
       {/* Cat Avatar */}
       <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
         {cat?.avatar ? (
@@ -63,6 +55,6 @@ export function ActivityItem({
         )}
         <span className="text-litter-muted text-xs">{time}</span>
       </div>
-    </motion.div>
+    </div>
   );
 }

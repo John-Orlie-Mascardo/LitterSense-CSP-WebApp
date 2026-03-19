@@ -79,7 +79,7 @@ export interface PastReport {
 export const mockCats: Cat[] = [
   { id: "1", name: "Mochi", status: "watch", avatar: null },
   { id: "2", name: "Luna", status: "healthy", avatar: null },
-  { id: "3", name: "Tigger", status: "healthy", avatar: null },
+  { id: "3", name: "Hera", status: "healthy", avatar: null },
 ];
 
 /**
@@ -88,17 +88,66 @@ export const mockCats: Cat[] = [
  * will show "undefined" values when that cat is selected.
  */
 export const mockStats: Record<string, CatStats> = {
-  "1": { visits: 8,  avgDuration: "30m",  airQuality: "Elevated", litterLevel: 55, lastVisit: "Sep 28" },
-  "2": { visits: 12, avgDuration: "45m",  airQuality: "Normal",   litterLevel: 42, lastVisit: "Oct 12" },
-  "3": { visits: 4,  avgDuration: "20m",  airQuality: "Normal",   litterLevel: 80, lastVisit: "Oct 05" },
+  "1": {
+    visits: 8,
+    avgDuration: "6m",
+    airQuality: "Elevated",
+    litterLevel: 67,
+    lastVisit: "Sep 28",
+  },
+  "2": {
+    visits: 12,
+    avgDuration: "7m",
+    airQuality: "Elevated",
+    litterLevel: 55,
+    lastVisit: "Oct 12",
+  },
+  "3": {
+    visits: 4,
+    avgDuration: "2m",
+    airQuality: "Normal",
+    litterLevel: 55,
+    lastVisit: "Oct 05",
+  },
+};
+
+/** Device-level stats — shared across all cats (one physical litter box). Not per-cat. */
+export const deviceStats = {
+  airQuality: "Normal" as "Normal" | "Elevated" | "Poor",
+  litterLevel: 68,
 };
 
 /** Recent activity feed items — displayed on the dashboard. catId must match a mockCats entry. */
 export const mockActivity: ActivityItemData[] = [
-  { catId: "1", action: "visited", time: "12m ago", duration: "1m 45s", anomaly: false },
-  { catId: "2", action: "visited", time: "34m ago", duration: "2m 10s", anomaly: false },
-  { catId: "3", action: "visited", time: "1h ago",  duration: "1m 12s", anomaly: false },
-  { catId: "1", action: "visited", time: "2h ago",  duration: "8m",     anomaly: true, anomalyNote: "Unusual duration" },
+  {
+    catId: "1",
+    action: "visited",
+    time: "12m ago",
+    duration: "1m 45s",
+    anomaly: false,
+  },
+  {
+    catId: "2",
+    action: "visited",
+    time: "34m ago",
+    duration: "2m 10s",
+    anomaly: false,
+  },
+  {
+    catId: "3",
+    action: "visited",
+    time: "1h ago",
+    duration: "1m 12s",
+    anomaly: false,
+  },
+  {
+    catId: "1",
+    action: "visited",
+    time: "2h ago",
+    duration: "8m",
+    anomaly: true,
+    anomalyNote: "Unusual duration",
+  },
 ];
 
 /** Extended cat profile data — used on the Cat Profile Detail Page (03.01.11). */
