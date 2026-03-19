@@ -1,6 +1,6 @@
 "use client";
 
-import { useState} from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -14,9 +14,12 @@ import {
   Clock,
   Filter,
   Video,
+  Radio,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
+
+const ESP32_STREAM_URL = "/api/stream";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -97,6 +100,43 @@ const MOCK_RECORDINGS: RecordingEvent[] = [
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function LiveView() {
+  const [error, setError] = useState(false);
+
+  return (
+    <div className="relative w-full aspect-video bg-[#1C1C1C] rounded-2xl overflow-hidden shadow-lg">
+      {error ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <Radio className="w-10 h-10 text-gray-600" />
+          <p className="text-gray-500 text-sm">Cannot reach camera</p>
+          <p className="text-gray-600 text-xs">{ESP32_STREAM_URL}</p>
+          <button
+            onClick={() => setError(false)}
+            className="mt-2 px-3 py-1 rounded-full bg-[#1E6B5E] text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* MJPEG streams never fire onLoad — render directly, onError handles failures */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ESP32_STREAM_URL}
+            alt="ESP32-CAM live stream"
+            className="w-full h-full object-cover"
+            onError={() => setError(true)}
+          />
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-white text-xs font-semibold tracking-wide">LIVE</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -254,6 +294,7 @@ function RecordingRow({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PlaybackPage() {
+  const [activeTab, setActiveTab] = useState<"live" | "recordings">("live");
   const [recordings, setRecordings] = useState<RecordingEvent[]>(MOCK_RECORDINGS);
   const [selectedRecording, setSelectedRecording] = useState<RecordingEvent | null>(
     MOCK_RECORDINGS[0]
@@ -298,20 +339,50 @@ export default function PlaybackPage() {
           <p className="text-[#6B7280] text-sm">
             Review your LitterSense camera recordings
           </p>
+
+          {/* Tab toggle */}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => setActiveTab("live")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                activeTab === "live"
+                  ? "bg-litter-primary text-white border-litter-primary"
+                  : "bg-white text-gray-500 border-litter-border hover:border-litter-primary/40"
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5" />
+              Live
+            </button>
+            <button
+              onClick={() => setActiveTab("recordings")}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                activeTab === "recordings"
+                  ? "bg-litter-primary text-white border-litter-primary"
+                  : "bg-white text-gray-500 border-litter-border hover:border-litter-primary/40"
+              }`}
+            >
+              <Video className="w-3.5 h-3.5" />
+              Recordings
+            </button>
+          </div>
         </motion.section>
 
-        {/* Video Player */}
+        {/* Video area */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
           className="mb-4"
         >
-          <VideoPlayer recording={selectedRecording} />
+          {activeTab === "live" ? (
+            <LiveView />
+          ) : (
+            <VideoPlayer recording={selectedRecording} />
+          )}
         </motion.div>
 
         {/* Device Info Row */}
-        {selectedRecording && (
+        {activeTab === "recordings" && selectedRecording && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

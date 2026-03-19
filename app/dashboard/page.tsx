@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -23,6 +23,7 @@ import {
   mockCats,
   mockStats,
   mockActivity,
+  deviceStats,
   getCatById,
 } from "@/lib/mockData";
 import { useNotificationPermission } from "@/lib/useNotificationPermission";
@@ -171,6 +172,8 @@ export default function DashboardPage() {
   const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
   const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
   const airQualityStatusLabel = getAirQualityStatusLabel(stats?.airQuality || "Normal");
+
+  const isEmpty = mockCats.length === 0;
 
   const greeting = getGreeting();
   const todayDate = formatDate();
