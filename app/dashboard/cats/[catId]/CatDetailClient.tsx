@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Pencil,
@@ -104,23 +103,16 @@ export default function CatDetailClient() {
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
         {/* Back button */}
-        <motion.button
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
+        <button
           onClick={() => router.push("/dashboard/cats")}
           className="flex items-center gap-2 text-gray-500 hover:text-[#1B7A6E] mb-4 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back to My Cats</span>
-        </motion.button>
+        </button>
 
         {/* Profile Header */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative bg-white rounded-2xl p-6 shadow-sm border border-[#D1D5DB] mb-6"
-        >
+        <section className="relative bg-white rounded-2xl p-6 shadow-sm border border-[#D1D5DB] mb-6">
           {/* Edit button */}
           <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <Pencil className="w-5 h-5 text-gray-500" />
@@ -158,19 +150,14 @@ export default function CatDetailClient() {
               {statusLabel}
             </span>
           </div>
-        </motion.section>
+        </section>
 
         {/* Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-sm border border-[#D1D5DB] overflow-hidden mb-6"
-        >
+        <div className="bg-white rounded-2xl shadow-sm border border-[#D1D5DB] overflow-hidden mb-6">
           <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
           <div className="p-4 sm:p-6">
-            <AnimatePresence mode="wait">
+            <div>
               {activeTab === "overview" && (
                 <OverviewTab
                   key="overview"
@@ -194,9 +181,9 @@ export default function CatDetailClient() {
               {activeTab === "health" && (
                 <HealthLogTab key="health" catId={catId} addToast={addToast} />
               )}
-            </AnimatePresence>
+            </div>
           </div>
-        </motion.div>
+        </div>
       </main>
 
       <BottomNav />
@@ -230,13 +217,7 @@ function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
   const recentAnomalies = sessions.filter((s) => s.anomaly).slice(0, 3);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Today's Summary */}
       <div>
         <h3 className="font-semibold text-[#1C1C1C] mb-3">
@@ -359,7 +340,7 @@ function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -375,12 +356,7 @@ function HistoryTab({ catId }: HistoryTabProps) {
     filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div>
       {/* Filter bar */}
       <div className="flex gap-2 mb-4">
         <button
@@ -418,7 +394,7 @@ function HistoryTab({ catId }: HistoryTabProps) {
           ))}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -487,13 +463,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
       {/* Visit Frequency */}
       <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
         <div className="flex items-center gap-2 mb-3">
@@ -546,7 +516,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       >
         View full report →
       </a>
-    </motion.div>
+    </div>
   );
 }
 
@@ -589,12 +559,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div>
       {/* Add Note button */}
       <button
         onClick={() => setIsModalOpen(true)}
@@ -689,7 +654,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
         confirmText="Delete"
         variant="danger"
       />
-    </motion.div>
+    </div>
   );
 }
 

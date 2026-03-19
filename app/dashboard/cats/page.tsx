@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import {
   Plus,
   ScanLine,
@@ -118,12 +117,7 @@ export default function CatsPage() {
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
         {/* Header */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8 pt-6 flex items-end justify-between"
-        >
+        <section className="mb-8 pt-6 flex items-end justify-between">
           <div>
             <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-litter-text mb-1">
               My Cats
@@ -138,7 +132,7 @@ export default function CatsPage() {
           >
             + Add Cat
           </button>
-        </motion.section>
+        </section>
 
         {/* Cats Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -332,11 +326,7 @@ function CatCard({ cat, index }: CatCardProps) {
       : "bg-red-500";
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.1 }}
-    >
+    <div>
       <Link href={`/dashboard/cats/${cat.id}`}>
         <div className="bg-white rounded-2xl shadow-sm border border-litter-border hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all cursor-pointer overflow-hidden">
           {/* Card top */}
@@ -385,6 +375,6 @@ function CatCard({ cat, index }: CatCardProps) {
           </div>
         </div>
       </Link>
-    </motion.div>
+    </div>
   );
 }
