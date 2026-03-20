@@ -154,8 +154,8 @@ export default function CatsPage() {
               />
             </div>
           ) : (
-            cats.map((cat, index) => (
-              <CatCard key={cat.id} cat={cat} index={index} />
+            cats.map((cat) => (
+              <CatCard key={cat.id} cat={cat} />
             ))
           )}
         </section>
@@ -308,12 +308,11 @@ export default function CatsPage() {
 // ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
-  index: number;
 }
 
 const badgeLabel: Record<string, string> = { healthy: "HEALTHY", watch: "WATCH", alert: "ALERT" };
 
-function CatCard({ cat, index }: CatCardProps) {
+function CatCard({ cat }: CatCardProps) {
   const details = getCatDetailsById(cat.id);
   const stats = mockStats[cat.id];
   const statusColors = getStatusColor(cat.status);
