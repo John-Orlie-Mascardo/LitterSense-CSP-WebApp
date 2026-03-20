@@ -19,12 +19,12 @@ import {
   mockStats,
   getCatDetailsById,
   type Cat,
-} from "@/lib/mockData";
+} from "@/lib/data/mockData";
 import {
   getStatusColor,
   calculateAge,
   generateId,
-} from "@/lib/formatters";
+} from "@/lib/utils/formatters";
 
 interface CatFormData {
   name: string;

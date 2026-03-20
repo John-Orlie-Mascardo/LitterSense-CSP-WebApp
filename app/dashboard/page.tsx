@@ -16,17 +16,17 @@ import { useState, useMemo, useEffect } from "react";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { StatCard } from "@/components/ui/StatCard";
-import { CatChip } from "@/components/ui/CatChip";
-import { ActivityItem } from "@/components/ui/ActivityItem";
+import { StatCard } from "@/components/dashboard/StatCard";
+import { CatChip } from "@/components/cats/CatChip";
+import { ActivityItem } from "@/components/dashboard/ActivityItem";
 import {
   mockCats,
   mockStats,
   mockActivity,
   deviceStats,
   getCatById,
-} from "@/lib/mockData";
-import { useNotificationPermission } from "@/lib/useNotificationPermission";
+} from "@/lib/data/mockData";
+import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
 
 

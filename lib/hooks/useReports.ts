@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { mockCats, mockSessions, mockHealthLogs, mockPastReports, type PastReport } from "./mockData";
-import { generateId } from "./formatters";
+import { mockCats, mockSessions, mockHealthLogs, mockPastReports, type PastReport } from "../data/mockData";
+import { generateId } from "../utils/formatters";
 
 export interface ReportConfig {
   catId: string | "all";
