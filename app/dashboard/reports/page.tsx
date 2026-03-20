@@ -23,18 +23,18 @@ import {
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { SparklineChart } from "@/components/ui/SparklineChart";
+import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { mockCats, getTrendData, type PastReport } from "@/lib/mockData";
-import { useReports } from "@/lib/useReports";
+import { mockCats, getTrendData, type PastReport } from "@/lib/data/mockData";
+import { useReports } from "@/lib/hooks/useReports";
 import {
   formatDuration,
   formatDate,
   getStatusColor,
   generateId,
   getHealthLogTypeColor,
-} from "@/lib/formatters";
+} from "@/lib/utils/formatters";
 
 const dateRanges = [
   { value: "7", label: "Last 7 Days" },

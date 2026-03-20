@@ -1,6 +1,6 @@
 "use client";
 
-import { getCatById } from "@/lib/mockData";
+import { getCatById } from "@/lib/data/mockData";
 
 interface ActivityItemProps {
   catId: string;

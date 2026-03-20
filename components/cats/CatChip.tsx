@@ -8,7 +8,7 @@
 
 "use client";
 
-import { Cat } from "@/lib/mockData";
+import { Cat } from "@/lib/data/mockData";
 
 interface CatChipProps {
   cat: Cat;

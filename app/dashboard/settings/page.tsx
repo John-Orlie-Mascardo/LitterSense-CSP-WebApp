@@ -22,14 +22,14 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { SettingsRow } from "@/components/ui/SettingsRow";
+import { SettingsRow } from "@/components/settings/SettingsRow";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { useSettings } from "@/lib/useSettings";
-import { generateId } from "@/lib/formatters";
+import { useSettings } from "@/lib/hooks/useSettings";
+import { generateId } from "@/lib/utils/formatters";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 

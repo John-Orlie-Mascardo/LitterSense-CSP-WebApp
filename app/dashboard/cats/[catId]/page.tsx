@@ -1,4 +1,4 @@
-import { mockCats } from "@/lib/mockData";
+import { mockCats } from "@/lib/data/mockData";
 import CatDetailClient from "./CatDetailClient";
 
 // Generate static params for all cats

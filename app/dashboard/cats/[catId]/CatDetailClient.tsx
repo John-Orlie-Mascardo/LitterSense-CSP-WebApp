@@ -19,10 +19,10 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { TabBar } from "@/components/ui/TabBar";
-import { StatCard } from "@/components/ui/StatCard";
+import { StatCard } from "@/components/dashboard/StatCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { SparklineChart } from "@/components/ui/SparklineChart";
+import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import {
@@ -35,7 +35,7 @@ import {
   deviceStats,
   type Session,
   type HealthLog,
-} from "@/lib/mockData";
+} from "@/lib/data/mockData";
 import {
   getStatusColor,
   getStatusLabel,
@@ -45,7 +45,7 @@ import {
   getDeltaLabel,
   getHealthLogTypeColor,
   generateId,
-} from "@/lib/formatters";
+} from "@/lib/utils/formatters";
 
 const tabs = [
   { id: "overview", label: "Overview" },
