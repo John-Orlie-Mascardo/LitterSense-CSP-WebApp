@@ -14,6 +14,7 @@ export interface Cat {
   name: string;
   status: "healthy" | "watch" | "alert";
   avatar: string | null;
+  isOnline: boolean;
 }
 
 export interface CatStats {
@@ -38,6 +39,7 @@ export interface CatDetails {
   dob: string;
   weightKg: number;
   rfidTag: string;
+  healthInsight: string;
   baseline: {
     avgVisitsPerDay: number;
     avgDurationSecs: number;
@@ -77,9 +79,9 @@ export interface PastReport {
 }
 // Mock data for testing and development
 export const mockCats: Cat[] = [
-  { id: "1", name: "Mochi", status: "watch", avatar: null },
-  { id: "2", name: "Luna", status: "healthy", avatar: null },
-  { id: "3", name: "Hera", status: "healthy", avatar: null },
+  { id: "1", name: "Mochi", status: "watch", avatar: null, isOnline: true },
+  { id: "2", name: "Luna", status: "healthy", avatar: null, isOnline: false },
+  { id: "3", name: "Hera", status: "healthy", avatar: null, isOnline: false },
 ];
 
 /**
@@ -157,6 +159,7 @@ export const mockCatDetails: Record<string, CatDetails> = {
     dob: "2021-03",
     weightKg: 4.2,
     rfidTag: "A1B2C3D4",
+    healthInsight: "Air quality is slightly elevated. Mochi's visit duration has increased by 18% compared to last week — worth monitoring.",
     baseline: {
       avgVisitsPerDay: 4,
       avgDurationSecs: 134,
@@ -170,6 +173,7 @@ export const mockCatDetails: Record<string, CatDetails> = {
     dob: "2023-03",
     weightKg: 3.8,
     rfidTag: "E5F6G7H8",
+    healthInsight: "Urinary health is stable. Luna's frequency has decreased by 12% compared to last week.",
     baseline: {
       avgVisitsPerDay: 5,
       avgDurationSecs: 180,
@@ -183,6 +187,7 @@ export const mockCatDetails: Record<string, CatDetails> = {
     dob: "2024-03",
     weightKg: 3.5,
     rfidTag: "I9J0K1L2",
+    healthInsight: "All metrics are within normal range. Hera's litter box habits have been consistent over the past 7 days.",
     baseline: {
       avgVisitsPerDay: 3,
       avgDurationSecs: 90,

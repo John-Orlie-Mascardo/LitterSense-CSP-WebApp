@@ -15,6 +15,8 @@ import {
   FileText,
   Filter,
   AlertTriangle,
+  Tag,
+  Lightbulb,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -119,16 +121,21 @@ export default function CatDetailClient() {
           </button>
 
           <div className="flex flex-col items-center text-center">
-            {/* Avatar */}
-            <div className="w-24 h-24 rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-bold text-3xl mb-4">
-              {cat.avatar ? (
-                <img
-                  src={cat.avatar}
-                  alt={cat.name}
-                  className="w-full h-full rounded-full object-cover"
-                />
-              ) : (
-                cat.name.charAt(0).toUpperCase()
+            {/* Avatar with online indicator */}
+            <div className="relative w-24 h-24 mb-4">
+              <div className="w-full h-full rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-bold text-3xl overflow-hidden">
+                {cat.avatar ? (
+                  <img
+                    src={cat.avatar}
+                    alt={cat.name}
+                    className="w-full h-full rounded-full object-cover"
+                  />
+                ) : (
+                  cat.name.charAt(0).toUpperCase()
+                )}
+              </div>
+              {cat.isOnline && (
+                <span className="absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
               )}
             </div>
 
@@ -142,6 +149,12 @@ export default function CatDetailClient() {
               {details.breed} · {calculateAge(details.dob)} · {details.weightKg}
               kg
             </p>
+
+            {/* RFID chip */}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
+              <Tag className="w-3 h-3" />
+              RFID: {details.rfidTag}
+            </span>
 
             {/* Status badge */}
             <span
@@ -164,7 +177,6 @@ export default function CatDetailClient() {
                   catId={catId}
                   stats={stats}
                   details={details}
-                  statusColors={statusColors}
                 />
               )}
               {activeTab === "history" && (
@@ -184,6 +196,16 @@ export default function CatDetailClient() {
             </div>
           </div>
         </div>
+        {/* Generate Report CTA */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push(`/dashboard/reports?catId=${catId}`)}
+            className="w-full flex items-center justify-center gap-2 bg-[#1B7A6E] hover:bg-[#156056] text-white font-semibold py-4 rounded-2xl transition-colors"
+          >
+            <FileText className="w-5 h-5" />
+            Generate Report for {cat.name}
+          </button>
+        </div>
       </main>
 
       <BottomNav />
@@ -201,6 +223,7 @@ interface OverviewTabProps {
       }
     | undefined;
   details: {
+    healthInsight: string;
     baseline: {
       avgVisitsPerDay: number;
       avgDurationSecs: number;
@@ -209,15 +232,25 @@ interface OverviewTabProps {
       lastUpdated: string;
     };
   };
-  statusColors: { bg: string; text: string };
 }
 
-function OverviewTab({ stats, details, statusColors }: OverviewTabProps) {
+function OverviewTab({ stats, details }: OverviewTabProps) {
   const sessions = getSessionsByCatId("1"); // Mock recent anomalies
   const recentAnomalies = sessions.filter((s) => s.anomaly).slice(0, 3);
 
   return (
     <div className="space-y-6">
+      {/* Health Insight */}
+      {details.healthInsight && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3">
+          <Lightbulb className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-blue-700 mb-1">Health Insight</p>
+            <p className="text-sm text-blue-600">{details.healthInsight}</p>
+          </div>
+        </div>
+      )}
+
       {/* Today's Summary */}
       <div>
         <h3 className="font-semibold text-[#1C1C1C] mb-3">
