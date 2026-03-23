@@ -1,7 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
-
 interface Tab {
   id: string;
   label: string;
@@ -29,11 +27,7 @@ export function TabBar({ tabs, activeTab, onChange }: TabBarProps) {
           >
             {tab.label}
             {activeTab === tab.id && (
-              <motion.div
-                layoutId="activeTabIndicator"
-                className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1E6B5E]"
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#1E6B5E]" />
             )}
           </button>
         ))}
