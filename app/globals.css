@@ -4,45 +4,189 @@
 /* Tailwind CSS */
 @import "tailwindcss";
 
-/* CSS Custom Properties - LitterSense Color Palette */
+/* ===================================================
+   LitterSense Design Tokens
+   All theming is done via CSS variables.
+   .dark overrides them — components pick up changes
+   automatically without any dark: prefixes.
+=================================================== */
+
 :root {
-  --color-bg: #F2F4F7;
-  --color-primary: #1E6B5E;
+  /* Backgrounds */
+  --color-bg:            #FDFAF6;
+  --color-card:          #FFFFFF;
+  --color-card-hover:    #F7F5F1;
+  --color-input:         #FFFFFF;
+
+  /* Brand */
+  --color-primary:       #1E6B5E;
   --color-primary-light: #D4EDE8;
-  --color-accent: #E8924A;
-  --color-text: #1C1C1C;
-  --color-muted: #6B7280;
-  --color-card: #FFFFFF;
-  --color-border: #E8E2D9;
-  
-  /* Status colors */
-  --color-healthy: #22C55E;
-  --color-watch: #E8924A;
-  --color-alert: #EF4444;
+  --color-primary-hover: #165349;
+  --color-accent:        #E8924A;
+
+  /* Text */
+  --color-text:          #1C1C1C;
+  --color-text-secondary:#4B5563;
+  --color-muted:         #6B7280;
+  --color-placeholder:   #9CA3AF;
+
+  /* Borders & dividers */
+  --color-border:        #E8E2D9;
+  --color-divider:       #F0EBE3;
+
+  /* Status */
+  --color-healthy:       #22C55E;
+  --color-healthy-bg:    #F0FDF4;
+  --color-healthy-text:  #15803D;
+  --color-watch:         #F59E0B;
+  --color-watch-bg:      #FFFBEB;
+  --color-watch-text:    #B45309;
+  --color-alert:         #EF4444;
+  --color-alert-bg:      #FEF2F2;
+  --color-alert-text:    #B91C1C;
+
+  /* Overlay */
+  --color-overlay:       rgba(0, 0, 0, 0.04);
+  --color-scrollbar:     #D1C8BD;
+
+  /* Navigation */
+  --color-nav-bg:        #FFFFFF;
+  --color-nav-border:    #E8E2D9;
+  --color-nav-inactive:  #6B7280;
 }
 
-/* Tailwind v4 Theme Configuration */
+.dark {
+  /* Backgrounds */
+  --color-bg:            #0F0F0F;
+  --color-card:          #1A1A1A;
+  --color-card-hover:    #242424;
+  --color-input:         #222222;
+
+  /* Brand */
+  --color-primary:       #34D399;
+  --color-primary-light: #0D3B32;
+  --color-primary-hover: #10B981;
+  --color-accent:        #FB923C;
+
+  /* Text */
+  --color-text:          #F9FAFB;
+  --color-text-secondary:#D1D5DB;
+  --color-muted:         #9CA3AF;
+  --color-placeholder:   #6B7280;
+
+  /* Borders & dividers */
+  --color-border:        #2D2D2D;
+  --color-divider:       #252525;
+
+  /* Status */
+  --color-healthy:       #4ADE80;
+  --color-healthy-bg:    #052E16;
+  --color-healthy-text:  #86EFAC;
+  --color-watch:         #FBBF24;
+  --color-watch-bg:      #1C1400;
+  --color-watch-text:    #FDE68A;
+  --color-alert:         #F87171;
+  --color-alert-bg:      #1C0000;
+  --color-alert-text:    #FCA5A5;
+
+  /* Overlay */
+  --color-overlay:       rgba(255, 255, 255, 0.04);
+  --color-scrollbar:     #3A3A3A;
+
+  /* Navigation */
+  --color-nav-bg:        #141414;
+  --color-nav-border:    #2D2D2D;
+  --color-nav-inactive:  #6B7280;
+}
+
+/* ===================================================
+   Tailwind v4 Theme — maps token names to CSS vars
+   Note: @theme inline registers static values at
+   build time. We point them to vars so components
+   always resolve to the current runtime values.
+=================================================== */
 @theme inline {
-  /* Font families */
   --font-display: 'Fraunces', serif;
-  --font-body: 'DM Sans', sans-serif;
-  
-  /* Colors */
-  --color-litter-bg: #F2F4F7;
-  --color-litter-primary: #1E6B5E;
-  --color-litter-primary-light: #D4EDE8;
-  --color-litter-accent: #E8924A;
-  --color-litter-text: #1C1C1C;
-  --color-litter-muted: #6B7280;
-  --color-litter-card: #FFFFFF;
-  --color-litter-border: #E8E2D9;
-  --color-litter-healthy: #22C55E;
-  --color-litter-watch: #E8924A;
-  --color-litter-alert: #EF4444;
+  --font-body:    'DM Sans', sans-serif;
+
+  --color-litter-bg:            var(--color-bg);
+  --color-litter-card:          var(--color-card);
+  --color-litter-card-hover:    var(--color-card-hover);
+  --color-litter-input:         var(--color-input);
+  --color-litter-primary:       var(--color-primary);
+  --color-litter-primary-light: var(--color-primary-light);
+  --color-litter-primary-hover: var(--color-primary-hover);
+  --color-litter-accent:        var(--color-accent);
+  --color-litter-text:          var(--color-text);
+  --color-litter-text-secondary:var(--color-text-secondary);
+  --color-litter-muted:         var(--color-muted);
+  --color-litter-placeholder:   var(--color-placeholder);
+  --color-litter-border:        var(--color-border);
+  --color-litter-divider:       var(--color-divider);
+  --color-litter-healthy:       var(--color-healthy);
+  --color-litter-watch:         var(--color-watch);
+  --color-litter-alert:         var(--color-alert);
+  --color-litter-overlay:       var(--color-overlay);
 }
 
-/* Base styles */
-* {
+/* ===================================================
+   Semantic utility classes — use THESE in components
+   instead of bare gray-* or hardcoded hex colours.
+   They update automatically in dark mode.
+=================================================== */
+
+/* Page / surface backgrounds */
+.bg-theme-page    { background-color: var(--color-bg); }
+.bg-theme-card    { background-color: var(--color-card); }
+.bg-theme-input   { background-color: var(--color-input); }
+.bg-theme-hover:hover { background-color: var(--color-card-hover); }
+.bg-theme-overlay { background-color: var(--color-overlay); }
+
+/* Text */
+.text-theme       { color: var(--color-text); }
+.text-theme-secondary { color: var(--color-text-secondary); }
+.text-theme-muted { color: var(--color-muted); }
+
+/* Borders */
+.border-theme     { border-color: var(--color-border); }
+.divide-theme > * + * { border-color: var(--color-border); }
+
+/* Status */
+.bg-status-healthy  { background-color: var(--color-healthy-bg); }
+.text-status-healthy { color: var(--color-healthy-text); }
+.bg-status-watch    { background-color: var(--color-watch-bg); }
+.text-status-watch  { color: var(--color-watch-text); }
+.bg-status-alert    { background-color: var(--color-alert-bg); }
+.text-status-alert  { color: var(--color-alert-text); }
+
+/* Hover-compatible theme utilities */
+.theme-row-hover { cursor: pointer; transition: background-color 0.15s ease; }
+.theme-row-hover:hover { background-color: var(--color-card-hover); }
+.theme-icon-btn { transition: background-color 0.15s ease; border-radius: 0.5rem; }
+.theme-icon-btn:hover { background-color: var(--color-overlay); }
+.theme-danger-btn { transition: background-color 0.15s ease; border-radius: 0.5rem; }
+.theme-danger-btn:hover { background-color: var(--color-alert-bg); color: var(--color-alert); }
+
+/* Input / interactive */
+.input-base {
+  background-color: var(--color-input);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+.input-base::placeholder { color: var(--color-placeholder); }
+.input-base:focus {
+  outline: 2px solid var(--color-primary);
+  border-color: transparent;
+}
+
+/* Nav */
+.bg-theme-nav    { background-color: var(--color-nav-bg); }
+.border-theme-nav { border-color: var(--color-nav-border); }
+
+/* ===================================================
+   Base Styles
+=================================================== */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
@@ -57,71 +201,34 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Display font utility */
-.font-display {
-  font-family: 'Fraunces', serif;
-}
+/* Font utilities */
+.font-display { font-family: 'Fraunces', serif; }
+.font-body    { font-family: 'DM Sans', sans-serif; }
 
-.font-body {
-  font-family: 'DM Sans', sans-serif;
-}
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--color-bg); }
+::-webkit-scrollbar-thumb  { background: var(--color-scrollbar); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
 
-/* Custom scrollbar for webkit browsers */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-::-webkit-scrollbar-track {
-  background: var(--color-bg);
-}
+/* Focus styles */
+input:focus, button:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
+/* Touch targets */
+button, a, [role="button"] { min-height: 44px; min-width: 44px; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
-}
+/* Safe area for PWA */
+.safe-area-pb { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* Hide scrollbar for horizontal scroll containers */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* Focus styles for accessibility */
-input:focus,
-button:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* Touch target minimum size for mobile */
-button,
-a,
-[role="button"] {
-  min-height: 44px;
-  min-width: 44px;
-}
-
-/* Safe area padding for mobile PWA */
-.safe-area-pb {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-/* Reduced motion preference */
+/* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

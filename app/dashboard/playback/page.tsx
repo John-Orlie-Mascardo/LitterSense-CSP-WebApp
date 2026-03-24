@@ -108,12 +108,12 @@ function LiveView() {
     <div className="relative w-full aspect-video bg-[#1C1C1C] rounded-2xl overflow-hidden shadow-lg">
       {error ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <Radio className="w-10 h-10 text-gray-600" />
-          <p className="text-gray-500 text-sm">Cannot reach camera</p>
-          <p className="text-gray-600 text-xs">{ESP32_STREAM_URL}</p>
+          <Radio className="w-10 h-10 text-theme-secondary" />
+          <p className="text-theme-muted text-sm">Cannot reach camera</p>
+          <p className="text-theme-secondary text-xs">{ESP32_STREAM_URL}</p>
           <button
             onClick={() => setError(false)}
-            className="mt-2 px-3 py-1 rounded-full bg-[#1E6B5E] text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
+            className="mt-2 px-3 py-1 rounded-full bg-litter-primary text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
           >
             Retry
           </button>
@@ -146,8 +146,8 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
     return (
       <div className="relative w-full aspect-video bg-[#1C1C1C] rounded-2xl overflow-hidden flex items-center justify-center">
         <div className="text-center">
-          <Video className="w-10 h-10 text-gray-600 mx-auto mb-2" />
-          <p className="text-gray-500 text-sm">Select a recording to play</p>
+          <Video className="w-10 h-10 text-theme-secondary mx-auto mb-2" />
+          <p className="text-theme-muted text-sm">Select a recording to play</p>
         </div>
       </div>
     );
@@ -177,7 +177,7 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
         onClick={() => setIsPlaying((p) => !p)}
         className="absolute inset-0 flex items-center justify-center group"
       >
-        <div className="w-14 h-14 rounded-full bg-[#1E6B5E] flex items-center justify-center shadow-lg group-hover:bg-[#165a4e] group-hover:scale-105 transition-all duration-200">
+        <div className="w-14 h-14 rounded-full bg-litter-primary flex items-center justify-center shadow-lg group-hover:bg-[#165a4e] group-hover:scale-105 transition-all duration-200">
           {isPlaying ? (
             <Pause className="w-6 h-6 text-white" />
           ) : (
@@ -189,12 +189,12 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
       {/* Bottom controls bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
         {/* Progress bar */}
-        <div className="w-full h-1 bg-white/30 rounded-full mb-2 cursor-pointer">
+        <div className="w-full h-1 bg-litter-card/30 rounded-full mb-2 cursor-pointer">
           <div
-            className="h-full bg-[#1E6B5E] rounded-full relative"
+            className="h-full bg-litter-primary rounded-full relative"
             style={{ width: `${progress}%` }}
           >
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-md" />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-litter-card rounded-full shadow-md" />
           </div>
         </div>
 
@@ -241,8 +241,8 @@ function RecordingRow({
       exit={{ opacity: 0, y: -8 }}
       className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 ${
         isSelected
-          ? "bg-[#D4EDE8] border border-[#1E6B5E]/30"
-          : "bg-white border border-[#E8E2D9] hover:border-[#1E6B5E]/20 hover:bg-[#FDFAF6]"
+          ? "bg-litter-primary-light border border-litter-primary/30"
+          : "bg-litter-card border border-litter-border hover:border-litter-primary/20 hover:bg-litter-bg"
       }`}
       onClick={onSelect}
     >
@@ -252,25 +252,25 @@ function RecordingRow({
         style={{ backgroundColor: recording.thumbnailColor }}
       >
         {recording.type === "cat_visit" ? (
-          <Cat className="w-5 h-5 text-[#1E6B5E]" />
+          <Cat className="w-5 h-5 text-litter-primary" />
         ) : (
-          <Layers className="w-5 h-5 text-[#1E6B5E]" />
+          <Layers className="w-5 h-5 text-litter-primary" />
         )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium truncate ${isSelected ? "text-[#1E6B5E]" : "text-[#1C1C1C]"}`}>
+        <p className={`text-sm font-medium truncate ${isSelected ? "text-litter-primary" : "text-litter-text"}`}>
           {recording.title}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-gray-500">{recording.timestamp}</span>
+          <span className="text-xs text-theme-muted">{recording.timestamp}</span>
           <span className="text-gray-300">·</span>
-          <span className="text-xs text-gray-400">{recording.duration}</span>
+          <span className="text-xs text-theme-muted">{recording.duration}</span>
           {recording.cat && (
             <>
               <span className="text-gray-300">·</span>
-              <span className="text-xs text-[#1E6B5E] font-medium">{recording.cat}</span>
+              <span className="text-xs text-litter-primary font-medium">{recording.cat}</span>
             </>
           )}
         </div>
@@ -282,7 +282,7 @@ function RecordingRow({
           e.stopPropagation();
           onDelete();
         }}
-        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+        className="p-1.5 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
         title="Delete recording"
       >
         <Trash2 className="w-4 h-4" />
@@ -322,7 +322,7 @@ export default function PlaybackPage() {
     : filteredRecordings.slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-[#FDFAF6] pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
 
       <main className="pt-20 px-4 sm:px-6 max-w-lg mx-auto">
@@ -333,7 +333,7 @@ export default function PlaybackPage() {
           transition={{ duration: 0.4 }}
           className="mb-5"
         >
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1C1C1C] mb-1">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-1">
             Playback
           </h1>
           <p className="text-[#6B7280] text-sm">
@@ -347,7 +347,7 @@ export default function PlaybackPage() {
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 activeTab === "live"
                   ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-white text-gray-500 border-litter-border hover:border-litter-primary/40"
+                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
               }`}
             >
               <Radio className="w-3.5 h-3.5" />
@@ -358,7 +358,7 @@ export default function PlaybackPage() {
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 activeTab === "recordings"
                   ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-white text-gray-500 border-litter-border hover:border-litter-primary/40"
+                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
               }`}
             >
               <Video className="w-3.5 h-3.5" />
@@ -390,19 +390,19 @@ export default function PlaybackPage() {
             className="flex items-center justify-between mb-4"
           >
             <div>
-              <p className="font-semibold text-[#1C1C1C] text-base">LitterSense Unit #67</p>
+              <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-[#1E6B5E]" />
-                <span className="text-sm text-[#1E6B5E] font-medium">Playback</span>
-                <span className="text-gray-400 text-sm">·</span>
-                <span className="text-sm text-gray-500">{selectedRecording.timestamp}</span>
+                <span className="w-2 h-2 rounded-full bg-litter-primary" />
+                <span className="text-sm text-litter-primary font-medium">Playback</span>
+                <span className="text-theme-muted text-sm">·</span>
+                <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="w-9 h-9 rounded-xl border border-[#E8E2D9] bg-white flex items-center justify-center text-[#1E6B5E] hover:bg-[#D4EDE8] transition-colors shadow-sm">
+              <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
                 <Maximize2 className="w-4 h-4" />
               </button>
-              <button className="w-9 h-9 rounded-xl border border-[#E8E2D9] bg-white flex items-center justify-center text-[#1E6B5E] hover:bg-[#D4EDE8] transition-colors shadow-sm">
+              <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
                 <Settings className="w-4 h-4" />
               </button>
             </div>
@@ -414,12 +414,12 @@ export default function PlaybackPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
-          className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm p-4 mb-5"
+          className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-5"
         >
-          <p className="text-xs font-semibold tracking-widest text-[#1E6B5E] uppercase mb-1">
+          <p className="text-xs font-semibold tracking-widest text-litter-primary uppercase mb-1">
             Status
           </p>
-          <p className="text-lg font-bold text-[#1C1C1C]">Connected</p>
+          <p className="text-lg font-bold text-litter-text">Connected</p>
         </motion.div>
 
         {/* Filters */}
@@ -431,7 +431,7 @@ export default function PlaybackPage() {
         >
           {/* Date filter */}
           <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Calendar className="w-4 h-4 text-theme-muted flex-shrink-0" />
             <div className="flex gap-2 flex-wrap">
               {(["all", "today", "yesterday"] as const).map((d) => (
                 <button
@@ -439,8 +439,8 @@ export default function PlaybackPage() {
                   onClick={() => setSelectedDate(d)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
                     selectedDate === d
-                      ? "bg-[#1E6B5E] text-white border-[#1E6B5E]"
-                      : "bg-white text-gray-500 border-[#E8E2D9] hover:border-[#1E6B5E]/40"
+                      ? "bg-litter-primary text-white border-litter-primary"
+                      : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
                   }`}
                 >
                   {d === "all" ? "All Dates" : d.charAt(0).toUpperCase() + d.slice(1)}
@@ -451,7 +451,7 @@ export default function PlaybackPage() {
 
           {/* Cat filter */}
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Filter className="w-4 h-4 text-theme-muted flex-shrink-0" />
             <div className="flex gap-2 flex-wrap">
               {MOCK_CATS.map((cat) => (
                 <button
@@ -459,8 +459,8 @@ export default function PlaybackPage() {
                   onClick={() => setSelectedCat(cat)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                     selectedCat === cat
-                      ? "bg-[#1E6B5E] text-white border-[#1E6B5E]"
-                      : "bg-white text-gray-500 border-[#E8E2D9] hover:border-[#1E6B5E]/40"
+                      ? "bg-litter-primary text-white border-litter-primary"
+                      : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
                   }`}
                 >
                   {cat}
@@ -477,11 +477,11 @@ export default function PlaybackPage() {
           transition={{ duration: 0.4, delay: 0.3 }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-base text-[#1C1C1C]">Recording History</h2>
+            <h2 className="font-semibold text-base text-litter-text">Recording History</h2>
             {filteredRecordings.length > 3 && (
               <button
                 onClick={() => setShowAllRecordings((v) => !v)}
-                className="text-[#1E6B5E] text-sm font-medium hover:underline"
+                className="text-litter-primary text-sm font-medium hover:underline"
               >
                 {showAllRecordings ? "Show Less" : "View All"}
               </button>
@@ -489,9 +489,9 @@ export default function PlaybackPage() {
           </div>
 
           {filteredRecordings.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-2xl border border-[#E8E2D9]">
+            <div className="text-center py-10 bg-litter-card rounded-2xl border border-litter-border">
               <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">No recordings found</p>
+              <p className="text-theme-muted text-sm">No recordings found</p>
             </div>
           ) : (
             <div className="space-y-2">

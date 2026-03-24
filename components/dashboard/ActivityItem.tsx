@@ -22,7 +22,7 @@ export function ActivityItem({
   const cat = getCatById(catId);
 
   return (
-    <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-litter-border shadow-sm">
+    <div className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm">
       {/* Cat Avatar */}
       <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
         {cat?.avatar ? (

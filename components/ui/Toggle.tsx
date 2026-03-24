@@ -18,14 +18,14 @@ export function Toggle({ checked, onChange, disabled = false }: Readonly<ToggleP
       onClick={() => !disabled && onChange(!checked)}
       style={{ width: 60, height: 30, minHeight: 0, overflow: "hidden", borderRadius: 500 }}
       className={`relative inline-flex items-center transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E6B5E] focus-visible:ring-offset-2 ${
-        checked ? "bg-[#1E6B5E]" : "bg-gray-300"
+        checked ? "bg-litter-primary" : "bg-gray-300"
       } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <motion.span
         layout
         transition={{ type: "spring", stiffness: 500, damping: 30}}
         style={{ width: 18, height: 18, borderRadius: "50%" }}
-        className={`inline-block bg-white shadow-md transform ${
+        className={`inline-block bg-litter-card shadow-md transform ${
           checked ? "translate-x-[37px]" : "translate-x-[5px]"
         }`}
       />
