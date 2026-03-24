@@ -191,12 +191,12 @@ export default function CatsPage() {
                 <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
               </label>
             </div>
-            <p className="text-xs text-gray-500 mt-2">Tap to upload photo</p>
+            <p className="text-xs text-theme-muted mt-2">Tap to upload photo</p>
           </div>
 
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
               Cat Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -211,7 +211,7 @@ export default function CatsPage() {
 
           {/* Breed */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Breed</label>
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Breed</label>
             <input
               type="text"
               value={formData.breed}
@@ -223,7 +223,7 @@ export default function CatsPage() {
 
           {/* Date of Birth */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Birth</label>
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Date of Birth</label>
             <input
               type="month"
               value={formData.dob}
@@ -234,7 +234,7 @@ export default function CatsPage() {
 
           {/* Weight */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Weight (kg)</label>
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
             <input
               type="number"
               step="0.1"
@@ -247,7 +247,7 @@ export default function CatsPage() {
 
           {/* RFID Tag */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">RFID Tag ID</label>
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">RFID Tag ID</label>
             <div className="relative">
               <input
                 type="text"
@@ -259,13 +259,13 @@ export default function CatsPage() {
               <button
                 type="button"
                 title="Tap the RFID button on your LitterSense device to auto-fill"
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-litter-primary transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-theme-muted hover:text-litter-primary transition-colors"
               >
                 <ScanLine className="w-5 h-5" />
               </button>
             </div>
             {errors.rfidTag && <p className="text-red-500 text-xs mt-1">{errors.rfidTag}</p>}
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-theme-muted mt-1">
               Tap the RFID button on your LitterSense device to auto-fill
             </p>
           </div>
@@ -279,7 +279,7 @@ export default function CatsPage() {
                 setFormData(initialFormData);
                 setErrors({});
               }}
-              className="flex-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+              className="flex-1 px-4 py-3 rounded-xl border border-theme text-theme-secondary font-medium hover:bg-theme-hover transition-colors"
             >
               Cancel
             </button>
@@ -327,7 +327,7 @@ function CatCard({ cat }: CatCardProps) {
   return (
     <div>
       <Link href={`/dashboard/cats/${cat.id}`}>
-        <div className="bg-white rounded-2xl shadow-sm border border-litter-border hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all cursor-pointer overflow-hidden">
+        <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all cursor-pointer overflow-hidden">
           {/* Card top */}
           <div className="p-5 flex items-center gap-4">
             {/* Avatar */}

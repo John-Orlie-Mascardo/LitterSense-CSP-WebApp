@@ -64,7 +64,7 @@ export function BottomSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={`w-full ${maxWidth} bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden`}
+            className={`w-full ${maxWidth} bg-litter-card rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden`}
           >
             {/* Handle bar for mobile */}
             <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
@@ -72,16 +72,16 @@ export function BottomSheet({
             </div>
 
             {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-[#E8E2D9]">
-              <h2 className="font-display text-lg font-semibold text-[#1C1C1C]">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-litter-border">
+              <h2 className="font-display text-lg font-semibold text-litter-text">
                 {title}
               </h2>
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E6B5E]"
+                className="p-2 rounded-lg hover:bg-theme-overlay transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1E6B5E]"
                 aria-label="Close"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-theme-muted" />
               </button>
             </div>
 

@@ -107,7 +107,7 @@ function NotifIcon({ type }: { readonly type: NotificationType }) {
   }
   return (
     <div className="w-11 h-11 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
-      <Info className="w-5 h-5 text-[#1E6B5E]" />
+      <Info className="w-5 h-5 text-litter-primary" />
     </div>
   );
 }
@@ -167,7 +167,7 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-[#F2F2F2] pb-24">
 
       {/* ── Fixed Header ─────────────────────────────────────────────────────── */}
-      <div className="fixed top-0 left-0 right-0 bg-white z-50 shadow-sm">
+      <div className="fixed top-0 left-0 right-0 bg-litter-card z-50 shadow-sm">
         <div className="max-w-lg mx-auto">
 
           {/* Row 1: back + title + icons */}
@@ -175,29 +175,29 @@ export default function NotificationsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => router.back()}
-                className="p-1 -ml-1 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1 -ml-1 rounded-lg hover:bg-theme-overlay transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-[#1C1C1C]" />
+                <ArrowLeft className="w-5 h-5 text-litter-text" />
               </button>
-              <h1 className="text-xl font-bold text-[#1C1C1C]">Notifications</h1>
+              <h1 className="text-xl font-bold text-litter-text">Notifications</h1>
             </div>
 
             <div className="flex items-center gap-0.5 relative">
               {/* Mark all read */}
               <button
                 onClick={handleMarkAllRead}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-theme-overlay transition-colors"
                 title="Mark all as read"
               >
-                <CheckCheck className="w-5 h-5 text-[#1E6B5E]" />
+                <CheckCheck className="w-5 h-5 text-litter-primary" />
               </button>
 
               {/* Kebab menu */}
               <button
                 onClick={() => setShowMenu((v) => !v)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-theme-overlay transition-colors"
               >
-                <MoreVertical className="w-5 h-5 text-[#1C1C1C]" />
+                <MoreVertical className="w-5 h-5 text-litter-text" />
               </button>
 
               {/* Dropdown */}
@@ -214,13 +214,13 @@ export default function NotificationsPage() {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: -6 }}
                       transition={{ duration: 0.12 }}
-                      className="absolute top-11 right-0 bg-white rounded-xl shadow-xl border border-gray-100 py-1 w-44 z-50"
+                      className="absolute top-11 right-0 bg-litter-card rounded-xl shadow-xl border border-gray-100 py-1 w-44 z-50"
                     >
                       <button
                         onClick={handleMarkAllRead}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#1C1C1C] hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-litter-text hover:bg-theme-hover transition-colors"
                       >
-                        <CheckCheck className="w-4 h-4 text-[#1E6B5E]" />
+                        <CheckCheck className="w-4 h-4 text-litter-primary" />
                         Mark all as read
                       </button>
                       <button
@@ -244,14 +244,14 @@ export default function NotificationsPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`relative mr-7 pb-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.key ? "text-[#1E6B5E]" : "text-[#6B7280]"
+                  activeTab === tab.key ? "text-litter-primary" : "text-[#6B7280]"
                 }`}
               >
                 {tab.label}
                 {activeTab === tab.key && (
                   <motion.div
                     layoutId="notifTabLine"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#1E6B5E] rounded-full"
+                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-litter-primary rounded-full"
                     transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   />
                 )}
@@ -268,11 +268,11 @@ export default function NotificationsPage() {
 
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center px-8">
-            <div className="w-14 h-14 rounded-full bg-[#D4EDE8] flex items-center justify-center mb-4">
-              <CheckCheck className="w-7 h-7 text-[#1E6B5E]" />
+            <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center mb-4">
+              <CheckCheck className="w-7 h-7 text-litter-primary" />
             </div>
-            <p className="font-semibold text-[#1C1C1C] mb-1">All caught up!</p>
-            <p className="text-sm text-gray-400">No notifications here.</p>
+            <p className="font-semibold text-litter-text mb-1">All caught up!</p>
+            <p className="text-sm text-theme-muted">No notifications here.</p>
           </div>
         ) : (
           <>
@@ -285,13 +285,13 @@ export default function NotificationsPage() {
 
                   {/* Date header — same grey label style as wireframe */}
                   <div className="px-4 pt-5 pb-2">
-                    <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase">
+                    <p className="text-xs font-semibold text-theme-muted tracking-widest uppercase">
                       {label}
                     </p>
                   </div>
 
                   {/* White card block for this group */}
-                  <div className="bg-white">
+                  <div className="bg-litter-card">
                     <AnimatePresence>
                       {group.map((notif, idx) => (
                         <motion.div
@@ -302,7 +302,7 @@ export default function NotificationsPage() {
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.15 }}
                           onClick={() => handleMarkRead(notif.id)}
-                          className={`flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors hover:bg-gray-50 ${
+                          className={`flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors hover:bg-theme-hover ${
                             idx === 0 ? "" : "border-t border-gray-100"
                           }`}
                         >
@@ -315,13 +315,13 @@ export default function NotificationsPage() {
                             <div className="flex items-start justify-between gap-2 mb-0.5">
                               <p className={`text-sm leading-snug ${
                                   notif.isRead
-                                    ? "font-semibold text-[#1C1C1C]"
-                                    : "font-bold text-[#1C1C1C]"
+                                    ? "font-semibold text-litter-text"
+                                    : "font-bold text-litter-text"
                                 }`}>
                                 {notif.title}
                               </p>
                               <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                                <span className="text-xs text-gray-400 whitespace-nowrap">
+                                <span className="text-xs text-theme-muted whitespace-nowrap">
                                   {notif.timeLabel}
                                 </span>
                                 {!notif.isRead && (
@@ -331,7 +331,7 @@ export default function NotificationsPage() {
                             </div>
 
                             {/* Message body */}
-                            <p className="text-sm text-gray-500 leading-snug">
+                            <p className="text-sm text-theme-muted leading-snug">
                               {notif.message}
                             </p>
                           </div>

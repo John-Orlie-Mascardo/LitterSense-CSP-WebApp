@@ -20,9 +20,9 @@ export function SparklineChart({
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-2 rounded-lg shadow-lg border border-[#E8E2D9] text-xs">
-          <p className="font-medium text-gray-700">{label}</p>
-          <p className="text-[#1E6B5E] font-semibold">{payload[0].value}</p>
+        <div className="bg-litter-card p-2 rounded-lg shadow-lg border border-litter-border text-xs">
+          <p className="font-medium text-theme-secondary">{label}</p>
+          <p className="text-litter-primary font-semibold">{payload[0].value}</p>
         </div>
       );
     }

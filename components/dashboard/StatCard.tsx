@@ -24,34 +24,34 @@ interface StatCardProps {
 }
 
 const iconColors = {
-  healthy: "text-[#1E6B5E]",
+  healthy: "text-litter-primary",
   watch:   "text-amber-500",
   alert:   "text-red-500",
-  normal:  "text-[#1E6B5E]",
+  normal:  "text-litter-primary",
 };
 
 const statusBarColors = {
-  healthy: "bg-[#1E6B5E]",
+  healthy: "bg-litter-primary",
   watch:   "bg-amber-500",
   alert:   "bg-red-500",
-  normal:  "bg-[#1E6B5E]",
+  normal:  "bg-litter-primary",
 };
 
 const statusLabelColors = {
-  healthy: "text-[#1E6B5E]",
+  healthy: "text-litter-primary",
   watch:   "text-amber-500",
   alert:   "text-red-500",
-  normal:  "text-[#1E6B5E]",
+  normal:  "text-litter-primary",
 };
 
 export function StatCard({ icon: Icon, value, label, status = "normal", statusLabel }: Readonly<StatCardProps>) {
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden">
+    <div className="bg-litter-card rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden">
       {/* Top row: icon left, status label right */}
       <div className="flex items-center justify-between mb-3">
         <Icon className={`w-6 h-6 ${iconColors[status]}`} />
         {statusLabel && (
-          <span className={`text-xs font-semibold tracking-wide uppercase ${statusLabelColors[status]}`}>
+          <span className={`font-body text-xs font-semibold tracking-wide uppercase ${statusLabelColors[status]}`}>
             {statusLabel}
           </span>
         )}
@@ -63,7 +63,7 @@ export function StatCard({ icon: Icon, value, label, status = "normal", statusLa
       </p>
 
       {/* Label */}
-      <p className="text-sm text-litter-muted mt-1">{label}</p>
+      <p className="font-body text-sm text-litter-muted mt-1 leading-tight">{label}</p>
 
       {/* Status indicator bar */}
       <div
