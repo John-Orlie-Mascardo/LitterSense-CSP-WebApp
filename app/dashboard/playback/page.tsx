@@ -302,6 +302,20 @@ export default function PlaybackPage() {
   const [selectedCat, setSelectedCat] = useState("All Cats");
   const [selectedDate, setSelectedDate] = useState<"all" | "today" | "yesterday">("all");
   const [showAllRecordings, setShowAllRecordings] = useState(false);
+  const [deviceConnected, setDeviceConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnect = () => {
+    setIsConnecting(true);
+    setTimeout(() => {
+      setDeviceConnected(true);
+      setIsConnecting(false);
+    }, 1800);
+  };
+
+  const handleDisconnect = () => {
+    setDeviceConnected(false);
+  };
 
   const handleDelete = (id: string) => {
     setRecordings((prev) => prev.filter((r) => r.id !== id));
@@ -367,146 +381,227 @@ export default function PlaybackPage() {
           </div>
         </motion.section>
 
-        {/* Video area */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="mb-4"
-        >
-          {activeTab === "live" ? (
-            <LiveView />
-          ) : (
-            <VideoPlayer recording={selectedRecording} />
-          )}
-        </motion.div>
-
-        {/* Device Info Row */}
-        {activeTab === "recordings" && selectedRecording && (
+        {/* ── Device Gate ─────────────────────────────────────── */}
+        {!deviceConnected ? (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="connect-gate"
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
-            className="flex items-center justify-between mb-4"
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.45 }}
+            className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center"
           >
-            <div>
-              <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-litter-primary" />
-                <span className="text-sm text-litter-primary font-medium">Playback</span>
-                <span className="text-theme-muted text-sm">·</span>
-                <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
-              </div>
+            {/* decorative radial glow */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+              <div className="h-64 w-64 rounded-full bg-litter-primary/10 blur-3xl" />
             </div>
-            <div className="flex items-center gap-2">
-              <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
-                <Maximize2 className="w-4 h-4" />
-              </button>
-              <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
-                <Settings className="w-4 h-4" />
+
+            <div className="relative z-10 flex flex-col items-center gap-4">
+              {/* icon ring */}
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-litter-primary/20 bg-litter-primary/10 shadow-inner">
+                <Radio className="h-9 w-9 text-litter-primary" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
+                <p className="mt-1 text-sm text-theme-muted max-w-[260px] mx-auto">
+                  Pair your LitterSense unit to watch the live feed and browse recording history.
+                </p>
+              </div>
+
+              {/* steps */}
+              <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
+                {[
+                  { step: "1", label: "Power on your LitterSense device" },
+                  { step: "2", label: "Make sure it's on the same Wi-Fi network" },
+                  { step: "3", label: "Tap Connect below to pair" },
+                ].map(({ step, label }) => (
+                  <div key={step} className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-litter-primary text-[11px] font-bold text-white">
+                      {step}
+                    </span>
+                    <span className="text-sm text-theme-muted">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleConnect}
+                disabled={isConnecting}
+                className="mt-2 flex items-center gap-2 rounded-full bg-litter-primary px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-litter-primary/25 transition-all hover:bg-[#165a4e] hover:shadow-litter-primary/40 disabled:opacity-60"
+              >
+                {isConnecting ? (
+                  <>
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+                      className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
+                    />
+                    Connecting…
+                  </>
+                ) : (
+                  <>
+                    <Radio className="h-4 w-4" />
+                    Connect Device
+                  </>
+                )}
               </button>
             </div>
           </motion.div>
-        )}
-
-        {/* Status Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-          className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-5"
-        >
-          <p className="text-xs font-semibold tracking-widest text-litter-primary uppercase mb-1">
-            Status
-          </p>
-          <p className="text-lg font-bold text-litter-text">Connected</p>
-        </motion.div>
-
-        {/* Filters */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.25 }}
-          className="mb-4"
-        >
-          {/* Date filter */}
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-4 h-4 text-theme-muted flex-shrink-0" />
-            <div className="flex gap-2 flex-wrap">
-              {(["all", "today", "yesterday"] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setSelectedDate(d)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
-                    selectedDate === d
-                      ? "bg-litter-primary text-white border-litter-primary"
-                      : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-                  }`}
-                >
-                  {d === "all" ? "All Dates" : d.charAt(0).toUpperCase() + d.slice(1)}
-                </button>
-              ))}
+        ) : (
+          <motion.div
+            key="connected-view"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            {/* Video player */}
+            <div className="mb-4">
+              {activeTab === "live" ? (
+                <LiveView />
+              ) : (
+                <VideoPlayer recording={selectedRecording} />
+              )}
             </div>
-          </div>
 
-          {/* Cat filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-theme-muted flex-shrink-0" />
-            <div className="flex gap-2 flex-wrap">
-              {MOCK_CATS.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCat(cat)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    selectedCat === cat
-                      ? "bg-litter-primary text-white border-litter-primary"
-                      : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Recording History */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-base text-litter-text">Recording History</h2>
-            {filteredRecordings.length > 3 && (
-              <button
-                onClick={() => setShowAllRecordings((v) => !v)}
-                className="text-litter-primary text-sm font-medium hover:underline"
-              >
-                {showAllRecordings ? "Show Less" : "View All"}
-              </button>
+            {/* Device Info Row (recordings only) */}
+            {activeTab === "recordings" && selectedRecording && (
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="w-2 h-2 rounded-full bg-litter-primary" />
+                    <span className="text-sm text-litter-primary font-medium">Playback</span>
+                    <span className="text-theme-muted text-sm">·</span>
+                    <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
+                    <Maximize2 className="w-4 h-4" />
+                  </button>
+                  <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
 
-          {filteredRecordings.length === 0 ? (
-            <div className="text-center py-10 bg-litter-card rounded-2xl border border-litter-border">
-              <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-theme-muted text-sm">No recordings found</p>
+            {/* ── Device Status Card ── */}
+            <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
+              <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+                Device Status
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="relative flex h-4 w-4 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-50" />
+                    <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-litter-text leading-tight">Connected</p>
+                    <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense Unit #67</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleDisconnect}
+                  className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {visibleRecordings.map((recording) => (
-                <RecordingRow
-                  key={recording.id}
-                  recording={recording}
-                  isSelected={selectedRecording?.id === recording.id}
-                  onSelect={() => setSelectedRecording(recording)}
-                  onDelete={() => handleDelete(recording.id)}
-                />
-              ))}
+
+            {/* ── Filters Card ── */}
+            <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
+              <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+                Filters
+              </p>
+
+              {/* Date row */}
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar className="w-3.5 h-3.5 text-theme-muted shrink-0" />
+                <div className="flex gap-1.5 flex-wrap">
+                  {(["all", "today", "yesterday"] as const).map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSelectedDate(d)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
+                        selectedDate === d
+                          ? "bg-litter-primary text-white border-litter-primary"
+                          : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
+                      }`}
+                    >
+                      {d === "all" ? "All Dates" : d.charAt(0).toUpperCase() + d.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cat row */}
+              <div className="flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-theme-muted shrink-0" />
+                <div className="flex gap-1.5 flex-wrap">
+                  {MOCK_CATS.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCat(cat)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        selectedCat === cat
+                          ? "bg-litter-primary text-white border-litter-primary"
+                          : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-          )}
-        </motion.div>
+
+            {/* ── Recording History ── */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-base text-litter-text">Recording History</h2>
+                {filteredRecordings.length > 3 && (
+                  <button
+                    onClick={() => setShowAllRecordings((v) => !v)}
+                    className="text-litter-primary text-sm font-semibold hover:underline"
+                  >
+                    {showAllRecordings ? "Show Less" : "View All"}
+                  </button>
+                )}
+              </div>
+
+              {filteredRecordings.length === 0 ? (
+                <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-10 text-center">
+                  <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-litter-text">No recordings found</p>
+                  <p className="text-xs text-theme-muted mt-1">Try changing the filters above.</p>
+                </div>
+              ) : (
+                <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
+                  {visibleRecordings.map((recording, idx) => (
+                    <div
+                      key={recording.id}
+                      className={idx < visibleRecordings.length - 1 ? "border-b border-litter-border" : ""}
+                    >
+                      <RecordingRow
+                        recording={recording}
+                        isSelected={selectedRecording?.id === recording.id}
+                        onSelect={() => setSelectedRecording(recording)}
+                        onDelete={() => handleDelete(recording.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
       </main>
 
       <BottomNav />
