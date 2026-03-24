@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   // Data Retention dropdown
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
@@ -282,11 +283,16 @@ export default function SettingsPage() {
               </button>
             </div>
             <div className="border-t border-litter-border">
-              <SettingsRow
-                icon={Shield}
-                label="Privacy Policy"
-                control={<ExternalLink className="w-4 h-4 text-theme-muted" />}
-              />
+              <button
+                onClick={() => setShowPrivacyPolicy(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-theme-muted" />
+                  <span className="text-sm font-medium text-litter-text">Privacy Policy</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-theme-muted" />
+              </button>
             </div>
           </div>
         </motion.div>
@@ -486,6 +492,40 @@ export default function SettingsPage() {
             className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Privacy Policy Bottom Sheet */}
+      <BottomSheet
+        isOpen={showPrivacyPolicy}
+        onClose={() => setShowPrivacyPolicy(false)}
+        title="Privacy Policy"
+      >
+        <div className="space-y-4 text-sm text-theme-secondary max-h-[60vh] overflow-y-auto pr-2">
+          <p>
+            Welcome to the LitterSense Privacy Policy. Your privacy is critically important to us.
+          </p>
+          <h4 className="font-semibold text-litter-text">1. Information We Collect</h4>
+          <p>
+            We collect the information you provide directly to us when you create an account, update your profile, and use our application to monitor your cat&apos;s litter habits.
+          </p>
+          <h4 className="font-semibold text-litter-text">2. How We Use Information</h4>
+          <p>
+            We use the information we collect to operate, maintain, and provide you with the features and functionality of the Service, as well as to communicate directly with you.
+          </p>
+          <h4 className="font-semibold text-litter-text">3. Data Security</h4>
+          <p>
+            We care about the security of your information and use commercially reasonable safeguards to preserve the integrity and security of all information collected through our application.
+          </p>
+          <p className="pt-4">
+            If you have any questions about this Privacy Policy, please contact our support team.
+          </p>
+          <button
+            onClick={() => setShowPrivacyPolicy(false)}
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] transition-colors"
+          >
+            Close
           </button>
         </div>
       </BottomSheet>
