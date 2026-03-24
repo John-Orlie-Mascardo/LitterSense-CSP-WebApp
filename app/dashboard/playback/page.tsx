@@ -236,9 +236,6 @@ function RecordingRow({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
       className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-150 ${
         isSelected
           ? "bg-litter-primary-light border border-litter-primary/30"
@@ -341,12 +338,7 @@ export default function PlaybackPage() {
 
       <main className="pt-20 px-4 sm:px-6 max-w-lg mx-auto">
         {/* Header */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mb-5"
-        >
+        <section className="mb-5">
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-1">
             Playback
           </h1>
@@ -379,18 +371,11 @@ export default function PlaybackPage() {
               Recordings
             </button>
           </div>
-        </motion.section>
+        </section>
 
         {/* ── Device Gate ─────────────────────────────────────── */}
         {!deviceConnected ? (
-          <motion.div
-            key="connect-gate"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.45 }}
-            className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center"
-          >
+          <div className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center">
             {/* decorative radial glow */}
             <div
               aria-hidden="true"
@@ -450,14 +435,9 @@ export default function PlaybackPage() {
                 )}
               </button>
             </div>
-          </motion.div>
+          </div>
         ) : (
-          <motion.div
-            key="connected-view"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
+          <div>
             {/* Video player */}
             <div className="mb-4">
               {activeTab === "live" ? (
@@ -600,7 +580,7 @@ export default function PlaybackPage() {
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
       </main>
 

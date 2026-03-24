@@ -138,12 +138,7 @@ export default function SettingsPage() {
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
 
         {/* User Profile Card */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4"
-        >
+        <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0">
               {settings.account.displayName.charAt(0).toUpperCase()}
@@ -161,14 +156,10 @@ export default function SettingsPage() {
               Edit Profile
             </button>
           </div>
-        </motion.section>
+        </section>
 
         {/* Notifications Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
+        <div>
           <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             NOTIFICATIONS
           </h3>
@@ -196,14 +187,10 @@ export default function SettingsPage() {
               />
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Data & Privacy Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
+        <div>
           <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             DATA & PRIVACY
           </h3>
@@ -295,14 +282,10 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Appearance Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-        >
+        <div>
           <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             APPEARANCE
           </h3>
@@ -321,14 +304,10 @@ export default function SettingsPage() {
               }}
             />
           </div>
-        </motion.div>
+        </div>
 
         {/* Account Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-        >
+        <div>
           <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             ACCOUNT
           </h3>
@@ -355,15 +334,10 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Sign Out Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-          className="mt-6 mb-8"
-        >
+        <div className="mt-6 mb-8">
           <button
             onClick={() => setShowSignOutConfirm(true)}
             disabled={isSigningOut}
@@ -384,7 +358,7 @@ export default function SettingsPage() {
           <p className="text-center text-xs text-theme-muted mt-2">
             App Version 3.12.0 · Made with care for your cat
           </p>
-        </motion.div>
+        </div>
       </main>
 
       {/* Backdrop — closes dropdown when clicking outside */}
