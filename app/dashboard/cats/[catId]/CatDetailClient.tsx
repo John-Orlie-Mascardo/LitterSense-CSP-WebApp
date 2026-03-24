@@ -76,14 +76,14 @@ export default function CatDetailClient() {
 
   if (!cat || !details) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-litter-card flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-display font-bold text-[#1C1C1C] mb-2">
+          <h1 className="text-2xl font-display font-bold text-litter-text mb-2">
             Cat not found
           </h1>
           <button
             onClick={() => router.push("/dashboard/cats")}
-            className="text-[#1B7A6E] hover:underline"
+            className="text-litter-primary hover:underline"
           >
             Back to My Cats
           </button>
@@ -96,7 +96,7 @@ export default function CatDetailClient() {
   const statusLabel = getStatusLabel(cat.status);
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-litter-card pb-24">
       <TopBar />
       <ToastContainer
         toasts={toasts}
@@ -107,23 +107,23 @@ export default function CatDetailClient() {
         {/* Back button */}
         <button
           onClick={() => router.push("/dashboard/cats")}
-          className="flex items-center gap-2 text-gray-500 hover:text-[#1B7A6E] mb-4 transition-colors"
+          className="flex items-center gap-2 text-theme-muted hover:text-litter-primary mb-4 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back to My Cats</span>
         </button>
 
         {/* Profile Header */}
-        <section className="relative bg-white rounded-2xl p-6 shadow-sm border border-[#D1D5DB] mb-6">
+        <section className="relative bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
           {/* Edit button */}
-          <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <Pencil className="w-5 h-5 text-gray-500" />
+          <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-theme-overlay transition-colors">
+            <Pencil className="w-5 h-5 text-theme-muted" />
           </button>
 
           <div className="flex flex-col items-center text-center">
             {/* Avatar with online indicator */}
             <div className="relative w-24 h-24 mb-4">
-              <div className="w-full h-full rounded-full bg-[#E8F5F1] flex items-center justify-center text-[#1B7A6E] font-bold text-3xl overflow-hidden">
+              <div className="w-full h-full rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-3xl overflow-hidden">
                 {cat.avatar ? (
                   <img
                     src={cat.avatar}
@@ -140,12 +140,12 @@ export default function CatDetailClient() {
             </div>
 
             {/* Name */}
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-[#1C1C1C] mb-2">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-2">
               {cat.name}
             </h1>
 
             {/* Details row */}
-            <p className="text-gray-500 mb-3">
+            <p className="text-theme-muted mb-3">
               {details.breed} · {calculateAge(details.dob)} · {details.weightKg}
               kg
             </p>
@@ -166,7 +166,7 @@ export default function CatDetailClient() {
         </section>
 
         {/* Tabs */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D1D5DB] overflow-hidden mb-6">
+        <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden mb-6">
           <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
           <div className="p-4 sm:p-6">
@@ -253,7 +253,7 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
 
       {/* Today's Summary */}
       <div>
-        <h3 className="font-semibold text-[#1C1C1C] mb-3">
+        <h3 className="font-semibold text-litter-text mb-3">
           Today&apos;s Summary
         </h3>
         <div className="grid grid-cols-2 gap-3">
@@ -297,11 +297,11 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
       </div>
 
       {/* Baseline Profile */}
-      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
-          <h3 className="font-semibold text-[#1C1C1C]">Baseline Profile</h3>
+          <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
           <div className="group relative">
-            <Info className="w-4 h-4 text-gray-400 cursor-help" />
+            <Info className="w-4 h-4 text-theme-muted cursor-help" />
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
               Baseline is recalculated every 7 days using a rolling average of
               recorded sessions.
@@ -310,42 +310,42 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-gray-500">Normal visits/day</p>
-            <p className="font-semibold text-[#1C1C1C]">
+          <div className="bg-litter-card rounded-lg p-3">
+            <p className="text-theme-muted">Normal visits/day</p>
+            <p className="font-semibold text-litter-text">
               {details.baseline.avgVisitsPerDay - 1}–
               {details.baseline.avgVisitsPerDay + 1}
             </p>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-gray-500">Normal duration</p>
-            <p className="font-semibold text-[#1C1C1C]">
+          <div className="bg-litter-card rounded-lg p-3">
+            <p className="text-theme-muted">Normal duration</p>
+            <p className="font-semibold text-litter-text">
               {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
               {formatDuration(details.baseline.avgDurationSecs + 30)}
             </p>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-gray-500">Normal MQ-135 Δ</p>
-            <p className="font-semibold text-[#1C1C1C]">
+          <div className="bg-litter-card rounded-lg p-3">
+            <p className="text-theme-muted">Normal MQ-135 Δ</p>
+            <p className="font-semibold text-litter-text">
               &lt; {details.baseline.mq135DeltaPercent + 7}%
             </p>
           </div>
-          <div className="bg-white rounded-lg p-3">
-            <p className="text-gray-500">Normal MQ-136 Δ</p>
-            <p className="font-semibold text-[#1C1C1C]">
+          <div className="bg-litter-card rounded-lg p-3">
+            <p className="text-theme-muted">Normal MQ-136 Δ</p>
+            <p className="font-semibold text-litter-text">
               &lt; {details.baseline.mq136DeltaPercent + 5}%
             </p>
           </div>
         </div>
 
-        <p className="text-xs text-gray-400 mt-3">
+        <p className="text-xs text-theme-muted mt-3">
           Last updated {formatDate(details.baseline.lastUpdated)}
         </p>
       </div>
 
       {/* Recent Anomalies */}
       <div>
-        <h3 className="font-semibold text-[#1C1C1C] mb-3">Recent Anomalies</h3>
+        <h3 className="font-semibold text-litter-text mb-3">Recent Anomalies</h3>
         {recentAnomalies.length === 0 ? (
           <div className="bg-green-50 rounded-xl p-4 text-center">
             <p className="text-green-700">No anomalies detected this week 🎉</p>
@@ -396,8 +396,8 @@ function HistoryTab({ catId }: HistoryTabProps) {
           onClick={() => setFilter("all")}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             filter === "all"
-              ? "bg-[#1B7A6E] text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              ? "bg-litter-primary text-white"
+              : "bg-theme-overlay text-theme-secondary hover:bg-gray-200"
           }`}
         >
           All
@@ -406,8 +406,8 @@ function HistoryTab({ catId }: HistoryTabProps) {
           onClick={() => setFilter("anomalies")}
           className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
             filter === "anomalies"
-              ? "bg-[#1B7A6E] text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              ? "bg-litter-primary text-white"
+              : "bg-theme-overlay text-theme-secondary hover:bg-gray-200"
           }`}
         >
           Anomalies Only
@@ -439,22 +439,22 @@ function SessionRow({ session }: { session: Session }) {
       className={`flex items-center justify-between p-3 rounded-xl border ${
         session.anomaly
           ? "bg-amber-50 border-amber-200"
-          : "bg-white border-[#D1D5DB]"
+          : "bg-litter-card border-litter-border"
       }`}
     >
       <div>
-        <p className="font-medium text-[#1C1C1C]">{formatDate(session.date)}</p>
-        <p className="text-sm text-gray-500">{session.time}</p>
+        <p className="font-medium text-litter-text">{formatDate(session.date)}</p>
+        <p className="text-sm text-theme-muted">{session.time}</p>
       </div>
       <div className="text-center">
-        <p className="font-medium text-[#1C1C1C]">
+        <p className="font-medium text-litter-text">
           {formatDuration(session.durationSecs)}
         </p>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
-          <span className="text-sm text-gray-600">{session.mq135Delta}%</span>
+          <span className="text-sm text-theme-secondary">{session.mq135Delta}%</span>
         </div>
         {session.anomaly && (
           <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
@@ -498,10 +498,10 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
   return (
     <div className="space-y-6">
       {/* Visit Frequency */}
-      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
-          <Clock className="w-5 h-5 text-[#1B7A6E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">
+          <Clock className="w-5 h-5 text-litter-primary" />
+          <h4 className="font-semibold text-litter-text">
             Visit Frequency (7 days)
           </h4>
         </div>
@@ -513,10 +513,10 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       </div>
 
       {/* Average Duration */}
-      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
-          <Timer className="w-5 h-5 text-[#1B7A6E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">
+          <Timer className="w-5 h-5 text-litter-primary" />
+          <h4 className="font-semibold text-litter-text">
             Average Duration (7 days)
           </h4>
         </div>
@@ -528,10 +528,10 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       </div>
 
       {/* Gas Quality */}
-      <div className="bg-[#F5F5F5] rounded-xl p-4 border border-[#D1D5DB]">
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
-          <Wind className="w-5 h-5 text-[#1B7A6E]" />
-          <h4 className="font-semibold text-[#1C1C1C]">
+          <Wind className="w-5 h-5 text-litter-primary" />
+          <h4 className="font-semibold text-litter-text">
             MQ-135 Delta (7 days)
           </h4>
         </div>
@@ -545,7 +545,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
       {/* Link to Reports */}
       <a
         href="/dashboard/reports"
-        className="block text-center text-[#1B7A6E] font-medium hover:underline"
+        className="block text-center text-litter-primary font-medium hover:underline"
       >
         View full report →
       </a>
@@ -596,7 +596,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
       {/* Add Note button */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-[#1B7A6E] text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
+        className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
       >
         <Plus className="w-5 h-5" />
         Add Note
@@ -628,7 +628,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
               Note Type
             </label>
             <select
@@ -639,7 +639,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
                   type: e.target.value as HealthLog["type"],
                 }))
               }
-              className="w-full px-4 py-3 rounded-xl border border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all"
             >
               <option value="Vet Visit">Vet Visit</option>
               <option value="Medication">Medication</option>
@@ -649,7 +649,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
               What happened?
             </label>
             <textarea
@@ -660,9 +660,9 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
               placeholder="Describe the event..."
               maxLength={500}
               rows={4}
-              className="w-full px-4 py-3 rounded-xl border border-[#D1D5DB] focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all resize-none"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1B7A6E] focus:border-transparent transition-all resize-none"
             />
-            <p className="text-xs text-gray-400 mt-1 text-right">
+            <p className="text-xs text-theme-muted mt-1 text-right">
               {newLog.note.length}/500
             </p>
           </div>
@@ -670,7 +670,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
           <button
             onClick={handleSave}
             disabled={!newLog.note.trim()}
-            className="w-full px-4 py-3 rounded-xl bg-[#1B7A6E] text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Save Note
           </button>
@@ -695,10 +695,10 @@ function LogCard({ log, onDelete }: { log: HealthLog; onDelete: () => void }) {
   const typeColors = getHealthLogTypeColor(log.type);
 
   return (
-    <div className="bg-white rounded-xl p-4 border border-[#D1D5DB] shadow-sm">
+    <div className="bg-litter-card rounded-xl p-4 border border-litter-border shadow-sm">
       <div className="flex items-start justify-between mb-2">
         <div>
-          <p className="text-sm text-gray-500">{formatDate(log.date)}</p>
+          <p className="text-sm text-theme-muted">{formatDate(log.date)}</p>
           <span
             className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}
           >
@@ -707,13 +707,13 @@ function LogCard({ log, onDelete }: { log: HealthLog; onDelete: () => void }) {
         </div>
         <button
           onClick={onDelete}
-          className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+          className="p-2 rounded-lg hover:bg-red-50 text-theme-muted hover:text-red-500 transition-colors"
           aria-label="Delete note"
         >
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
-      <p className="text-[#1C1C1C]">{log.note}</p>
+      <p className="text-litter-text">{log.note}</p>
     </div>
   );
 }

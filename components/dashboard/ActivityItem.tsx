@@ -22,7 +22,7 @@ export function ActivityItem({
   const cat = getCatById(catId);
 
   return (
-    <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-litter-border shadow-sm">
+    <div className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm">
       {/* Cat Avatar */}
       <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
         {cat?.avatar ? (
@@ -38,11 +38,11 @@ export function ActivityItem({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="text-litter-text font-semibold text-sm">
+        <p className="font-body text-litter-text font-semibold text-sm leading-snug">
           {cat?.name} {action}
         </p>
         {duration && (
-          <p className="text-litter-muted text-xs mt-0.5">Duration: {duration}</p>
+          <p className="font-body text-litter-muted text-xs mt-0.5">Duration: {duration}</p>
         )}
       </div>
 
@@ -53,7 +53,7 @@ export function ActivityItem({
             {anomalyNote || "Unusual"}
           </span>
         )}
-        <span className="text-litter-muted text-xs">{time}</span>
+        <span className="font-body text-litter-muted text-xs">{time}</span>
       </div>
     </div>
   );

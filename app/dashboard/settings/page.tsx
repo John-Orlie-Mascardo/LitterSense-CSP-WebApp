@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import {
   Database,
@@ -43,6 +44,7 @@ export default function SettingsPage() {
     clearAllData,
     exportAllData,
   } = useSettings();
+  const { theme, setTheme } = useTheme();
 
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -51,6 +53,7 @@ export default function SettingsPage() {
   const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
 
   // Data Retention dropdown
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
@@ -128,48 +131,39 @@ export default function SettingsPage() {
   const passwordStrength = getPasswordStrength(passwordForm.new);
 
   return (
-    <div className="min-h-screen bg-[#FDFAF6] pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
 
         {/* User Profile Card */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-[#E8E2D9] mb-2 mt-4"
-        >
+        <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[#D4EDE8] flex items-center justify-center text-[#1E6B5E] font-bold text-2xl shrink-0">
+            <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0">
               {settings.account.displayName.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 overflow-hidden">
-              <h2 className="font-semibold text-lg text-[#1C1C1C] truncate">
+              <h2 className="font-display font-semibold text-lg text-litter-text truncate">
                 {settings.account.displayName}
               </h2>
-              <p className="text-sm text-gray-500 truncate">{settings.account.email}</p>
+              <p className="text-sm text-theme-muted truncate">{settings.account.email}</p>
             </div>
             <button
               onClick={() => setShowEditProfile(true)}
-              className="border border-[#1E6B5E] text-[#1E6B5E] bg-[#EAF7F5] rounded-full px-3 py-1 text-sm font-medium hover:bg-[#d9f2ee] transition-colors shrink-0"
+              className="border border-litter-primary text-litter-primary bg-litter-primary-light rounded-full px-3 py-1 text-sm font-medium hover:bg-litter-primary-light transition-colors shrink-0"
             >
               Edit Profile
             </button>
           </div>
-        </motion.section>
+        </section>
 
         {/* Notifications Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             NOTIFICATIONS
           </h3>
-          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
             <SettingsRow
               icon={Activity}
               label="Health Alerts"
@@ -180,7 +174,7 @@ export default function SettingsPage() {
                 />
               }
             />
-            <div className="border-t border-[#E8E2D9]">
+            <div className="border-t border-litter-border">
               <SettingsRow
                 icon={Trash2}
                 label="Litter Level Warnings"
@@ -193,35 +187,31 @@ export default function SettingsPage() {
               />
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Data & Privacy Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-        >
-          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             DATA & PRIVACY
           </h3>
-          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
 
             {/* Data Retention — interactive dropdown */}
             <div className="relative">
               <button
                 onClick={() => setShowRetentionDropdown((v) => !v)}
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left rounded-t-2xl"
+                className="w-full flex items-center justify-between p-4 hover:bg-theme-hover transition-colors text-left rounded-t-2xl"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#F5F5F5] flex items-center justify-center shrink-0">
-                    <Database className="w-5 h-5 text-gray-400" />
+                  <div className="w-9 h-9 rounded-xl bg-theme-overlay flex items-center justify-center shrink-0">
+                    <Database className="w-5 h-5 text-theme-muted" />
                   </div>
-                  <span className="text-sm font-medium text-[#1C1C1C]">Data Retention</span>
+                  <span className="text-sm font-medium text-litter-text">Data Retention</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm text-gray-500">{selectedRetention}</span>
+                  <span className="text-sm text-theme-muted">{selectedRetention}</span>
                   <ChevronDown
-                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                    className={`w-4 h-4 text-theme-muted transition-transform duration-200 ${
                       showRetentionDropdown ? "rotate-180" : ""
                     }`}
                   />
@@ -230,7 +220,7 @@ export default function SettingsPage() {
 
               {/* Dropdown options */}
               {showRetentionDropdown && (
-                <div className="absolute right-4 top-full mt-1 bg-white rounded-xl border border-[#E8E2D9] shadow-lg z-20 overflow-hidden min-w-[150px]">
+                <div className="absolute right-4 top-full mt-1 bg-litter-card rounded-xl border border-litter-border shadow-lg z-20 overflow-hidden min-w-[150px]">
                   {RETENTION_OPTIONS.map((option) => (
                     <button
                       key={option}
@@ -239,15 +229,15 @@ export default function SettingsPage() {
                         setShowRetentionDropdown(false);
                         addToast(`Data retention set to ${option}`, "success");
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-[#F5F5F5] ${
+                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-theme-overlay ${
                         selectedRetention === option
-                          ? "text-[#1E6B5E] font-semibold bg-[#EAF7F5]"
-                          : "text-[#1C1C1C]"
+                          ? "text-litter-primary font-semibold bg-litter-primary-light"
+                          : "text-litter-text"
                       }`}
                     >
                       {option}
                       {selectedRetention === option && (
-                        <Check className="w-4 h-4 text-[#1E6B5E]" />
+                        <Check className="w-4 h-4 text-litter-primary" />
                       )}
                     </button>
                   ))}
@@ -255,88 +245,87 @@ export default function SettingsPage() {
               )}
             </div>
 
-            <div className="border-t border-[#E8E2D9]">
+            <div className="border-t border-litter-border">
               <button
                 onClick={exportAllData}
-                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <Download className="w-5 h-5 text-gray-400" />
-                  <span className="text-sm font-medium text-[#1C1C1C]">Export All Data</span>
+                  <Download className="w-5 h-5 text-theme-muted" />
+                  <span className="text-sm font-medium text-litter-text">Export All Data</span>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 text-theme-muted" />
               </button>
             </div>
-            <div className="border-t border-[#E8E2D9]">
+            <div className="border-t border-litter-border">
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <History className="w-5 h-5 text-red-500" />
                   <span className="text-sm font-medium text-red-500">Clear History</span>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
+                <ChevronRight className="w-5 h-5 text-theme-muted" />
               </button>
             </div>
-            <div className="border-t border-[#E8E2D9]">
-              <SettingsRow
-                icon={Shield}
-                label="Privacy Policy"
-                control={<ExternalLink className="w-4 h-4 text-gray-400" />}
-              />
+            <div className="border-t border-litter-border">
+              <button
+                onClick={() => setShowPrivacyPolicy(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield className="w-5 h-5 text-theme-muted" />
+                  <span className="text-sm font-medium text-litter-text">Privacy Policy</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-theme-muted" />
+              </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Appearance Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-        >
-          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             APPEARANCE
           </h3>
-          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2 p-4">
-            <p className="font-medium text-[#1C1C1C] text-sm mb-3">Theme</p>
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 p-4">
+            <p className="font-medium text-litter-text text-sm mb-3">Theme</p>
             <SegmentedControl
               options={[
                 { value: "light", label: "Light" },
-                { value: "dark", label: "Dark", disabled: true },
-                { value: "system", label: "System", disabled: true },
+                { value: "dark", label: "Dark" },
+                { value: "system", label: "System" },
               ]}
-              value={settings.appearance.theme}
-              onChange={(v) => updateAppearanceSetting("theme", v)}
+              value={theme || settings.appearance.theme}
+              onChange={(v) => {
+                updateAppearanceSetting("theme", v as any);
+                setTheme(v);
+              }}
             />
-            <p className="text-xs text-gray-400 text-center mt-3">Dark & System modes coming soon</p>
           </div>
-        </motion.div>
+        </div>
 
         {/* Account Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-        >
-          <h3 className="text-xs font-semibold tracking-widest text-gray-400 uppercase px-1 mb-2 mt-6">
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             ACCOUNT
           </h3>
-          <div className="bg-white rounded-2xl border border-[#E8E2D9] shadow-sm mb-2">
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
             <button
               onClick={() => setShowChangePassword(true)}
-              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
             >
               <div className="flex items-center gap-3">
-                <Lock className="w-5 h-5 text-gray-400" />
-                <span className="text-sm font-medium text-[#1C1C1C]">Change Password</span>
+                <Lock className="w-5 h-5 text-theme-muted" />
+                <span className="text-sm font-medium text-litter-text">Change Password</span>
               </div>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
+              <ChevronRight className="w-5 h-5 text-theme-muted" />
             </button>
-            <div className="border-t border-[#E8E2D9]">
+            <div className="border-t border-litter-border">
               <button
                 onClick={() => setShowDeleteAccountConfirm(true)}
-                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors bg-transparent border-none text-left"
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <XSquare className="w-5 h-5 text-red-500" />
@@ -345,15 +334,10 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Sign Out Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-          className="mt-6 mb-8"
-        >
+        <div className="mt-6 mb-8">
           <button
             onClick={() => setShowSignOutConfirm(true)}
             disabled={isSigningOut}
@@ -371,10 +355,10 @@ export default function SettingsPage() {
               </>
             )}
           </button>
-          <p className="text-center text-xs text-gray-400 mt-2">
+          <p className="text-center text-xs text-theme-muted mt-2">
             App Version 3.12.0 · Made with care for your cat
           </p>
-        </motion.div>
+        </div>
       </main>
 
       {/* Backdrop — closes dropdown when clicking outside */}
@@ -399,32 +383,32 @@ export default function SettingsPage() {
         <div className="space-y-5">
           <div className="flex flex-col items-center">
             <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-[#D4EDE8] flex items-center justify-center overflow-hidden">
+              <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
                 {editProfileForm.photo ? (
                   <img src={editProfileForm.photo} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-3xl font-display font-bold text-[#1E6B5E]">
+                  <span className="text-3xl font-display font-bold text-litter-primary">
                     {editProfileForm.displayName.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-[#1E6B5E] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
+              <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
                 <input type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
               </label>
             </div>
           </div>
           <div>
-            <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-1.5">Display Name</label>
+            <label htmlFor="displayName" className="block text-sm font-medium text-theme-secondary mb-1.5">Display Name</label>
             <input
               id="displayName"
               type="text"
               value={editProfileForm.displayName}
               onChange={(e) => setEditProfileForm((prev) => ({ ...prev, displayName: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
-          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] transition-colors">
+          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] transition-colors">
             Save Changes
           </button>
         </div>
@@ -438,17 +422,17 @@ export default function SettingsPage() {
       >
         <div className="space-y-5">
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Current Password</label>
             <input id="currentPassword" type="password" value={passwordForm.current}
               onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+            <label htmlFor="newPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">New Password</label>
             <input id="newPassword" type="password" value={passwordForm.new}
               onChange={(e) => setPasswordForm((prev) => ({ ...prev, new: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
             {passwordForm.new && (() => {
               const getStrengthClass = () => {
@@ -463,25 +447,59 @@ export default function SettingsPage() {
                     <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
                       <div className={`h-full transition-all ${getStrengthClass()}`} />
                     </div>
-                    <span className="text-xs text-gray-500">{passwordStrength.label}</span>
+                    <span className="text-xs text-theme-muted">{passwordStrength.label}</span>
                   </div>
                 </div>
               );
             })()}
           </div>
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">Confirm New Password</label>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Confirm New Password</label>
             <input id="confirmPassword" type="password" value={passwordForm.confirm}
               onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-[#E8E2D9] focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
           <button
             onClick={handleChangePassword}
             disabled={!passwordForm.current || !passwordForm.new || !passwordForm.confirm || passwordForm.new !== passwordForm.confirm}
-            className="w-full px-4 py-3 rounded-xl bg-[#1E6B5E] text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Privacy Policy Bottom Sheet */}
+      <BottomSheet
+        isOpen={showPrivacyPolicy}
+        onClose={() => setShowPrivacyPolicy(false)}
+        title="Privacy Policy"
+      >
+        <div className="space-y-4 text-sm text-theme-secondary max-h-[60vh] overflow-y-auto pr-2">
+          <p>
+            Welcome to the LitterSense Privacy Policy. Your privacy is critically important to us.
+          </p>
+          <h4 className="font-display font-semibold text-litter-text">1. Information We Collect</h4>
+          <p>
+            We collect the information you provide directly to us when you create an account, update your profile, and use our application to monitor your cat&apos;s litter habits.
+          </p>
+          <h4 className="font-display font-semibold text-litter-text">2. How We Use Information</h4>
+          <p>
+            We use the information we collect to operate, maintain, and provide you with the features and functionality of the Service, as well as to communicate directly with you.
+          </p>
+          <h4 className="font-display font-semibold text-litter-text">3. Data Security</h4>
+          <p>
+            We care about the security of your information and use commercially reasonable safeguards to preserve the integrity and security of all information collected through our application.
+          </p>
+          <p className="pt-4">
+            If you have any questions about this Privacy Policy, please contact our support team.
+          </p>
+          <button
+            onClick={() => setShowPrivacyPolicy(false)}
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] transition-colors"
+          >
+            Close
           </button>
         </div>
       </BottomSheet>

@@ -34,30 +34,30 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gradient-to-b from-[#E8F5F1] to-white flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#D1D5DB]/50 px-6 py-8">
+        <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border/50 px-6 py-8">
           {/* Back arrow + Title */}
           <div className="flex items-center gap-4 mb-8">
             <Link
               href="/login"
               className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#F3F4F6] transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-[#1C1C1C]" />
+              <ArrowLeft className="w-5 h-5 text-litter-text" />
             </Link>
-            <h2 className="font-bold text-lg text-[#1C1C1C]">
+            <h2 className="font-bold text-lg text-litter-text">
               Forgot Password
             </h2>
           </div>
 
           {/* Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-full bg-[#E8F5F1] flex items-center justify-center">
-              <KeyRound className="w-8 h-8 text-[#1B7A6E]" />
+            <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center">
+              <KeyRound className="w-8 h-8 text-litter-primary" />
             </div>
           </div>
 
           {/* Heading */}
           <div className="text-center mb-6">
-            <h1 className="font-bold text-2xl text-[#1C1C1C] mb-2">
+            <h1 className="font-bold text-2xl text-litter-text mb-2">
               Reset Password
             </h1>
             <p className="text-[#6B7280] text-sm leading-relaxed">
@@ -72,7 +72,7 @@ export default function ForgotPasswordPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-semibold text-[#1C1C1C] mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Email Address
               </label>
@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="example@email.com"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white border border-[#D1D5DB] rounded-xl text-[#1C1C1C] placeholder-[#6B7280]/60 transition-all duration-200 focus:border-[#1B7A6E] focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-[#1B7A6E]/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-[#1B7A6E] text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-4 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -130,7 +130,7 @@ export default function ForgotPasswordPage() {
           <div className="text-center mt-6">
             <Link
               href="/login"
-              className="text-sm text-[#6B7280] hover:text-[#1B7A6E] transition-colors inline-flex items-center gap-1"
+              className="text-sm text-[#6B7280] hover:text-litter-primary transition-colors inline-flex items-center gap-1"
             >
               <span>‹</span> Back to Sign In
             </Link>
@@ -138,7 +138,7 @@ export default function ForgotPasswordPage() {
         </div>
 
         {/* Bottom teal accent line */}
-        <div className="mt-6 mx-auto w-3/4 h-1 bg-[#1B7A6E] rounded-full" />
+        <div className="mt-6 mx-auto w-3/4 h-1 bg-litter-primary rounded-full" />
       </div>
     </div>
   );

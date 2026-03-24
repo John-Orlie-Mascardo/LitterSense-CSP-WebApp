@@ -21,16 +21,16 @@ export function SettingsRow({
     <div
       onClick={onClick}
       className={`flex items-center gap-4 py-3 px-4 ${
-        onClick ? "cursor-pointer active:bg-gray-50" : ""
+        onClick ? "cursor-pointer active:bg-theme-hover" : ""
       }`}
     >
-      <div className="w-10 h-10 rounded-xl bg-[#D4EDE8] flex items-center justify-center shrink-0">
-        <Icon className="w-5 h-5 text-[#1E6B5E]" />
+      <div className="w-10 h-10 rounded-xl bg-litter-primary-light flex items-center justify-center shrink-0">
+        <Icon className="w-5 h-5 text-litter-primary" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-[#1C1C1C]">{label}</p>
+        <p className="font-medium text-litter-text">{label}</p>
         {description && (
-          <p className="text-sm text-gray-500 truncate">{description}</p>
+          <p className="text-sm text-theme-muted truncate">{description}</p>
         )}
       </div>
       <div className="shrink-0">{control}</div>

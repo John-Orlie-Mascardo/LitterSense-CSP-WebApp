@@ -27,11 +27,11 @@ export function NotificationPermissionBanner({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="mx-4 mt-3 mb-1 bg-[#1E6B5E] rounded-2xl px-4 py-3 shadow-md"
+          className="mx-4 mt-3 mb-1 bg-litter-primary rounded-2xl px-4 py-3 shadow-md"
         >
           <div className="flex items-start gap-3">
             {/* Bell icon */}
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
+            <div className="w-9 h-9 rounded-xl bg-litter-card/20 flex items-center justify-center shrink-0 mt-0.5">
               <Bell className="w-5 h-5 text-white" />
             </div>
 
@@ -48,13 +48,13 @@ export function NotificationPermissionBanner({
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={onEnable}
-                  className="px-4 py-1.5 bg-white text-[#1E6B5E] text-xs font-semibold rounded-lg hover:bg-white/90 transition-colors"
+                  className="px-4 py-1.5 bg-litter-card text-litter-primary text-xs font-semibold rounded-lg hover:bg-litter-card/90 transition-colors"
                 >
                   Enable
                 </button>
                 <button
                   onClick={onDismiss}
-                  className="px-4 py-1.5 bg-white/20 text-white text-xs font-medium rounded-lg hover:bg-white/30 transition-colors"
+                  className="px-4 py-1.5 bg-litter-card/20 text-white text-xs font-medium rounded-lg hover:bg-litter-card/30 transition-colors"
                 >
                   Maybe Later
                 </button>
@@ -64,7 +64,7 @@ export function NotificationPermissionBanner({
             {/* Close button */}
             <button
               onClick={onDismiss}
-              className="p-1 rounded-lg hover:bg-white/20 transition-colors shrink-0"
+              className="p-1 rounded-lg hover:bg-litter-card/20 transition-colors shrink-0"
             >
               <X className="w-4 h-4 text-white/70" />
             </button>

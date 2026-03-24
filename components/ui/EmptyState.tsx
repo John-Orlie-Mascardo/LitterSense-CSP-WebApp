@@ -23,13 +23,13 @@ export function EmptyState({
       transition={{ duration: 0.4 }}
       className="flex flex-col items-center justify-center py-12 px-4 text-center"
     >
-      <div className="w-16 h-16 rounded-2xl bg-[#D4EDE8] flex items-center justify-center mb-4">
-        <Icon className="w-8 h-8 text-[#1E6B5E]" />
+      <div className="w-16 h-16 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-4">
+        <Icon className="w-8 h-8 text-litter-primary" />
       </div>
-      <h3 className="font-display text-lg font-semibold text-[#1C1C1C] mb-2">
+      <h3 className="font-display text-lg font-semibold text-litter-text mb-2">
         {title}
       </h3>
-      <p className="text-gray-500 max-w-xs mb-4">{description}</p>
+      <p className="text-theme-muted max-w-xs mb-4">{description}</p>
       {action && <div>{action}</div>}
     </motion.div>
   );

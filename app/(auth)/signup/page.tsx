@@ -35,11 +35,11 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left Panel - Branding (hidden on mobile) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-[#1B7A6E] relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 bg-litter-primary relative overflow-hidden">
         <div className="absolute inset-0 flex flex-col justify-center px-16 py-12 z-10">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-litter-card/10 backdrop-blur-sm flex items-center justify-center">
               <svg
                 viewBox="0 0 24 24"
                 className="w-8 h-8 text-white"
@@ -67,7 +67,7 @@ export default function SignUpPage() {
             ].map((feature, index) => (
               <div
                 key={index}
-                className="flex items-center gap-3 px-5 py-3 bg-white/10 backdrop-blur-sm rounded-full w-fit"
+                className="flex items-center gap-3 px-5 py-3 bg-litter-card/10 backdrop-blur-sm rounded-full w-fit"
               >
                 <span className="text-white/90 font-medium">
                   {feature.text}
@@ -93,12 +93,12 @@ export default function SignUpPage() {
       </div>
 
       {/* Right Panel - Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-litter-card">
         <div className="w-full max-w-md">
           {/* Mobile Header - Teal branded section with gradient */}
           <div className="lg:hidden flex flex-col items-center text-center mb-8 -mx-6 -mt-12 px-6 pt-10 pb-8 bg-gradient-to-b from-[#145C54] to-[#1B7A6E] rounded-b-[2rem]">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-litter-card/20 flex items-center justify-center">
                 <svg
                   viewBox="0 0 24 24"
                   className="w-6 h-6 text-white"
@@ -107,16 +107,16 @@ export default function SignUpPage() {
                   <path d="M12 2C10.9 2 10 2.9 10 4C10 5.1 10.9 6 12 6C13.1 6 14 5.1 14 4C14 2.9 13.1 2 12 2ZM6 5C4.9 5 4 5.9 4 7C4 8.1 4.9 9 6 9C7.1 9 8 8.1 8 7C8 5.9 7.1 5 6 5ZM18 5C16.9 5 16 5.9 16 7C16 8.1 16.9 9 18 9C19.1 9 20 8.1 20 7C20 5.9 19.1 5 18 5ZM12 8C9.5 8 7.2 9.2 6 11.2V18C6 20.2 7.8 22 10 22H14C16.2 22 18 20.2 18 18V11.2C16.8 9.2 14.5 8 12 8ZM8.5 12C9.3 12 10 12.7 10 13.5C10 14.3 9.3 15 8.5 15C7.7 15 7 14.3 7 13.5C7 12.7 7.7 12 8.5 12ZM15.5 12C16.3 12 17 12.7 17 13.5C17 14.3 16.3 15 15.5 15C14.7 15 14 14.3 14 13.5C14 12.7 14.7 12 15.5 12ZM12 17C13.1 17 14 17.9 14 19H10C10 17.9 10.9 17 12 17Z" />
                 </svg>
               </div>
-              <span className="font-bold text-lg text-white">LitterSense</span>
+              <span className="font-display font-bold text-lg text-white">LitterSense</span>
             </div>
-            <h2 className="font-bold text-2xl text-white mt-1">
+            <h2 className="font-display font-bold text-2xl text-white mt-1">
               Early detection. Healthier cats.
             </h2>
           </div>
 
           {/* Heading */}
           <div className="mb-6">
-            <h1 className="font-display text-3xl sm:text-4xl font-bold text-[#1C1C1C] mb-2">
+            <h1 className="font-display text-3xl sm:text-4xl font-bold text-litter-text mb-2">
               Create your account
             </h1>
             <p className="text-[#6B7280]">
@@ -130,7 +130,7 @@ export default function SignUpPage() {
             <div>
               <label
                 htmlFor="fullName"
-                className="block text-sm font-semibold text-[#1C1C1C] mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Full Name
               </label>
@@ -142,7 +142,7 @@ export default function SignUpPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Enter your full name"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white border border-[#D1D5DB] rounded-xl text-[#1C1C1C] placeholder-[#6B7280]/60 transition-all duration-200 focus:border-[#1B7A6E] focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-[#1B7A6E]/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -152,7 +152,7 @@ export default function SignUpPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-semibold text-[#1C1C1C] mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Email
               </label>
@@ -164,7 +164,7 @@ export default function SignUpPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className="w-full pl-12 pr-4 py-3.5 bg-white border border-[#D1D5DB] rounded-xl text-[#1C1C1C] placeholder-[#6B7280]/60 transition-all duration-200 focus:border-[#1B7A6E] focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-[#1B7A6E]/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -174,7 +174,7 @@ export default function SignUpPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-semibold text-[#1C1C1C] mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Password
               </label>
@@ -186,13 +186,13 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-white border border-[#D1D5DB] rounded-xl text-[#1C1C1C] placeholder-[#6B7280]/60 transition-all duration-200 focus:border-[#1B7A6E] focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-[#1B7A6E]/40"
+                  className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1C1C1C] transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-litter-text transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -207,7 +207,7 @@ export default function SignUpPage() {
             <div>
               <label
                 htmlFor="confirmPassword"
-                className="block text-sm font-semibold text-[#1C1C1C] mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Confirm Password
               </label>
@@ -219,13 +219,13 @@ export default function SignUpPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-white border border-[#D1D5DB] rounded-xl text-[#1C1C1C] placeholder-[#6B7280]/60 transition-all duration-200 focus:border-[#1B7A6E] focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-[#1B7A6E]/40"
+                  className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-[#1C1C1C] transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-litter-text transition-colors"
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -240,7 +240,7 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-4 bg-[#1B7A6E] text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+              className="w-full py-4 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
             >
               {isLoading ? (
                 <>
@@ -280,7 +280,7 @@ export default function SignUpPage() {
           </div>
 
           {/* Google Sign Up */}
-          <button className="w-full py-3.5 px-4 bg-white border-2 border-[#D1D5DB] rounded-xl font-medium text-[#1C1C1C] hover:border-[#1B7A6E]/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3">
+          <button className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3">
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
@@ -307,7 +307,7 @@ export default function SignUpPage() {
             Already have an account?{" "}
             <Link
               href="/login"
-              className="font-semibold text-[#1B7A6E] hover:underline"
+              className="font-semibold text-litter-primary hover:underline"
             >
               Log In
             </Link>
