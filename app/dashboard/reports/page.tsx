@@ -18,7 +18,6 @@ import {
   PlusCircle,
   Lightbulb,
   MoreVertical,
-  ArrowLeft,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
@@ -136,19 +135,11 @@ export default function ReportsPage() {
 
         {/* ── Page Header ── */}
         <div className="flex items-start justify-between pt-4 mb-5">
-          <div className="flex items-start gap-3">
-            <button
-              onClick={() => router.back()}
-              className="mt-0.5 w-9 h-9 rounded-full bg-litter-primary-light flex items-center justify-center shrink-0"
-            >
-              <ArrowLeft className="w-4 h-4 text-litter-primary" />
-            </button>
-            <div>
-              <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
-              <p className="text-sm text-theme-muted mt-0.5">
-                Generate and share reports with your vet
-              </p>
-            </div>
+          <div>
+            <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
+            <p className="text-sm text-theme-muted mt-0.5">
+              Generate and share reports with your vet
+            </p>
           </div>
           <button className="p-2 theme-icon-btn">
             <MoreVertical className="w-5 h-5 text-theme-muted" />

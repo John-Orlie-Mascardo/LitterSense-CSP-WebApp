@@ -56,13 +56,13 @@ export function TopBar() {
           </div>
           <div className="flex flex-col leading-none">
             <span
-              className="font-bold text-lg tracking-tight"
+              className="font-display font-bold text-lg tracking-tight"
               style={{ color: "var(--color-primary)" }}
             >
               LitterSense
             </span>
             <span
-              className="text-[10px] font-medium tracking-widest uppercase opacity-60"
+              className="font-body text-[10px] font-medium tracking-widest uppercase opacity-60"
               style={{ color: "var(--color-text)" }}
             >
               Feline Health

@@ -144,7 +144,7 @@ export default function SettingsPage() {
               {settings.account.displayName.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 overflow-hidden">
-              <h2 className="font-semibold text-lg text-litter-text truncate">
+              <h2 className="font-display font-semibold text-lg text-litter-text truncate">
                 {settings.account.displayName}
               </h2>
               <p className="text-sm text-theme-muted truncate">{settings.account.email}</p>
@@ -160,7 +160,7 @@ export default function SettingsPage() {
 
         {/* Notifications Section */}
         <div>
-          <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             NOTIFICATIONS
           </h3>
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
@@ -191,7 +191,7 @@ export default function SettingsPage() {
 
         {/* Data & Privacy Section */}
         <div>
-          <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             DATA & PRIVACY
           </h3>
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
@@ -286,7 +286,7 @@ export default function SettingsPage() {
 
         {/* Appearance Section */}
         <div>
-          <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             APPEARANCE
           </h3>
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 p-4">
@@ -308,7 +308,7 @@ export default function SettingsPage() {
 
         {/* Account Section */}
         <div>
-          <h3 className="text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
             ACCOUNT
           </h3>
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
@@ -480,15 +480,15 @@ export default function SettingsPage() {
           <p>
             Welcome to the LitterSense Privacy Policy. Your privacy is critically important to us.
           </p>
-          <h4 className="font-semibold text-litter-text">1. Information We Collect</h4>
+          <h4 className="font-display font-semibold text-litter-text">1. Information We Collect</h4>
           <p>
             We collect the information you provide directly to us when you create an account, update your profile, and use our application to monitor your cat&apos;s litter habits.
           </p>
-          <h4 className="font-semibold text-litter-text">2. How We Use Information</h4>
+          <h4 className="font-display font-semibold text-litter-text">2. How We Use Information</h4>
           <p>
             We use the information we collect to operate, maintain, and provide you with the features and functionality of the Service, as well as to communicate directly with you.
           </p>
-          <h4 className="font-semibold text-litter-text">3. Data Security</h4>
+          <h4 className="font-display font-semibold text-litter-text">3. Data Security</h4>
           <p>
             We care about the security of your information and use commercially reasonable safeguards to preserve the integrity and security of all information collected through our application.
           </p>

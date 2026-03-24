@@ -108,7 +108,7 @@ export function BottomNav() {
                     fontWeight: isActive ? 600 : 500,
                   }}
                   transition={{ duration: 0.15 }}
-                  className="text-[10px] leading-tight"
+                  className="font-body text-[10px] leading-tight font-medium tracking-wide"
                 >
                   {item.label}
                 </motion.span>

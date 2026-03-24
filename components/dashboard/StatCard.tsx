@@ -51,7 +51,7 @@ export function StatCard({ icon: Icon, value, label, status = "normal", statusLa
       <div className="flex items-center justify-between mb-3">
         <Icon className={`w-6 h-6 ${iconColors[status]}`} />
         {statusLabel && (
-          <span className={`text-xs font-semibold tracking-wide uppercase ${statusLabelColors[status]}`}>
+          <span className={`font-body text-xs font-semibold tracking-wide uppercase ${statusLabelColors[status]}`}>
             {statusLabel}
           </span>
         )}
@@ -63,7 +63,7 @@ export function StatCard({ icon: Icon, value, label, status = "normal", statusLa
       </p>
 
       {/* Label */}
-      <p className="text-sm text-litter-muted mt-1">{label}</p>
+      <p className="font-body text-sm text-litter-muted mt-1 leading-tight">{label}</p>
 
       {/* Status indicator bar */}
       <div

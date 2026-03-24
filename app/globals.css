@@ -1,5 +1,7 @@
 /* Google Fonts Import - Must be first */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+/* Outfit: Modern geometric display font — engaging & entertaining for headings */
+/* Poppins: Friendly rounded sans-serif — highly readable for body text on mobile */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 
 /* Tailwind CSS */
 @import "tailwindcss";
@@ -106,8 +108,10 @@
    always resolve to the current runtime values.
 =================================================== */
 @theme inline {
-  --font-display: 'Fraunces', serif;
-  --font-body:    'DM Sans', sans-serif;
+  /* Display: Outfit — geometric, modern, eye-catching */
+  --font-display: 'Outfit', sans-serif;
+  /* Body: Poppins — rounded, friendly, optimised for mobile readability */
+  --font-body:    'Poppins', sans-serif;
 
   --color-litter-bg:            var(--color-bg);
   --color-litter-card:          var(--color-card);
@@ -195,18 +199,132 @@ html {
 }
 
 body {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;               /* Mobile base: 14px */
+  line-height: 1.6;              /* Comfortable reading rhythm */
+  letter-spacing: 0.01em;        /* Slightly open for small screens */
+  font-weight: 400;
   background-color: var(--color-bg);
   color: var(--color-text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%; /* Prevent iOS font inflation */
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Font utilities */
-.font-display { font-family: 'Fraunces', serif; }
-.font-body    { font-family: 'DM Sans', sans-serif; }
+/* ===================================================
+   Font Family Utilities
+=================================================== */
+.font-display { font-family: 'Outfit', sans-serif; }
+.font-body    { font-family: 'Poppins', sans-serif; }
+
+/* ===================================================
+   Typography Scale — Mobile-First
+   Based on a 1.25 (major third) ratio from a 14px base.
+=================================================== */
+
+/* Headings — Outfit: geometric, engaging, and eye-catching */
+h1, .text-h1 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.75rem;   /* 24.5px */
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+h2, .text-h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.375rem;  /* ~19px */
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+}
+
+h3, .text-h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.125rem;  /* 15.75px */
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+h4, .text-h4 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1rem;      /* 14px */
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+h5, h6, .text-h5, .text-h6 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9375rem; /* 13px */
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* Body — Poppins: rounded, legible, friendly on mobile */
+p, .text-body {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9375rem; /* 13.125px — optimal mobile body */
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+/* Label text — e.g., chart labels, form labels */
+.text-label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.75rem;   /* 10.5px */
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Caption / helper text */
+.text-caption {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.6875rem; /* ~9.6px */
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+/* Stat / metric display numbers — Outfit for impact */
+.text-stat {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.875rem;  /* 26.25px */
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Subtext beneath stats */
+.text-stat-label {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Button text */
+.text-btn {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Navigation label */
+.text-nav {
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.625rem;  /* 8.75px — tight nav labels */
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
