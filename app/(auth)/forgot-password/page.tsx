@@ -8,26 +8,42 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { auth } from "@/lib/firebase";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock delay — replace with Firebase Auth sendPasswordResetEmail later
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    // Navigate to check-email page with the email as a query param
-    router.push(
-      `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
-    );
+    setError("");
+    
+    try {
+      await sendPasswordResetEmail(auth, email);
+      router.push(
+        `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
+      );
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset email.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -68,6 +84,12 @@ export default function ForgotPasswordPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl">
+                {error}
+              </div>
+            )}
+            
             {/* Email Field */}
             <div>
               <label

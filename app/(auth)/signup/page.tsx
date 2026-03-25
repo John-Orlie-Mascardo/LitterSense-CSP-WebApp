@@ -7,9 +7,14 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -19,17 +24,69 @@ export default function SignUpPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      setError("Passwords do not match");
       return;
     }
+    
     setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    window.location.href = "/dashboard";
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      await updateProfile(user, {
+        displayName: fullName,
+      });
+
+      // Create a user document in Firestore to store custom profile data securely
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        fullName: fullName,
+        createdAt: serverTimestamp(),
+      });
+
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to create an account.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const user = userCredential.user;
+
+      // Merge true prevents overwriting if the user document already exists
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        fullName: user.displayName || "Google User",
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign up with Google.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -126,6 +183,12 @@ export default function SignUpPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl">
+                {error}
+              </div>
+            )}
+            
             {/* Full Name Field */}
             <div>
               <label
@@ -280,7 +343,11 @@ export default function SignUpPage() {
           </div>
 
           {/* Google Sign Up */}
-          <button className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3">
+          <button 
+            type="button"
+            onClick={handleGoogleSignUp}
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"
+          >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
