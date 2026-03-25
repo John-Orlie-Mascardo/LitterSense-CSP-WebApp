@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Mail,
   Lock,
@@ -20,6 +20,10 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 const features = [
   { icon: Activity, text: "Real-time litter monitoring" },
@@ -32,15 +36,46 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Mock 1.5s delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    // In a real app, this would redirect to dashboard
-    window.location.href = "/dashboard";
+    setError("");
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/dashboard");
+    } catch (err: any) {
+      let errorMessage = "Failed to sign in.";
+      if (err.code === "auth/invalid-credential") {
+        errorMessage = "Invalid email or password.";
+      }
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true);
+      setError("");
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in with Google.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -132,6 +167,11 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl">
+                {error}
+              </div>
+            )}
             {/* Email Field */}
             <div>
               <label
@@ -241,7 +281,11 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-bg transition-all duration-200 flex items-center justify-center gap-3">
+          <button 
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-bg transition-all duration-200 flex items-center justify-center gap-3"
+          >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"

@@ -31,6 +31,9 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { generateId } from "@/lib/utils/formatters";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
+import { updateProfile, updatePassword, signOut } from "firebase/auth";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 
@@ -59,11 +62,24 @@ export default function SettingsPage() {
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
   const [selectedRetention, setSelectedRetention] = useState("30 Days");
 
+  const { user } = useAuth();
+
   // Edit profile form
   const [editProfileForm, setEditProfileForm] = useState({
-    displayName: settings.account.displayName,
-    photo: null as string | null,
+    displayName: user?.displayName || settings.account.displayName,
+    photo: user?.photoURL || (null as string | null),
   });
+
+  // Sync form when user is loaded
+  useEffect(() => {
+    if (user) {
+      setEditProfileForm((prev) => ({
+        ...prev,
+        displayName: user.displayName || prev.displayName,
+        photo: user.photoURL || prev.photo,
+      }));
+    }
+  }, [user]);
 
   // Password form
   const [passwordForm, setPasswordForm] = useState({
@@ -77,20 +93,37 @@ export default function SettingsPage() {
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  const handleSaveProfile = () => {
-    updateAccountSetting("displayName", editProfileForm.displayName);
-    setShowEditProfile(false);
-    addToast("Profile updated successfully", "success");
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    try {
+      await updateProfile(user, { 
+        displayName: editProfileForm.displayName,
+        photoURL: editProfileForm.photo
+      });
+      updateAccountSetting("displayName", editProfileForm.displayName);
+      setShowEditProfile(false);
+      addToast("Profile updated successfully", "success");
+      // Force reload to reflect user profile changes across the app immediately
+      window.location.reload();
+    } catch (e: any) {
+      addToast(e.message || "Failed to update profile", "error");
+    }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (passwordForm.new !== passwordForm.confirm) {
       addToast("Passwords do not match", "error");
       return;
     }
-    setShowChangePassword(false);
-    setPasswordForm({ current: "", new: "", confirm: "" });
-    addToast("Password changed successfully", "success");
+    if (!user) return;
+    try {
+      await updatePassword(user, passwordForm.new);
+      setShowChangePassword(false);
+      setPasswordForm({ current: "", new: "", confirm: "" });
+      addToast("Password changed successfully", "success");
+    } catch (e: any) {
+      addToast(e.message || "Failed to change password. You may need to sign out and sign in again.", "error");
+    }
   };
 
   const handleClearHistory = () => {
@@ -101,10 +134,14 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setIsSigningOut(false);
-    setShowSignOutConfirm(false);
-    router.push("/login");
+    try {
+      await signOut(auth);
+      setShowSignOutConfirm(false);
+      router.push("/login");
+    } catch (e: any) {
+      addToast(e.message || "Failed to sign out", "error");
+      setIsSigningOut(false);
+    }
   };
 
   const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -140,14 +177,18 @@ export default function SettingsPage() {
         {/* User Profile Card */}
         <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0">
-              {settings.account.displayName.charAt(0).toUpperCase()}
+            <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0 overflow-hidden">
+              {user?.photoURL ? (
+                <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                (user?.displayName || settings.account.displayName).charAt(0).toUpperCase()
+              )}
             </div>
             <div className="flex-1 overflow-hidden">
               <h2 className="font-display font-semibold text-lg text-litter-text truncate">
-                {settings.account.displayName}
+                {user?.displayName || settings.account.displayName}
               </h2>
-              <p className="text-sm text-theme-muted truncate">{settings.account.email}</p>
+              <p className="text-sm text-theme-muted truncate">{user?.email || settings.account.email}</p>
             </div>
             <button
               onClick={() => setShowEditProfile(true)}
@@ -388,7 +429,7 @@ export default function SettingsPage() {
                   <img src={editProfileForm.photo} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-3xl font-display font-bold text-litter-primary">
-                    {editProfileForm.displayName.charAt(0).toUpperCase()}
+                    {(editProfileForm.displayName || "U").charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>

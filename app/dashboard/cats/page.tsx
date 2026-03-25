@@ -90,6 +90,7 @@ export default function CatsPage() {
       name: formData.name,
       status: "healthy",
       avatar: formData.photo,
+      isOnline: false,
     };
 
     setCats((prev) => [...prev, newCat]);

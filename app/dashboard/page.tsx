@@ -14,6 +14,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -138,6 +139,7 @@ const getAirQualityStatusLabel = (airQuality: string) => {
 export default function DashboardPage() {
   const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
+  const { user } = useAuth();
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
@@ -236,7 +238,7 @@ export default function DashboardPage() {
               {/* Greeting Section */}
               <section className="mb-6 pt-6">
                 <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-litter-text mb-1">
-                  {greeting}, Maria <span className="inline-block">👋</span>
+                  {greeting}, {user?.displayName ? user.displayName.split(" ")[0] : "User"} <span className="inline-block">👋</span>
                 </h1>
                 <p className="text-litter-muted text-sm sm:text-base">
                   {hasAnomaly
