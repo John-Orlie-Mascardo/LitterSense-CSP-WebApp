@@ -55,12 +55,23 @@ export default function SignUpPage() {
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         fullName: fullName,
+        authProvider: "email",
         createdAt: serverTimestamp(),
       });
 
       router.push("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Failed to create an account.");
+      let errorMessage = "Failed to create an account.";
+      if (err.code === "auth/email-already-in-use") {
+        errorMessage = "This email is already registered. Please log in.";
+      } else if (err.code === "auth/weak-password") {
+        errorMessage = "Password is too weak. Please use at least 6 characters.";
+      } else if (err.code === "auth/invalid-email") {
+        errorMessage = "Please enter a valid email address.";
+      } else {
+        errorMessage = err.message || "Failed to create an account.";
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -78,6 +89,7 @@ export default function SignUpPage() {
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         fullName: user.displayName || "Google User",
+        authProvider: "google",
         createdAt: serverTimestamp(),
       }, { merge: true });
 
