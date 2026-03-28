@@ -21,8 +21,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 const features = [
@@ -55,8 +56,14 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err: any) {
       let errorMessage = "Failed to sign in.";
-      if (err.code === "auth/invalid-credential") {
-        errorMessage = "Invalid email or password.";
+      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+        errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
+      } else if (err.code === "auth/too-many-requests") {
+        errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
+      } else if (err.code === "auth/invalid-email") {
+        errorMessage = "Please enter a valid email address.";
+      } else {
+        errorMessage = err.message || "Failed to sign in.";
       }
       setError(errorMessage);
     } finally {
@@ -69,7 +76,17 @@ export default function LoginPage() {
       setIsLoading(true);
       setError("");
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const userCredential = await signInWithPopup(auth, provider);
+      const user = userCredential.user;
+
+      // Ensure a document exists in Firestore for this Google user, even if they started on Login instead of Signup
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        fullName: user.displayName || "Google User",
+        authProvider: "google",
+        createdAt: serverTimestamp(),
+      }, { merge: true });
+
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Failed to sign in with Google.");
