@@ -7,9 +7,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Allow users to read and write only their own user document
+    // Allow users to read and write their own user document and ALL subcollections
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Covers cats, catDetails, catStats, and any future subcollections
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
   }
 }

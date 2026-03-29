@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(grep -r \"doc\\\\|setDoc\\\\|getDoc\\\\|collection\\\\|query\\\\|where\" /d/Codes/VSC/LitterSense-CSP-WebApp/app /d/Codes/VSC/LitterSense-CSP-WebApp/lib /d/Codes/VSC/LitterSense-CSP-WebApp/components --include=*.tsx --include=*.ts)",
+      "Bash(npx firebase:*)"
+    ]
+  }
+}

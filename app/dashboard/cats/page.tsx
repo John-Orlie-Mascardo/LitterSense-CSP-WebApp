@@ -7,19 +7,22 @@ import {
   Upload,
   Loader2,
   Cat as CatIcon,
+  Camera,
+  Scale,
+  CalendarDays,
+  PawPrint,
+  X as XIcon,
+  Wifi,
 } from "lucide-react";
+import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
-import {
-  mockCats,
-  mockStats,
-  getCatDetailsById,
-  type Cat,
-} from "@/lib/data/mockData";
+import { useCats } from "@/lib/contexts/CatContext";
+import type { Cat } from "@/lib/data/mockData";
 import {
   getStatusColor,
   calculateAge,
@@ -45,7 +48,7 @@ const initialFormData: CatFormData = {
 };
 
 export default function CatsPage() {
-  const [cats, setCats] = useState<Cat[]>(mockCats);
+  const { cats, addCat, catDetails: contextCatDetails } = useCats();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CatFormData>(initialFormData);
   const [errors, setErrors] = useState<
@@ -70,7 +73,17 @@ export default function CatsPage() {
       newErrors.name = "Cat name is required";
     }
 
-    const existingRfids = cats.map((c) => getCatDetailsById(c.id)?.rfidTag).filter(Boolean);
+    if (!formData.breed.trim()) {
+      newErrors.breed = "Breed is required";
+    }
+
+    if (!formData.dob) {
+      newErrors.dob = "Date of birth is required";
+    }
+
+    const existingRfids = cats
+      .map((c) => contextCatDetails[c.id]?.rfidTag)
+      .filter(Boolean);
     if (formData.rfidTag && existingRfids.includes(formData.rfidTag)) {
       newErrors.rfidTag = "Already registered";
     }
@@ -93,7 +106,23 @@ export default function CatsPage() {
       isOnline: false,
     };
 
-    setCats((prev) => [...prev, newCat]);
+    const today = new Date().toISOString().split("T")[0];
+    const newDetails = {
+      breed: formData.breed,
+      dob: formData.dob,
+      weightKg: formData.weightKg ? parseFloat(formData.weightKg) : 0,
+      rfidTag: formData.rfidTag || "—",
+      healthInsight: "",
+      baseline: {
+        avgVisitsPerDay: 0,
+        avgDurationSecs: 0,
+        mq135DeltaPercent: 0,
+        mq136DeltaPercent: 0,
+        lastUpdated: today,
+      },
+    };
+
+    await addCat(newCat, undefined, newDetails);
     setIsModalOpen(false);
     setFormData(initialFormData);
     setIsSaving(false);
@@ -156,7 +185,7 @@ export default function CatsPage() {
             </div>
           ) : (
             cats.map((cat) => (
-              <CatCard key={cat.id} cat={cat} />
+              <CatCard key={cat.id} cat={cat} catDetails={contextCatDetails} />
             ))
           )}
         </section>
@@ -174,105 +203,153 @@ export default function CatsPage() {
         }}
         title="Add New Cat"
       >
-        <div className="space-y-5">
-          {/* Photo Upload */}
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
-                {formData.photo ? (
+        <div className="space-y-6">
+
+          {/* ── Photo Upload ─────────────────────────────── */}
+          <label className="group relative flex flex-col items-center justify-center gap-2 cursor-pointer">
+            <div className={`relative w-full h-36 rounded-2xl overflow-hidden border-2 border-dashed transition-colors ${formData.photo ? "border-litter-primary" : "border-litter-border hover:border-litter-primary"} bg-litter-primary-light/30`}>
+              {formData.photo ? (
+                <>
                   <img src={formData.photo} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-3xl font-display font-bold text-litter-primary">
-                    {formData.name.charAt(0).toUpperCase() || "?"}
-                  </span>
-                )}
-              </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
-                <Upload className="w-4 h-4 text-white" />
-                <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-              </label>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                    <Camera className="w-6 h-6 text-white" />
+                    <span className="text-white text-xs font-medium">Change photo</span>
+                  </div>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 rounded-full bg-litter-primary/10 flex items-center justify-center group-hover:bg-litter-primary/20 transition-colors">
+                    <Upload className="w-5 h-5 text-litter-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-litter-primary">Upload photo</p>
+                    <p className="text-xs text-litter-muted mt-0.5">JPG, PNG — tap to browse</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-theme-muted mt-2">Tap to upload photo</p>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
-              Cat Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-              placeholder="e.g. Whiskers"
-              className={`w-full px-4 py-3 rounded-xl border ${errors.name ? "border-red-500" : "border-litter-border"} focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
-            />
-            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-          </div>
-
-          {/* Breed */}
-          <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Breed</label>
-            <input
-              type="text"
-              value={formData.breed}
-              onChange={(e) => setFormData((prev) => ({ ...prev, breed: e.target.value }))}
-              placeholder="e.g. Domestic Shorthair"
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
-            />
-          </div>
-
-          {/* Date of Birth */}
-          <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Date of Birth</label>
-            <input
-              type="month"
-              value={formData.dob}
-              onChange={(e) => setFormData((prev) => ({ ...prev, dob: e.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
-            />
-          </div>
-
-          {/* Weight */}
-          <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
-            <input
-              type="number"
-              step="0.1"
-              value={formData.weightKg}
-              onChange={(e) => setFormData((prev) => ({ ...prev, weightKg: e.target.value }))}
-              placeholder="e.g. 4.2"
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
-            />
-          </div>
-
-          {/* RFID Tag */}
-          <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">RFID Tag ID</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={formData.rfidTag}
-                onChange={(e) => setFormData((prev) => ({ ...prev, rfidTag: e.target.value }))}
-                placeholder="Scan or enter RFID tag"
-                className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
-              />
+            {formData.photo && (
               <button
                 type="button"
-                title="Tap the RFID button on your LitterSense device to auto-fill"
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-theme-muted hover:text-litter-primary transition-colors"
+                onClick={(e) => { e.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); }}
+                className="flex items-center gap-1 text-xs text-litter-muted hover:text-red-500 transition-colors"
               >
-                <ScanLine className="w-5 h-5" />
+                <XIcon className="w-3 h-3" /> Remove photo
               </button>
+            )}
+            <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          </label>
+
+          {/* ── Basic Info ───────────────────────────────── */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
+
+            {/* Cat Name */}
+            <div>
+              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                Cat Name <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <PawPrint className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Whiskers"
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border ${errors.name ? "border-red-500 bg-red-50/5" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                />
+              </div>
+              {errors.name && <p className="text-red-500 text-xs mt-1 flex items-center gap-1">{errors.name}</p>}
             </div>
-            {errors.rfidTag && <p className="text-red-500 text-xs mt-1">{errors.rfidTag}</p>}
-            <p className="text-xs text-theme-muted mt-1">
-              Tap the RFID button on your LitterSense device to auto-fill
-            </p>
+
+            {/* Breed */}
+            <div>
+              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                Breed <span className="text-red-500">*</span>
+              </label>
+              <BreedPicker
+                value={formData.breed}
+                onChange={(v) => { setFormData((prev) => ({ ...prev, breed: v })); setErrors((prev) => ({ ...prev, breed: undefined })); }}
+                hasError={!!errors.breed}
+              />
+              {errors.breed && <p className="text-red-500 text-xs mt-1">{errors.breed}</p>}
+            </div>
           </div>
 
-          {/* Buttons */}
-          <div className="flex gap-3 pt-2">
+          {/* ── Health Details ───────────────────────────── */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
+
+            {/* Date of Birth — full width with month/year selects */}
+            <div>
+              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <CalendarDays className="w-4 h-4 text-litter-muted" />
+                  Date of Birth <span className="text-red-500">*</span>
+                </span>
+              </label>
+              <MonthYearPicker
+                value={formData.dob}
+                onChange={(v) => { setFormData((prev) => ({ ...prev, dob: v })); setErrors((prev) => ({ ...prev, dob: undefined })); }}
+                hasError={!!errors.dob}
+              />
+              {errors.dob && <p className="text-red-500 text-xs mt-1">{errors.dob}</p>}
+            </div>
+
+            {/* Weight */}
+            <div>
+              <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
+              <div className="relative">
+                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={formData.weightKg}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, weightKg: e.target.value }))}
+                    placeholder="4.2"
+                    className="w-full pl-9 pr-2 py-3 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+          {/* ── Device ───────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Device</p>
+
+            <div className="rounded-2xl border border-litter-border bg-litter-primary-light/20 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-litter-primary/10 flex items-center justify-center">
+                  <Wifi className="w-4 h-4 text-litter-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-litter-text">RFID Tag ID</p>
+                  <p className="text-xs text-litter-muted">Tap the scan button on your LitterSense device</p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={formData.rfidTag}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, rfidTag: e.target.value }))}
+                  placeholder="Scan or enter RFID tag"
+                  className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                />
+                <button
+                  type="button"
+                  title="Auto-fill from LitterSense device"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all"
+                >
+                  <ScanLine className="w-5 h-5" />
+                </button>
+              </div>
+              {errors.rfidTag && <p className="text-red-500 text-xs">{errors.rfidTag}</p>}
+            </div>
+          </div>
+
+          {/* ── Actions ──────────────────────────────────── */}
+          <div className="flex gap-3 pt-1">
             <button
               type="button"
               onClick={() => {
@@ -280,7 +357,7 @@ export default function CatsPage() {
                 setFormData(initialFormData);
                 setErrors({});
               }}
-              className="flex-1 px-4 py-3 rounded-xl border border-theme text-theme-secondary font-medium hover:bg-theme-hover transition-colors"
+              className="flex-1 px-4 py-3 rounded-xl border border-litter-border text-theme-secondary font-medium hover:bg-theme-overlay active:scale-[0.98] transition-all"
             >
               Cancel
             </button>
@@ -288,15 +365,18 @@ export default function CatsPage() {
               type="button"
               onClick={handleSave}
               disabled={isSaving}
-              className="flex-1 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] active:bg-[#124a40] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 rounded-xl bg-litter-primary text-white font-semibold hover:bg-[#165a4e] active:bg-[#124a40] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {isSaving ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Saving...
                 </>
               ) : (
-                "Save Cat"
+                <>
+                  <PawPrint className="w-4 h-4" />
+                  Save Cat
+                </>
               )}
             </button>
           </div>
@@ -309,13 +389,13 @@ export default function CatsPage() {
 // ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
+  catDetails: Record<string, any>;
 }
 
 const badgeLabel: Record<string, string> = { healthy: "HEALTHY", watch: "WATCH", alert: "ALERT" };
 
-function CatCard({ cat }: CatCardProps) {
-  const details = getCatDetailsById(cat.id);
-  const stats = mockStats[cat.id];
+function CatCard({ cat, catDetails }: CatCardProps) {
+  const details = catDetails[cat.id];
   const statusColors = getStatusColor(cat.status);
 
   const dotColor =
@@ -362,15 +442,15 @@ function CatCard({ cat }: CatCardProps) {
           <div className="grid grid-cols-3 divide-x divide-litter-border px-5 py-4">
             <div className="pr-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
-              <p className="font-bold text-litter-text text-lg">{stats?.visits ?? "--"}</p>
+              <p className="font-bold text-litter-text text-lg">--</p>
             </div>
             <div className="px-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
-              <p className="font-bold text-litter-text text-lg">{stats?.avgDuration?.replace("s", "") ?? "--"}</p>
+              <p className="font-bold text-litter-text text-lg">--</p>
             </div>
             <div className="pl-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
-              <p className="font-bold text-litter-text text-lg">{stats?.lastVisit ?? "--"}</p>
+              <p className="font-bold text-litter-text text-lg">--</p>
             </div>
           </div>
         </div>
