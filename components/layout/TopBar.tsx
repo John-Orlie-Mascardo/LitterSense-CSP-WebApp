@@ -1,10 +1,11 @@
 "use client";
 
-import { Bell, User, ChevronDown } from "lucide-react";
+import { Bell, Check, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useNotifications } from "@/lib/contexts/NotificationContext";
+import { useRef, useState, useEffect } from "react";
+import { useNotifications, getTimeLabel } from "@/lib/contexts/NotificationContext";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -16,8 +17,20 @@ const pageTitles: Record<string, string> = {
 };
 
 export function TopBar() {
-  const { unreadCount } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const pathname = usePathname();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
 
   const pageTitle = Object.entries(pageTitles).find(([key]) =>
     key === pathname || (key !== "/dashboard" && pathname?.startsWith(key + "/"))
@@ -91,22 +104,17 @@ export function TopBar() {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2">
-          {/* Notification bell */}
-          <Link href="/dashboard/notifications">
+          {/* Notification bell + dropdown */}
+          <div className="relative" ref={dropdownRef}>
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: "spring", stiffness: 600, damping: 25 }}
               className="relative p-2 rounded-xl transition-colors"
-              style={{
-                color: "var(--color-text)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-              }}
+              style={{ color: "var(--color-text)", background: dropdownOpen ? "var(--color-bg)" : "transparent" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)"; }}
+              onMouseLeave={(e) => { if (!dropdownOpen) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              onClick={() => setDropdownOpen((v) => !v)}
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
@@ -117,55 +125,116 @@ export function TopBar() {
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
                     className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center"
-                    style={{
-                      boxShadow: "0 0 0 2px var(--color-card)",
-                      fontSize: "10px",
-                      color: "white",
-                      fontWeight: 700,
-                      paddingInline: "3px",
-                    }}
+                    style={{ boxShadow: "0 0 0 2px var(--color-card)", fontSize: "10px", color: "white", fontWeight: 700, paddingInline: "3px" }}
                   >
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </motion.span>
                 )}
               </AnimatePresence>
             </motion.button>
-          </Link>
 
-          {/* Divider */}
-          <div
-            className="w-px h-6 opacity-20"
-            style={{ background: "var(--color-text)" }}
-          />
+            <AnimatePresence>
+              {dropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  className="absolute right-0 mt-2 rounded-2xl overflow-hidden"
+                  style={{
+                    width: "min(480px, calc(100vw - 1rem))",
+                    background: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10)",
+                    zIndex: 50,
+                  }}
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <span className="font-semibold text-base" style={{ color: "var(--color-text)" }}>
+                      Notifications {unreadCount > 0 && <span className="ml-1 text-xs font-normal opacity-60">({unreadCount} unread)</span>}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={() => markAllAsRead()}
+                          className="text-xs px-2 py-1 rounded-lg transition-colors"
+                          style={{ color: "var(--color-primary)", background: "transparent" }}
+                          title="Mark all as read"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      <button onClick={() => setDropdownOpen(false)} className="p-1 rounded-lg opacity-50 hover:opacity-100" style={{ color: "var(--color-text)" }}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
 
-          {/* User avatar */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 600, damping: 25 }}
-            className="flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-xl transition-colors"
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-            }}
-            aria-label="User profile"
-          >
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center"
-              style={{
-                background: "var(--color-primary-light)",
-                color: "var(--color-primary)",
-              }}
-            >
-              <User className="w-4 h-4" />
-            </div>
-            <ChevronDown
-              className="w-3 h-3 opacity-50"
-              style={{ color: "var(--color-text)" }}
-            />
-          </motion.button>
+                  {/* List */}
+                  <div className="overflow-y-auto" style={{ minHeight: "260px", maxHeight: "520px" }}>
+                    {notifications.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "260px" }}>
+                        <div
+                          className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                          style={{
+                            background: "rgba(var(--color-primary-rgb, 99,102,241), 0.10)",
+                          }}
+                        >
+                          <Bell className="w-7 h-7" style={{ color: "var(--color-primary)" }} />
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>No notifications</span>
+                          <span className="text-xs opacity-50 text-center px-6" style={{ color: "var(--color-text)" }}>You're all caught up! We'll let you know when something needs attention.</span>
+                        </div>
+                      </div>
+                    ) : (
+                      notifications.slice(0, 20).map((n) => (
+                        <div
+                          key={n.id}
+                          className="flex items-start gap-3 px-5 py-4 transition-colors"
+                          style={{
+                            background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.06)",
+                            borderBottom: "1px solid var(--color-border)",
+                          }}
+                        >
+                          <div
+                            className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ background: n.isRead ? "transparent" : "var(--color-primary)", marginTop: "6px" }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>{n.title}</p>
+                            <p className="text-sm opacity-70 mt-1" style={{ color: "var(--color-text)" }}>{n.message}</p>
+                            <p className="text-xs opacity-40 mt-1.5" style={{ color: "var(--color-text)" }}>
+                              {n.createdAt ? getTimeLabel(n.createdAt) : ""}
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            {!n.isRead && (
+                              <button onClick={() => markAsRead(n.id)} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button onClick={() => deleteNotification(n.id)} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-5 py-3.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+                    <Link href="/dashboard/notifications" onClick={() => setDropdownOpen(false)}>
+                      <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>View all notifications →</span>
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
         </div>
       </div>
 
