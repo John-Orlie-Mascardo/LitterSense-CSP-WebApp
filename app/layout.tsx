@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { CatProvider } from "@/lib/contexts/CatContext";
+import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,7 +38,9 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <CatProvider>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </CatProvider>
           </AuthProvider>
         </ThemeProvider>

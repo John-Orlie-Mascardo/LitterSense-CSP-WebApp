@@ -3,8 +3,8 @@
 import { Bell, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { useNotifications } from "@/lib/contexts/NotificationContext";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -16,7 +16,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export function TopBar() {
-  const [hasNotification] = useState(true);
+  const { unreadCount } = useNotifications();
   const pathname = usePathname();
 
   const pageTitle = Object.entries(pageTitles).find(([key]) =>
@@ -111,16 +111,22 @@ export function TopBar() {
             >
               <Bell className="w-5 h-5" />
               <AnimatePresence>
-                {hasNotification && (
+                {unreadCount > 0 && (
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center"
                     style={{
                       boxShadow: "0 0 0 2px var(--color-card)",
+                      fontSize: "10px",
+                      color: "white",
+                      fontWeight: 700,
+                      paddingInline: "3px",
                     }}
-                  />
+                  >
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </motion.span>
                 )}
               </AnimatePresence>
             </motion.button>
