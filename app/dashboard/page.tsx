@@ -298,8 +298,16 @@ export default function DashboardPage() {
               {/* Selected cat status summary — desktop only */}
               <div className="hidden lg:flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg">
-                    {selectedCat?.name.charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden">
+                    {selectedCat?.avatar ? (
+                      <img
+                        src={selectedCat.avatar}
+                        alt={selectedCat.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      selectedCat?.name.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold text-litter-text">

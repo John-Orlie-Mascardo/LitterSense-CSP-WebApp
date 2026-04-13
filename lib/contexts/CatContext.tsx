@@ -62,7 +62,10 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         setCats(loaded);
         setIsLoading(false);
       },
-      () => setIsLoading(false)
+      (error) => {
+        console.error("Failed to sync cats:", error);
+        setIsLoading(false);
+      }
     );
 
     // Real-time listener for the user's catDetails subcollection
@@ -74,6 +77,9 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           loaded[d.id] = d.data() as CatDetails;
         });
         setCatDetails(loaded);
+      },
+      (error) => {
+        console.error("Failed to sync cat details:", error);
       }
     );
 

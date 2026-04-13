@@ -96,7 +96,10 @@ export function NotificationProvider({
         setNotifications(loaded);
         setIsLoading(false);
       },
-      () => setIsLoading(false)
+      (error) => {
+        console.error("Failed to sync notifications:", error);
+        setIsLoading(false);
+      }
     );
 
     return () => unsub();

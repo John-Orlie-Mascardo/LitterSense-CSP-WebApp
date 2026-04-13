@@ -96,7 +96,6 @@ export default function CatsPage() {
     if (!validateForm()) return;
 
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
 
     const newCat: Cat = {
       id: generateId(),

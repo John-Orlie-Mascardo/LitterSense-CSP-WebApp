@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 const features = [
@@ -54,16 +55,18 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
-    } catch (err: any) {
+    } catch (err) {
       let errorMessage = "Failed to sign in.";
-      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-        errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
-      } else if (err.code === "auth/too-many-requests") {
-        errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
-      } else if (err.code === "auth/invalid-email") {
-        errorMessage = "Please enter a valid email address.";
-      } else {
-        errorMessage = err.message || "Failed to sign in.";
+      if (err instanceof FirebaseError) {
+        if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+          errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
+        } else if (err.code === "auth/too-many-requests") {
+          errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
+        } else if (err.code === "auth/invalid-email") {
+          errorMessage = "Please enter a valid email address.";
+        } else {
+          errorMessage = err.message || "Failed to sign in.";
+        }
       }
       setError(errorMessage);
     } finally {
@@ -88,8 +91,9 @@ export default function LoginPage() {
       }, { merge: true });
 
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google.");
+    } catch (err) {
+      const message = err instanceof FirebaseError ? err.message : "Failed to sign in with Google.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }

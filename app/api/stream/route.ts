@@ -1,4 +1,5 @@
-const ESP32_STREAM_URL = "http://192.168.68.116:81/stream";
+const ESP32_STREAM_URL =
+  process.env.ESP32_STREAM_URL ?? "http://192.168.68.116:81/stream";
 
 export async function GET() {
   try {

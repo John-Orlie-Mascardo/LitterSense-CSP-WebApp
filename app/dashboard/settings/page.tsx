@@ -33,7 +33,14 @@ import { useSettings } from "@/lib/hooks/useSettings";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
-import { updateProfile, updatePassword, signOut } from "firebase/auth";
+import {
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  signOut,
+} from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 
@@ -62,7 +69,7 @@ export default function SettingsPage() {
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
   const [selectedRetention, setSelectedRetention] = useState("30 Days");
 
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   // Edit profile form
   const [editProfileForm, setEditProfileForm] = useState({
@@ -96,17 +103,18 @@ export default function SettingsPage() {
   const handleSaveProfile = async () => {
     if (!user) return;
     try {
-      await updateProfile(user, { 
+      await updateProfile(user, {
         displayName: editProfileForm.displayName,
-        photoURL: editProfileForm.photo
+        photoURL: editProfileForm.photo,
       });
       updateAccountSetting("displayName", editProfileForm.displayName);
+      await refreshUser();
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
-      // Force reload to reflect user profile changes across the app immediately
-      window.location.reload();
-    } catch (e: any) {
-      addToast(e.message || "Failed to update profile", "error");
+    } catch (e) {
+      const message =
+        e instanceof FirebaseError ? e.message : "Failed to update profile";
+      addToast(message, "error");
     }
   };
 
@@ -115,14 +123,34 @@ export default function SettingsPage() {
       addToast("Passwords do not match", "error");
       return;
     }
-    if (!user) return;
+    if (!passwordForm.current) {
+      addToast("Please enter your current password", "error");
+      return;
+    }
+    if (!user || !user.email) return;
     try {
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        passwordForm.current
+      );
+      await reauthenticateWithCredential(user, credential);
       await updatePassword(user, passwordForm.new);
       setShowChangePassword(false);
       setPasswordForm({ current: "", new: "", confirm: "" });
       addToast("Password changed successfully", "success");
-    } catch (e: any) {
-      addToast(e.message || "Failed to change password. You may need to sign out and sign in again.", "error");
+    } catch (e) {
+      if (e instanceof FirebaseError) {
+        if (
+          e.code === "auth/wrong-password" ||
+          e.code === "auth/invalid-credential"
+        ) {
+          addToast("Current password is incorrect", "error");
+        } else {
+          addToast(e.message || "Failed to change password", "error");
+        }
+      } else {
+        addToast("Failed to change password", "error");
+      }
     }
   };
 
@@ -138,8 +166,10 @@ export default function SettingsPage() {
       await signOut(auth);
       setShowSignOutConfirm(false);
       router.push("/login");
-    } catch (e: any) {
-      addToast(e.message || "Failed to sign out", "error");
+    } catch (e) {
+      const message =
+        e instanceof FirebaseError ? e.message : "Failed to sign out";
+      addToast(message, "error");
       setIsSigningOut(false);
     }
   };
@@ -179,7 +209,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0 overflow-hidden">
               {user?.photoURL ? (
-                <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                <img src={user.photoURL} alt="Profile" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
               ) : (
                 (user?.displayName || settings.account.displayName).charAt(0).toUpperCase()
               )}
@@ -426,7 +456,7 @@ export default function SettingsPage() {
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
                 {editProfileForm.photo ? (
-                  <img src={editProfileForm.photo} alt="Preview" className="w-full h-full object-cover" />
+                  <img src={editProfileForm.photo} alt="Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-3xl font-display font-bold text-litter-primary">
                     {(editProfileForm.displayName || "U").charAt(0).toUpperCase()}
