@@ -40,13 +40,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard");
+      router.push(isAdmin ? "/admin" : "/dashboard");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, isAdmin, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +54,7 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+      router.push(isAdmin ? "/admin" : "/dashboard");
     } catch (err) {
       let errorMessage = "Failed to sign in.";
       if (err instanceof FirebaseError) {
@@ -90,7 +90,7 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push("/dashboard");
+      router.push(isAdmin ? "/admin" : "/dashboard");
     } catch (err) {
       const message = err instanceof FirebaseError ? err.message : "Failed to sign in with Google.";
       setError(message);

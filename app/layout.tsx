@@ -3,6 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { CatProvider } from "@/lib/contexts/CatContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
+import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,11 +38,13 @@ export default function RootLayout({
       <body className="font-body antialiased bg-litter-bg text-litter-text transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            <CatProvider>
-              <NotificationProvider>
-                {children}
-              </NotificationProvider>
-            </CatProvider>
+            <DeleteRequestProvider>
+              <CatProvider>
+                <NotificationProvider>
+                  {children}
+                </NotificationProvider>
+              </CatProvider>
+            </DeleteRequestProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

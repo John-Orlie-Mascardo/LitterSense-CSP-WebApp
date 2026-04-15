@@ -20,6 +20,8 @@ import {
   XSquare,
   ExternalLink,
   Check,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -30,6 +32,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { useSettings } from "@/lib/hooks/useSettings";
+import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
@@ -60,7 +63,9 @@ export default function SettingsPage() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
+  const [showDeleteFinalConfirm, setShowDeleteFinalConfirm] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -70,6 +75,20 @@ export default function SettingsPage() {
   const [selectedRetention, setSelectedRetention] = useState("30 Days");
 
   const { user, refreshUser } = useAuth();
+  const { getUserRequest, submitRequest } = useDeleteRequest();
+  const userRequest = user ? getUserRequest(user.uid) : undefined;
+
+  const handleSubmitDeletion = () => {
+    if (!user) return;
+    submitRequest(
+      user.uid,
+      user.displayName || user.email?.split("@")[0] || "User",
+      user.email || "",
+      deleteReason || "No reason provided"
+    );
+    setDeleteReason("");
+    addToast("Deletion request submitted. An admin will review it soon.", "info");
+  };
 
   // Edit profile form
   const [editProfileForm, setEditProfileForm] = useState({
@@ -394,15 +413,66 @@ export default function SettingsPage() {
               <ChevronRight className="w-5 h-5 text-theme-muted" />
             </button>
             <div className="border-t border-litter-border">
-              <button
-                onClick={() => setShowDeleteAccountConfirm(true)}
-                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <XSquare className="w-5 h-5 text-red-500" />
-                  <span className="text-sm font-medium text-red-500">Delete Account</span>
+              {!userRequest ? (
+                /* No request yet — show action button */
+                <button
+                  onClick={() => setShowDeleteRequestSheet(true)}
+                  className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <XSquare className="w-5 h-5 text-red-500" />
+                    <span className="text-sm font-medium text-red-500">Request Account Deletion</span>
+                  </div>
+                </button>
+              ) : userRequest.status === "pending" ? (
+                /* Pending — amber status card */
+                <div className="p-4">
+                  <div className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
+                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Deletion Requested</p>
+                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                        Your request is awaiting admin review. You can continue using the app in the meantime.
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1.5">
+                        Submitted {new Date(userRequest.requestedDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </button>
+              ) : userRequest.status === "approved" ? (
+                /* Approved — red status card */
+                <div className="p-4">
+                  <div className="flex items-start gap-3 p-3.5 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
+                    <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-400">Deletion Approved</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 leading-relaxed">
+                        Your account has been approved for deletion and will be permanently removed shortly.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Rejected — neutral card with re-request option */
+                <div className="p-4">
+                  <div className="flex items-start gap-3 p-3.5 bg-litter-bg rounded-xl border border-litter-border">
+                    <XSquare className="w-5 h-5 text-litter-muted shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-litter-text">Request Declined</p>
+                      <p className="text-xs text-litter-muted mt-0.5 leading-relaxed">
+                        Your deletion request was not approved. Contact support for details.
+                      </p>
+                      <button
+                        onClick={() => setShowDeleteRequestSheet(true)}
+                        className="text-xs text-litter-primary font-semibold mt-2 hover:underline"
+                      >
+                        Submit a new request
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -578,9 +648,69 @@ export default function SettingsPage() {
       {/* Confirm Dialogs */}
       <ConfirmDialog isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} onConfirm={handleClearHistory}
         title="Clear History" message="Are you sure? This will permanently delete all session data for all cats. This cannot be undone." confirmText="Clear" variant="danger" />
-      <ConfirmDialog isOpen={showDeleteAccountConfirm} onClose={() => setShowDeleteAccountConfirm(false)}
-        onConfirm={() => { setShowDeleteAccountConfirm(false); addToast("Account deletion request submitted", "info"); }}
-        title="Delete Account" message="This will permanently delete your account and all data. This action cannot be undone. Please contact support to proceed." confirmText="Contact Support" variant="danger" />
+      {/* Step 1 — Reason sheet */}
+      <BottomSheet
+        isOpen={showDeleteRequestSheet}
+        onClose={() => { setShowDeleteRequestSheet(false); setDeleteReason(""); }}
+        title="Request Account Deletion"
+      >
+        <div className="space-y-5">
+          {/* Warning */}
+          <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-red-700 dark:text-red-400 mb-1.5">Before you continue</p>
+              <ul className="text-red-600 dark:text-red-400 space-y-1 text-xs leading-relaxed">
+                <li>• Your account and all cat profiles will be permanently deleted</li>
+                <li>• All monitoring history and health logs will be lost</li>
+                <li>• This action cannot be undone once an admin processes it</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Reason selector */}
+          <div>
+            <label className="block text-sm font-medium text-litter-text mb-2">
+              Reason for leaving{" "}
+              <span className="text-litter-muted font-normal">(optional)</span>
+            </label>
+            <select
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              className="input-base w-full px-4 py-3 rounded-xl border border-litter-border text-sm focus:outline-none focus:border-litter-primary focus:ring-2 focus:ring-litter-primary/10 transition-all"
+            >
+              <option value="">Select a reason…</option>
+              <option value="No longer using the service">No longer using the service</option>
+              <option value="Privacy concerns">Privacy concerns</option>
+              <option value="Switching to a different app">Switching to a different app</option>
+              <option value="Too many notifications">Too many notifications</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={() => {
+              setShowDeleteRequestSheet(false);
+              setShowDeleteFinalConfirm(true);
+            }}
+            className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors"
+          >
+            Continue to Confirm
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Step 2 — Final confirmation */}
+      <ConfirmDialog
+        isOpen={showDeleteFinalConfirm}
+        onClose={() => setShowDeleteFinalConfirm(false)}
+        onConfirm={handleSubmitDeletion}
+        title="Submit Deletion Request?"
+        message="An admin will review your request. You can continue using the app until it's processed. This does not immediately delete your account."
+        confirmText="Submit Request"
+        variant="danger"
+      />
       <ConfirmDialog isOpen={showSignOutConfirm} onClose={() => setShowSignOutConfirm(false)} onConfirm={handleSignOut}
         title="Sign Out" message="Are you sure you want to sign out?" confirmText="Sign Out" variant="info" />
     </div>

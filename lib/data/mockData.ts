@@ -107,6 +107,276 @@ export const mockHealthLogs: HealthLog[] = [];
 
 export const mockPastReports: PastReport[] = [];
 
+// ─── Admin-only mock data ────────────────────────────────────────────────────
+// These are separate from the per-user cat arrays above, which are intentionally
+// empty (real users populate via Firebase). Admin stats are derived from these
+// arrays — change a user's cats here and the aggregates update automatically.
+
+export interface AdminCat {
+  name: string;
+  gender: "male" | "female";
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  registeredDate: string; // ISO date string
+  status: "active" | "inactive";
+  cats: AdminCat[];
+}
+
+export interface DeleteRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  requestedDate: string; // ISO date string
+  status: "pending" | "approved" | "rejected";
+  resolvedDate?: string;
+  reason?: string;
+}
+
+export const mockAdminUsers: AdminUser[] = [
+  {
+    id: "u1",
+    name: "Frederick Barbarossa",
+    email: "frederick@example.com",
+    registeredDate: "2024-01-12",
+    status: "active",
+    cats: [
+      { name: "Kaiser", gender: "male" },
+      { name: "Empress", gender: "female" },
+      { name: "Rhine", gender: "male" },
+    ],
+  },
+  {
+    id: "u2",
+    name: "Lautaro",
+    email: "lautaro@outlook.com",
+    registeredDate: "2024-02-05",
+    status: "inactive",
+    cats: [{ name: "Mapuche", gender: "male" }],
+  },
+  {
+    id: "u3",
+    name: "Eleanor of Aquitaine",
+    email: "eleanor@france.net",
+    registeredDate: "2024-02-18",
+    status: "active",
+    cats: [
+      { name: "Duchess", gender: "female" },
+      { name: "Troubadour", gender: "male" },
+      { name: "Plantagenet", gender: "female" },
+      { name: "Crusade", gender: "male" },
+      { name: "Aquitaine", gender: "female" },
+    ],
+  },
+  {
+    id: "u4",
+    name: "Sundiata Keita",
+    email: "sundiata@mali.co",
+    registeredDate: "2024-03-01",
+    status: "active",
+    cats: [
+      { name: "Mansa", gender: "male" },
+      { name: "Kouroukan", gender: "female" },
+    ],
+  },
+  {
+    id: "u5",
+    name: "Tomoe Gozen",
+    email: "tomoe@samurai.jp",
+    registeredDate: "2024-03-22",
+    status: "active",
+    cats: [
+      { name: "Bushido", gender: "male" },
+      { name: "Katana", gender: "female" },
+    ],
+  },
+  {
+    id: "u6",
+    name: "Genghis Khan",
+    email: "genghis@steppe.mn",
+    registeredDate: "2024-04-08",
+    status: "active",
+    cats: [
+      { name: "Borjigin", gender: "male" },
+      { name: "Temujin", gender: "male" },
+      { name: "Yurt", gender: "female" },
+    ],
+  },
+  {
+    id: "u7",
+    name: "Hatshepsut",
+    email: "hatshepsut@egypt.gov",
+    registeredDate: "2024-04-19",
+    status: "active",
+    cats: [
+      { name: "Nefertari", gender: "female" },
+      { name: "Pharaoh", gender: "male" },
+    ],
+  },
+  {
+    id: "u8",
+    name: "Nikola Tesla",
+    email: "tesla@wardenclyffe.io",
+    registeredDate: "2024-05-03",
+    status: "inactive",
+    cats: [{ name: "Voltage", gender: "male" }],
+  },
+  {
+    id: "u9",
+    name: "Cleopatra VII",
+    email: "cleo@ptolemy.eg",
+    registeredDate: "2024-05-14",
+    status: "active",
+    cats: [
+      { name: "Nile", gender: "female" },
+      { name: "Caesar", gender: "male" },
+      { name: "Sphinx", gender: "female" },
+    ],
+  },
+  {
+    id: "u10",
+    name: "Ada Lovelace",
+    email: "ada@babbage.co.uk",
+    registeredDate: "2024-06-01",
+    status: "active",
+    cats: [
+      { name: "Algorithm", gender: "female" },
+      { name: "Enchantress", gender: "female" },
+    ],
+  },
+  {
+    id: "u11",
+    name: "Shaka Zulu",
+    email: "shaka@zululand.za",
+    registeredDate: "2024-06-20",
+    status: "active",
+    cats: [{ name: "Assegai", gender: "male" }],
+  },
+  {
+    id: "u12",
+    name: "Isabella of Castile",
+    email: "isabella@castile.es",
+    registeredDate: "2024-07-07",
+    status: "inactive",
+    cats: [
+      { name: "Reconquista", gender: "female" },
+      { name: "Ferdinand", gender: "male" },
+    ],
+  },
+  {
+    id: "u13",
+    name: "Pachacuti",
+    email: "pachacuti@inca.pe",
+    registeredDate: "2024-07-25",
+    status: "active",
+    cats: [
+      { name: "Machu", gender: "male" },
+      { name: "Picchu", gender: "female" },
+    ],
+  },
+  {
+    id: "u14",
+    name: "Ching Shih",
+    email: "chingshih@southchina.sea",
+    registeredDate: "2024-08-12",
+    status: "active",
+    cats: [
+      { name: "Corsair", gender: "female" },
+      { name: "Admiral", gender: "female" },
+      { name: "Junk", gender: "male" },
+    ],
+  },
+  {
+    id: "u15",
+    name: "Mansa Musa",
+    email: "musa@timbuktu.ml",
+    registeredDate: "2024-09-03",
+    status: "active",
+    cats: [
+      { name: "Sahara", gender: "male" },
+      { name: "Gold", gender: "female" },
+    ],
+  },
+];
+
+export const mockDeleteRequests: DeleteRequest[] = [
+  {
+    id: "dr1",
+    userId: "u8",
+    userName: "Nikola Tesla",
+    userEmail: "tesla@wardenclyffe.io",
+    requestedDate: "2025-03-10",
+    status: "pending",
+    reason: "No longer using the service",
+  },
+  {
+    id: "dr2",
+    userId: "u12",
+    userName: "Isabella of Castile",
+    userEmail: "isabella@castile.es",
+    requestedDate: "2025-03-18",
+    status: "pending",
+    reason: "Privacy concerns",
+  },
+  {
+    id: "dr3",
+    userId: "u2",
+    userName: "Lautaro",
+    userEmail: "lautaro@outlook.com",
+    requestedDate: "2025-04-01",
+    status: "pending",
+    reason: "Switching to a different app",
+  },
+  {
+    id: "dr4",
+    userId: "u6",
+    userName: "Genghis Khan",
+    userEmail: "genghis@steppe.mn",
+    requestedDate: "2025-04-09",
+    status: "pending",
+    reason: "Too many notifications",
+  },
+  {
+    id: "dr5",
+    userId: "u11",
+    userName: "Shaka Zulu",
+    userEmail: "shaka@zululand.za",
+    requestedDate: "2025-02-14",
+    status: "approved",
+    resolvedDate: "2025-02-16",
+    reason: "No longer using the service",
+  },
+  {
+    id: "dr6",
+    userId: "u4",
+    userName: "Sundiata Keita",
+    userEmail: "sundiata@mali.co",
+    requestedDate: "2025-02-28",
+    status: "rejected",
+    resolvedDate: "2025-03-02",
+    reason: "Privacy concerns",
+  },
+];
+
+// Aggregates — all derived from mockAdminUsers, single source of truth.
+const allAdminCats = mockAdminUsers.flatMap((u) => u.cats);
+
+export const adminAggregates = {
+  totalUsers: mockAdminUsers.length,
+  activeUsers: mockAdminUsers.filter((u) => u.status === "active").length,
+  inactiveUsers: mockAdminUsers.filter((u) => u.status === "inactive").length,
+  totalCats: allAdminCats.length,
+  maleCats: allAdminCats.filter((c) => c.gender === "male").length,
+  femaleCats: allAdminCats.filter((c) => c.gender === "female").length,
+  pendingDeleteRequests: mockDeleteRequests.filter((r) => r.status === "pending").length,
+};
+
+// ─── End admin mock data ──────────────────────────────────────────────────────
+
 export function getCatById(id: string): Cat | undefined {
   return mockCats.find((cat) => cat.id === id);
 }
