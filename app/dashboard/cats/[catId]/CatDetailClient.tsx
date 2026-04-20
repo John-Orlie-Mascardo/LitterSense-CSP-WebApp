@@ -35,16 +35,17 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
+import { type ToastParams } from "@/lib/interfaces/ToastParams";
+import { type Session } from "@/lib/interfaces/Session";
+import { type HealthLog } from "@/lib/interfaces/HealthLog";
 import {
   getSessionsByCatId,
   getHealthLogsByCatId,
   getTrendData,
   deviceStats,
-  type Session,
-  type HealthLog,
 } from "@/lib/data/mockData";
 import {
   getStatusColor,
@@ -85,7 +86,7 @@ export default function CatDetailClient() {
   const trendData = getTrendData(catId);
 
   const [activeTab, setActiveTab] = useState("overview");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
@@ -100,7 +101,7 @@ export default function CatDetailClient() {
     photo: cat?.avatar ?? null,
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -790,7 +791,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
 // Health Log Tab
 interface HealthLogTabProps {
   catId: string;
-  addToast: (message: string, type: ToastProps["type"]) => void;
+  addToast: (message: string, type: ToastParams["type"]) => void;
 }
 
 function HealthLogTab({ catId, addToast }: HealthLogTabProps) {

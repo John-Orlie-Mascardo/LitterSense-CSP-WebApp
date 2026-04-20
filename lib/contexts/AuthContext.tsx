@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 
 // DEV ONLY: set NEXT_PUBLIC_DEV_ADMIN=true in .env.local to bypass admin check.
 // When the backend ships custom claims, flip it to false and real path takes over.

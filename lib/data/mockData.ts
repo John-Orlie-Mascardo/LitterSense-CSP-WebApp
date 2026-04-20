@@ -9,74 +9,13 @@
  * - Device-level data: air quality, litter level (shared across all cats — one litter box)
  */
 
-export interface Cat {
-  id: string;
-  name: string;
-  status: "healthy" | "watch" | "alert";
-  avatar: string | null;
-  isOnline: boolean;
-}
-
-export interface CatStats {
-  visits: number;
-  avgDuration: string;
-  airQuality: "Normal" | "Elevated" | "Poor";
-  litterLevel: number;
-  lastVisit: string;
-}
-
-export interface ActivityItemData {
-  catId: string;
-  action: string;
-  time: string;
-  duration?: string;
-  anomaly: boolean;
-  anomalyNote?: string;
-}
-
-export interface CatDetails {
-  breed: string;
-  dob: string;
-  weightKg: number;
-  rfidTag: string;
-  healthInsight: string;
-  baseline: {
-    avgVisitsPerDay: number;
-    avgDurationSecs: number;
-    mq135DeltaPercent: number;
-    mq136DeltaPercent: number;
-    lastUpdated: string;
-  };
-}
-
-export interface Session {
-  id: string;
-  catId: string;
-  date: string;
-  time: string;
-  durationSecs: number;
-  mq135Delta: number;
-  mq136Delta: number;
-  anomaly: boolean;
-  anomalyType: string | null;
-}
-
-export interface HealthLog {
-  id: string;
-  catId: string;
-  date: string;
-  type: "Vet Visit" | "Medication" | "Observation" | "Other";
-  note: string;
-}
-
-export interface PastReport {
-  id: string;
-  catId: string;
-  catName: string;
-  range: string;
-  generatedOn: string;
-  filename: string;
-}
+import { Cat } from "@/lib/interfaces/Cat";
+import { CatStats } from "@/lib/interfaces/CatStats";
+import { ActivityItemData } from "@/lib/interfaces/ActivityItemData";
+import { CatDetails } from "@/lib/interfaces/CatDetails";
+import { Session } from "@/lib/interfaces/Session";
+import { HealthLog } from "@/lib/interfaces/HealthLog";
+import { PastReport } from "@/lib/interfaces/PastReport";
 // Mock data for testing and development
 // ⚠️ EMPTY ARRAYS — Users add their own cats manually
 export const mockCats: Cat[] = [];

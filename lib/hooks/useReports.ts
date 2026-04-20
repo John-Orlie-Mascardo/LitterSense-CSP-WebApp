@@ -1,34 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { mockCats, mockSessions, mockHealthLogs, mockPastReports, type PastReport } from "../data/mockData";
+import { mockCats, mockSessions, mockHealthLogs, mockPastReports } from "../data/mockData";
 import { generateId } from "../utils/formatters";
-
-export interface ReportConfig {
-  catId: string | "all";
-  dateRange: "7" | "30" | "90" | "custom";
-  customStartDate?: string;
-  customEndDate?: string;
-}
-
-export interface ReportData {
-  id: string;
-  catName: string;
-  catId: string;
-  period: string;
-  generatedOn: string;
-  ownerName: string;
-  summary: {
-    totalSessions: number;
-    avgSessionsPerDay: number;
-    avgDuration: string;
-    anomaliesDetected: number;
-    overallStatus: "healthy" | "watch" | "alert";
-    statusMessage: string;
-  };
-  sessions: typeof mockSessions;
-  healthLogs: typeof mockHealthLogs;
-}
+import { PastReport } from "@/lib/interfaces/PastReport";
+import type { ReportConfig } from "@/lib/interfaces/ReportConfig";
+import type { ReportData } from "@/lib/interfaces/ReportData";
+export type { ReportConfig } from "@/lib/interfaces/ReportConfig";
+export type { ReportData } from "@/lib/interfaces/ReportData";
 
 export function useReports() {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -71,7 +50,7 @@ export function useReports() {
     if (config.dateRange === "custom" && config.customStartDate) {
       startDate.setTime(new Date(config.customStartDate).getTime());
     } else {
-      startDate.setDate(endDate.getDate() - parseInt(config.dateRange));
+      startDate.setDate(endDate.getDate() - Number.parseInt(config.dateRange));
     }
 
     const period = `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
@@ -144,7 +123,7 @@ export function useReports() {
       catName,
       range: period,
       generatedOn: new Date().toISOString().split("T")[0],
-      filename: `LitterSense_${catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+      filename: `LitterSense_${catName.replaceAll(" ", "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
     };
     setPastReports((prev) => [newPastReport, ...prev]);
 
@@ -155,9 +134,8 @@ export function useReports() {
     setPastReports((prev) => prev.filter((r) => r.id !== reportId));
   }, []);
 
-  const downloadReport = useCallback((filename: string) => {
-    // Mock download
-    console.log(`Downloading ${filename}...`);
+  const downloadReport = useCallback((_filename: string) => {
+    // Mock download — no-op until backend integration
   }, []);
 
   return {

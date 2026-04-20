@@ -1,48 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-
-export interface PerCatNotificationPref {
-  catId: string;
-  catName: string;
-  healthAlerts: boolean;
-  visitAlerts: boolean;
-}
-
-export interface UserSettings {
-  notifications: {
-    healthAlerts: boolean;
-    litterLevelWarnings: boolean;
-    dailySummary: boolean;
-    alertSensitivity: "low" | "medium" | "high";
-    quietHours: {
-      enabled: boolean;
-      from: string; // "HH:MM" 24h format e.g. "22:00"
-      to: string;   // "HH:MM" 24h format e.g. "07:00"
-    };
-    perCat: PerCatNotificationPref[];
-  };
-  device: {
-    deviceName: string;
-    lastSynced: string;
-    wifiNetwork: string;
-    edgeProcessingMode: boolean;
-    syncInterval: "30s" | "1m" | "5m";
-    firmwareVersion: string;
-  };
-  dataPrivacy: {
-    dataRetention: "3m" | "6m" | "1y" | "forever";
-  };
-  appearance: {
-    theme: "light" | "dark" | "system";
-    language: "en" | "fil";
-  };
-  account: {
-    displayName: string;
-    email: string;
-    linkedAccounts: { provider: string; connected: boolean }[];
-  };
-}
+import type { PerCatNotificationPref } from "@/lib/interfaces/PerCatNotificationPref";
+import type { UserSettings } from "@/lib/interfaces/UserSettings";
+export type { PerCatNotificationPref } from "@/lib/interfaces/PerCatNotificationPref";
+export type { UserSettings } from "@/lib/interfaces/UserSettings";
 
 const defaultSettings: UserSettings = {
   notifications: {
@@ -109,8 +71,8 @@ export function useSettings() {
               perCat: parsed.notifications?.perCat ?? prev.notifications.perCat,
             },
           }));
-        } catch (e) {
-          console.error("Failed to parse settings:", e);
+        } catch {
+          // Ignore malformed localStorage data and fall back to defaults
         }
       }
       setIsLoaded(true);
@@ -217,7 +179,7 @@ export function useSettings() {
   }, []);
 
   const clearAllData = useCallback(() => {
-    console.log("Clearing all data...");
+    // No-op until backend integration
   }, []);
 
   const exportAllData = useCallback(() => {

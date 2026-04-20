@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/configs/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
@@ -48,8 +48,8 @@ export default function LoginPage() {
     }
   }, [user, authLoading, isAdmin, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setError("");
     try {

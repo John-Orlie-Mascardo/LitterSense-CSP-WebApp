@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/configs/firebase";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
@@ -35,8 +35,8 @@ export default function SignUpPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
     setError("");
     if (password !== confirmPassword) {
       setError("Passwords do not match");

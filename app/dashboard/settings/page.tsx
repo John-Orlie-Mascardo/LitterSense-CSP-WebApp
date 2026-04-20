@@ -30,12 +30,13 @@ import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer } from "@/components/ui/Toast";
+import { type ToastParams } from "@/lib/interfaces/ToastParams";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import {
   updateProfile,
   updatePassword,
@@ -59,7 +60,7 @@ export default function SettingsPage() {
   } = useSettings();
   const { theme, setTheme } = useTheme();
 
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -114,7 +115,7 @@ export default function SettingsPage() {
     confirm: "",
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -130,6 +131,7 @@ export default function SettingsPage() {
       await refreshUser();
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
+      window.location.reload();
     } catch (e) {
       const message =
         e instanceof FirebaseError ? e.message : "Failed to update profile";
@@ -193,8 +195,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {

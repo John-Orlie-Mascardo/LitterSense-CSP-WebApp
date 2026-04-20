@@ -3,14 +3,9 @@
 import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { ToastParams } from "@/lib/interfaces/ToastParams";
 
-export interface ToastProps {
-  id: string;
-  message: string;
-  type?: "success" | "error" | "info" | "warning";
-  duration?: number;
-  onClose: (id: string) => void;
-}
+export type { ToastParams };
 
 export function Toast({
   id,
@@ -18,7 +13,7 @@ export function Toast({
   type = "info",
   duration = 3000,
   onClose,
-}: ToastProps) {
+}: ToastParams) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose(id);

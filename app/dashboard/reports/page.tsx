@@ -19,13 +19,14 @@ import {
   Lightbulb,
   MoreVertical,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { mockCats, getTrendData, type PastReport } from "@/lib/data/mockData";
+import { ToastContainer } from "@/components/ui/Toast";
+import { type ToastParams } from "@/lib/interfaces/ToastParams";
+import { mockCats, getTrendData } from "@/lib/data/mockData";
+import { type PastReport } from "@/lib/interfaces/PastReport";
 import { useReports } from "@/lib/hooks/useReports";
 import {
   formatDuration,
@@ -42,7 +43,6 @@ const dateRanges = [
 ];
 
 export default function ReportsPage() {
-  const router = useRouter();
   const {
     isGenerating,
     progress,
@@ -54,11 +54,11 @@ export default function ReportsPage() {
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [selectedRange, setSelectedRange] = useState<string>("7");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -110,7 +110,9 @@ export default function ReportsPage() {
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-      } catch {}
+      } catch {
+        // AbortError thrown when user cancels the share dialog — intentionally ignored
+      }
     } else {
       navigator.clipboard.writeText(globalThis.location.href);
       addToast("Link copied to clipboard", "success");

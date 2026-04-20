@@ -19,10 +19,11 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer } from "@/components/ui/Toast";
+import { type ToastParams } from "@/lib/interfaces/ToastParams";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCats } from "@/lib/contexts/CatContext";
-import type { Cat } from "@/lib/data/mockData";
+import { type Cat } from "@/lib/interfaces/Cat";
 import {
   getStatusColor,
   calculateAge,
@@ -55,9 +56,9 @@ export default function CatsPage() {
     Partial<Record<keyof CatFormData, string>>
   >({});
   const [isSaving, setIsSaving] = useState(false);
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -128,8 +129,8 @@ export default function CatsPage() {
     addToast(`${newCat.name} has been added!`, "success");
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {

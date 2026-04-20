@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -30,8 +30,8 @@ export default function ForgotPasswordPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setError("");
     

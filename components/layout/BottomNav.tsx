@@ -107,10 +107,9 @@ export function BottomNav() {
                     color: isActive
                       ? "var(--color-primary)"
                       : "var(--color-text-secondary, #6B7280)",
-                    fontWeight: isActive ? 600 : 500,
                   }}
                   transition={{ duration: 0.15 }}
-                  className="font-body text-[10px] leading-tight font-medium tracking-wide"
+                  className="font-body text-[10px] leading-tight font-semibold tracking-wide"
                 >
                   {item.label}
                 </motion.span>
