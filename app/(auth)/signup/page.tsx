@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function SignUpPage() {
@@ -60,16 +61,18 @@ export default function SignUpPage() {
       });
 
       router.push("/dashboard");
-    } catch (err: any) {
+    } catch (err) {
       let errorMessage = "Failed to create an account.";
-      if (err.code === "auth/email-already-in-use") {
-        errorMessage = "This email is already registered. Please log in.";
-      } else if (err.code === "auth/weak-password") {
-        errorMessage = "Password is too weak. Please use at least 6 characters.";
-      } else if (err.code === "auth/invalid-email") {
-        errorMessage = "Please enter a valid email address.";
-      } else {
-        errorMessage = err.message || "Failed to create an account.";
+      if (err instanceof FirebaseError) {
+        if (err.code === "auth/email-already-in-use") {
+          errorMessage = "This email is already registered. Please log in.";
+        } else if (err.code === "auth/weak-password") {
+          errorMessage = "Password is too weak. Please use at least 6 characters.";
+        } else if (err.code === "auth/invalid-email") {
+          errorMessage = "Please enter a valid email address.";
+        } else {
+          errorMessage = err.message || "Failed to create an account.";
+        }
       }
       setError(errorMessage);
     } finally {
@@ -94,8 +97,9 @@ export default function SignUpPage() {
       }, { merge: true });
 
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Failed to sign up with Google.");
+    } catch (err) {
+      const message = err instanceof FirebaseError ? err.message : "Failed to sign up with Google.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }

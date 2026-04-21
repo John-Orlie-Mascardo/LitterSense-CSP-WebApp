@@ -17,6 +17,15 @@ import {
   AlertTriangle,
   Tag,
   Lightbulb,
+  Camera,
+  Upload,
+  X as XIcon,
+  PawPrint,
+  Scale,
+  CalendarDays,
+  Wifi,
+  ScanLine,
+  Loader2,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -27,13 +36,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
+import { useCats } from "@/lib/contexts/CatContext";
 import {
-  getCatById,
-  getCatDetailsById,
   getSessionsByCatId,
   getHealthLogsByCatId,
   getTrendData,
-  mockStats,
   deviceStats,
   type Session,
   type HealthLog,
@@ -56,35 +64,101 @@ const tabs = [
   { id: "health", label: "Health Log" },
 ];
 
+interface EditFormData {
+  name: string;
+  breed: string;
+  dob: string;
+  weightKg: string;
+  rfidTag: string;
+  photo: string | null;
+}
+
 export default function CatDetailClient() {
   const params = useParams();
   const router = useRouter();
   const catId = params.catId as string;
+  const { getCatById, getDetailsByCatId, getStatsByCatId, updateCat, updateDetails, removeCat } = useCats();
 
   const cat = getCatById(catId);
-  const details = getCatDetailsById(catId);
-  const stats = mockStats[catId];
+  const details = getDetailsByCatId(catId);
+  const stats = getStatsByCatId(catId);
   const trendData = getTrendData(catId);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
+  const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditFormData, string>>>({});
+  const [editForm, setEditForm] = useState<EditFormData>({
+    name: cat?.name ?? "",
+    breed: details?.breed ?? "",
+    dob: details?.dob ?? "",
+    weightKg: details?.weightKg ? String(details.weightKg) : "",
+    rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
+    photo: cat?.avatar ?? null,
+  });
 
   const addToast = (message: string, type: ToastProps["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  if (!cat || !details) {
+  const openEdit = () => {
+    // Refresh form with latest saved values
+    setEditForm({
+      name: cat?.name ?? "",
+      breed: details?.breed ?? "",
+      dob: details?.dob ?? "",
+      weightKg: details?.weightKg ? String(details.weightKg) : "",
+      rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
+      photo: cat?.avatar ?? null,
+    });
+    setEditErrors({});
+    setIsEditOpen(true);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setEditForm((p) => ({ ...p, photo: reader.result as string }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditSave = async () => {
+    const errs: Partial<Record<keyof EditFormData, string>> = {};
+    if (!editForm.name.trim()) errs.name = "Name is required";
+    if (!editForm.breed.trim()) errs.breed = "Breed is required";
+    if (!editForm.dob) errs.dob = "Date of birth is required";
+    if (Object.keys(errs).length > 0) { setEditErrors(errs); return; }
+
+    setIsSaving(true);
+    await updateCat(catId, { name: editForm.name.trim(), avatar: editForm.photo });
+    await updateDetails(catId, {
+      breed: editForm.breed,
+      dob: editForm.dob,
+      weightKg: editForm.weightKg ? parseFloat(editForm.weightKg) : 0,
+      rfidTag: editForm.rfidTag || "—",
+    });
+    setIsSaving(false);
+    setIsEditOpen(false);
+    addToast("Cat profile updated!", "success");
+  };
+
+  const handleDelete = async () => {
+    await removeCat(catId);
+    router.push("/dashboard/cats");
+  };
+
+  if (!cat) {
     return (
       <div className="min-h-screen bg-litter-card flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-display font-bold text-litter-text mb-2">
-            Cat not found
-          </h1>
-          <button
-            onClick={() => router.push("/dashboard/cats")}
-            className="text-litter-primary hover:underline"
-          >
+          <h1 className="text-2xl font-display font-bold text-litter-text mb-2">Cat not found</h1>
+          <button onClick={() => router.push("/dashboard/cats")} className="text-litter-primary hover:underline">
             Back to My Cats
           </button>
         </div>
@@ -96,40 +170,39 @@ export default function CatDetailClient() {
   const statusLabel = getStatusLabel(cat.status);
 
   return (
-    <div className="min-h-screen bg-litter-card pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
-      <ToastContainer
-        toasts={toasts}
-        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
-      />
+      <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* Back button */}
-        <button
-          onClick={() => router.push("/dashboard/cats")}
-          className="flex items-center gap-2 text-theme-muted hover:text-litter-primary mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm font-medium">Back to My Cats</span>
-        </button>
 
-        {/* Profile Header */}
-        <section className="relative bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
-          {/* Edit button */}
-          <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-theme-overlay transition-colors">
-            <Pencil className="w-5 h-5 text-theme-muted" />
+        {/* ── Back button ── */}
+        <div className="flex items-center justify-between mb-5 pt-4">
+          <button
+            onClick={() => router.push("/dashboard/cats")}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            My Cats
           </button>
 
+          <button
+            onClick={openEdit}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit
+          </button>
+        </div>
+
+        {/* ── Profile Header ── */}
+        <section className="bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
           <div className="flex flex-col items-center text-center">
-            {/* Avatar with online indicator */}
+            {/* Avatar */}
             <div className="relative w-24 h-24 mb-4">
               <div className="w-full h-full rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-3xl overflow-hidden">
                 {cat.avatar ? (
-                  <img
-                    src={cat.avatar}
-                    alt={cat.name}
-                    className="w-full h-full rounded-full object-cover"
-                  />
+                  <img src={cat.avatar} alt={cat.name} className="w-full h-full rounded-full object-cover" />
                 ) : (
                   cat.name.charAt(0).toUpperCase()
                 )}
@@ -139,31 +212,186 @@ export default function CatDetailClient() {
               )}
             </div>
 
-            {/* Name */}
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-2">
-              {cat.name}
-            </h1>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-2">{cat.name}</h1>
 
-            {/* Details row */}
             <p className="text-theme-muted mb-3">
-              {details.breed} · {calculateAge(details.dob)} · {details.weightKg}
-              kg
+              {details?.breed || "Unknown breed"}
+              {details?.dob ? ` · ${calculateAge(details.dob)}` : ""}
+              {details?.weightKg ? ` · ${details.weightKg} kg` : ""}
             </p>
 
-            {/* RFID chip */}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
               <Tag className="w-3 h-3" />
-              RFID: {details.rfidTag}
+              RFID: {details?.rfidTag || "—"}
             </span>
 
-            {/* Status badge */}
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}
-            >
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}>
               {statusLabel}
             </span>
           </div>
         </section>
+
+        {/* ── Edit BottomSheet ── */}
+        <BottomSheet isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Cat Profile">
+          <div className="space-y-6">
+
+            {/* Photo */}
+            <label className="group relative flex flex-col items-center justify-center gap-2 cursor-pointer">
+              <div className={`relative w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed transition-colors ${editForm.photo ? "border-litter-primary" : "border-litter-border hover:border-litter-primary"} bg-litter-primary-light/30`}>
+                {editForm.photo ? (
+                  <>
+                    <img src={editForm.photo} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                      <Camera className="w-6 h-6 text-white" />
+                      <span className="text-white text-xs font-medium">Change photo</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    <div className="w-10 h-10 rounded-full bg-litter-primary/10 flex items-center justify-center group-hover:bg-litter-primary/20 transition-colors">
+                      <Upload className="w-5 h-5 text-litter-primary" />
+                    </div>
+                    <p className="text-sm font-medium text-litter-primary">Upload photo</p>
+                  </div>
+                )}
+              </div>
+              {editForm.photo && (
+                <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); }}
+                  className="flex items-center gap-1 text-xs text-litter-muted hover:text-red-500 transition-colors">
+                  <XIcon className="w-3 h-3" /> Remove photo
+                </button>
+              )}
+              <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            </label>
+
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
+
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Cat Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <PawPrint className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                  <input type="text" value={editForm.name}
+                    onChange={(e) => { setEditForm((p) => ({ ...p, name: e.target.value })); setEditErrors((p) => ({ ...p, name: undefined })); }}
+                    placeholder="e.g. Whiskers"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border ${editErrors.name ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                  />
+                </div>
+                {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Breed <span className="text-red-500">*</span>
+                </label>
+                <BreedPicker value={editForm.breed} hasError={!!editErrors.breed}
+                  onChange={(v) => { setEditForm((p) => ({ ...p, breed: v })); setEditErrors((p) => ({ ...p, breed: undefined })); }} />
+                {editErrors.breed && <p className="text-red-500 text-xs mt-1">{editErrors.breed}</p>}
+              </div>
+            </div>
+
+            {/* Health Details */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
+
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays className="w-4 h-4 text-litter-muted" />
+                    Date of Birth <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <MonthYearPicker value={editForm.dob} hasError={!!editErrors.dob}
+                  onChange={(v) => { setEditForm((p) => ({ ...p, dob: v })); setEditErrors((p) => ({ ...p, dob: undefined })); }} />
+                {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
+                <div className="relative">
+                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                  <input type="number" step="0.1" min="0" value={editForm.weightKg}
+                    onChange={(e) => setEditForm((p) => ({ ...p, weightKg: e.target.value }))}
+                    placeholder="4.2"
+                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Device */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Device</p>
+              <div className="rounded-2xl border border-litter-border bg-litter-primary-light/20 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-litter-primary/10 flex items-center justify-center">
+                    <Wifi className="w-4 h-4 text-litter-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-litter-text">RFID Tag ID</p>
+                    <p className="text-xs text-litter-muted">Tap the scan button on your LitterSense device</p>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input type="text" value={editForm.rfidTag}
+                    onChange={(e) => setEditForm((p) => ({ ...p, rfidTag: e.target.value }))}
+                    placeholder="Scan or enter RFID tag"
+                    className="w-full px-4 py-3 pr-12 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                  />
+                  <button type="button" title="Auto-fill from device"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all">
+                    <ScanLine className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Save */}
+            <button type="button" onClick={handleEditSave} disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-semibold hover:bg-[#165a4e] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm">
+              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><PawPrint className="w-4 h-4" /> Save Changes</>}
+            </button>
+
+            {/* Danger zone */}
+            <div className="border-t border-litter-border pt-4">
+              <button
+                type="button"
+                onClick={() => { setIsEditOpen(false); setTimeout(() => setIsDeleteStep1Open(true), 150); }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                Remove This Cat
+              </button>
+            </div>
+          </div>
+        </BottomSheet>
+
+        {/* ── Delete Step 1 ── */}
+        <ConfirmDialog
+          isOpen={isDeleteStep1Open}
+          onClose={() => setIsDeleteStep1Open(false)}
+          onConfirm={() => { setIsDeleteStep1Open(false); setIsDeleteStep2Open(true); }}
+          title={`Remove ${cat.name}?`}
+          message={`Are you sure you want to remove ${cat.name} from your LitterSense account? This will also delete all health records, litter session history, and activity data linked to ${cat.name}.`}
+          confirmText="Yes, Remove"
+          cancelText="Keep Cat"
+          variant="danger"
+        />
+
+        {/* ── Delete Step 2 (final warning) ── */}
+        <ConfirmDialog
+          isOpen={isDeleteStep2Open}
+          onClose={() => setIsDeleteStep2Open(false)}
+          onConfirm={handleDelete}
+          title="Permanently Delete All Data?"
+          message={`You are about to permanently delete ${cat.name}'s profile along with all associated records. This includes session logs, health notes, and litter activity history. This action cannot be reversed — once deleted, the data is gone forever. Are you absolutely sure you want to continue?`}
+          confirmText="Yes, Delete Everything"
+          cancelText="Cancel"
+          variant="danger"
+        />
 
         {/* Tabs */}
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden mb-6">
@@ -176,7 +404,7 @@ export default function CatDetailClient() {
                   key="overview"
                   catId={catId}
                   stats={stats}
-                  details={details}
+                  details={details ?? null}
                 />
               )}
               {activeTab === "history" && (
@@ -187,7 +415,7 @@ export default function CatDetailClient() {
                   key="trends"
                   catId={catId}
                   trendData={trendData}
-                  details={details}
+                  details={details ?? null}
                 />
               )}
               {activeTab === "health" && (
@@ -231,7 +459,7 @@ interface OverviewTabProps {
       mq136DeltaPercent: number;
       lastUpdated: string;
     };
-  };
+  } | null;
 }
 
 function OverviewTab({ stats, details }: OverviewTabProps) {
@@ -241,7 +469,7 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
   return (
     <div className="space-y-6">
       {/* Health Insight */}
-      {details.healthInsight && (
+      {details?.healthInsight && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3">
           <Lightbulb className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
           <div>
@@ -297,51 +525,57 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
       </div>
 
       {/* Baseline Profile */}
-      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
-          <div className="group relative">
-            <Info className="w-4 h-4 text-theme-muted cursor-help" />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-              Baseline is recalculated every 7 days using a rolling average of
-              recorded sessions.
+      {details ? (
+        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
+            <div className="group relative">
+              <Info className="w-4 h-4 text-theme-muted cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                Baseline is recalculated every 7 days using a rolling average of
+                recorded sessions.
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal visits/day</p>
-            <p className="font-semibold text-litter-text">
-              {details.baseline.avgVisitsPerDay - 1}–
-              {details.baseline.avgVisitsPerDay + 1}
-            </p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal visits/day</p>
+              <p className="font-semibold text-litter-text">
+                {details.baseline.avgVisitsPerDay - 1}–
+                {details.baseline.avgVisitsPerDay + 1}
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal duration</p>
+              <p className="font-semibold text-litter-text">
+                {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
+                {formatDuration(details.baseline.avgDurationSecs + 30)}
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal MQ-135 Δ</p>
+              <p className="font-semibold text-litter-text">
+                &lt; {details.baseline.mq135DeltaPercent + 7}%
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal MQ-136 Δ</p>
+              <p className="font-semibold text-litter-text">
+                &lt; {details.baseline.mq136DeltaPercent + 5}%
+              </p>
+            </div>
           </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal duration</p>
-            <p className="font-semibold text-litter-text">
-              {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
-              {formatDuration(details.baseline.avgDurationSecs + 30)}
-            </p>
-          </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal MQ-135 Δ</p>
-            <p className="font-semibold text-litter-text">
-              &lt; {details.baseline.mq135DeltaPercent + 7}%
-            </p>
-          </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal MQ-136 Δ</p>
-            <p className="font-semibold text-litter-text">
-              &lt; {details.baseline.mq136DeltaPercent + 5}%
-            </p>
-          </div>
-        </div>
 
-        <p className="text-xs text-theme-muted mt-3">
-          Last updated {formatDate(details.baseline.lastUpdated)}
-        </p>
-      </div>
+          <p className="text-xs text-theme-muted mt-3">
+            Last updated {formatDate(details.baseline.lastUpdated)}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border text-center">
+          <p className="text-sm text-litter-muted">Baseline data will appear once the device starts recording sessions.</p>
+        </div>
+      )}
 
       {/* Recent Anomalies */}
       <div>
@@ -481,11 +715,11 @@ interface TrendsTabProps {
       avgDurationSecs: number;
       mq135DeltaPercent: number;
     };
-  };
+  } | null;
 }
 
 function TrendsTab({ trendData, details }: TrendsTabProps) {
-  if (!trendData) {
+  if (!trendData || !details) {
     return (
       <EmptyState
         icon={AlertTriangle}

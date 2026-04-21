@@ -15,18 +15,13 @@
 import { useState, useMemo, useEffect } from "react";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { useCats } from "@/lib/contexts/CatContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { CatChip } from "@/components/cats/CatChip";
 import { ActivityItem } from "@/components/dashboard/ActivityItem";
-import {
-  mockCats,
-  mockStats,
-  mockActivity,
-  deviceStats,
-  getCatById,
-} from "@/lib/data/mockData";
+import { mockActivity, deviceStats } from "@/lib/data/mockData";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
 
@@ -137,9 +132,17 @@ const getAirQualityStatusLabel = (airQuality: string) => {
 };
 
 export default function DashboardPage() {
-  const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
-  const [showAlertBanner, setShowAlertBanner] = useState(true);
   const { user } = useAuth();
+  const { cats, getCatById, getStatsByCatId } = useCats();
+  const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
+  const [showAlertBanner, setShowAlertBanner] = useState(true);
+
+  // ── Update selectedCatId when cats change ──
+  useEffect(() => {
+    if (cats.length > 0 && !selectedCatId) {
+      setSelectedCatId(cats[0].id);
+    }
+  }, [cats, selectedCatId]);
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
@@ -150,16 +153,16 @@ export default function DashboardPage() {
     triggerOnAnomaly,
   } = useNotificationPermission();
 
-  const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId]);
-  const stats = useMemo(() => mockStats[selectedCatId], [selectedCatId]);
+  const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId, getCatById]);
+  const stats = useMemo(() => getStatsByCatId(selectedCatId), [selectedCatId, getStatsByCatId]);
 
   const hasAnomaly = useMemo(
-    () => mockCats.some((cat) => cat.status !== "healthy"),
-    [],
+    () => cats.some((cat) => cat.status !== "healthy"),
+    [cats],
   );
   const alertCat = useMemo(
-    () => mockCats.find((cat) => cat.status !== "healthy"),
-    [],
+    () => cats.find((cat) => cat.status !== "healthy"),
+    [cats],
   );
 
   // ── Trigger permission prompt when anomaly is detected ──
@@ -173,9 +176,9 @@ export default function DashboardPage() {
   const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
   const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
   const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
-  const airQualityStatusLabel = getAirQualityStatusLabel(stats?.airQuality || "Normal");
+  const airQualityStatusLabel = getAirQualityStatusLabel(deviceStats.airQuality || "Normal");
 
-  const isEmpty = mockCats.length === 0;
+  const isEmpty = cats.length === 0;
 
   const greeting = getGreeting();
   const todayDate = formatDate();
@@ -253,7 +256,7 @@ export default function DashboardPage() {
               {/* Cat Selector */}
               <section className="mb-6">
                 <div className="flex flex-wrap gap-2">
-                  {mockCats.map((cat) => (
+                  {cats.map((cat) => (
                     <CatChip
                       key={cat.id}
                       cat={cat}
@@ -295,8 +298,16 @@ export default function DashboardPage() {
               {/* Selected cat status summary — desktop only */}
               <div className="hidden lg:flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg">
-                    {selectedCat?.name.charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden">
+                    {selectedCat?.avatar ? (
+                      <img
+                        src={selectedCat.avatar}
+                        alt={selectedCat.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      selectedCat?.name.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold text-litter-text">

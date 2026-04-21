@@ -54,7 +54,7 @@ export function BottomSheet({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={handleBackdropClick}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
           aria-modal="true"
           role="dialog"
         >
@@ -64,7 +64,7 @@ export function BottomSheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className={`w-full ${maxWidth} bg-litter-card rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden`}
+            className={`w-full ${maxWidth} bg-litter-card rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90dvh] overflow-hidden`}
           >
             {/* Handle bar for mobile */}
             <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
@@ -86,7 +86,7 @@ export function BottomSheet({
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto max-h-[calc(90vh-60px)] p-4 sm:p-6">
+            <div className="overflow-y-auto max-h-[calc(90dvh-60px)] p-4 sm:p-6 pb-8">
               {children}
             </div>
           </motion.div>

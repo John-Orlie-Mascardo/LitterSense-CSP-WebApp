@@ -13,80 +13,16 @@ import {
   Trash2,
 } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
+import {
+  useNotifications,
+  getDateGroup,
+  getTimeLabel,
+} from "@/lib/contexts/NotificationContext";
+import type { AppNotification, NotificationType } from "@/lib/contexts/NotificationContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type NotificationType = "health" | "system" | "cat_visit";
 type NotificationTab = "all" | "alerts" | "system";
-
-interface Notification {
-  id: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  timeLabel: string;
-  dateGroup: "today" | "yesterday" | "earlier";
-  isRead: boolean;
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "health",
-    title: "Health Alert",
-    message: "Mochi has not visited the litter box in over 24 hours. Please check on her.",
-    timeLabel: "2m ago",
-    dateGroup: "today",
-    isRead: false,
-  },
-  {
-    id: "2",
-    type: "cat_visit",
-    title: "Cat Visit Detected",
-    message: "Luna visited the litter box. Session duration: 3m 42s.",
-    timeLabel: "1h ago",
-    dateGroup: "today",
-    isRead: true,
-  },
-  {
-    id: "3",
-    type: "system",
-    title: "System Update",
-    message: "Version 2.4.0 is now available. Please update for the latest features.",
-    timeLabel: "1d ago",
-    dateGroup: "yesterday",
-    isRead: true,
-  },
-  {
-    id: "4",
-    type: "cat_visit",
-    title: "Cat Visit Detected",
-    message: "Thank you for verifying your email address. Your account is now fully active.",
-    timeLabel: "1d ago",
-    dateGroup: "yesterday",
-    isRead: true,
-  },
-  {
-    id: "5",
-    type: "health",
-    title: "Health Alert",
-    message: "Unusual litter usage pattern detected for Nala. Consider consulting a vet.",
-    timeLabel: "3d ago",
-    dateGroup: "earlier",
-    isRead: true,
-  },
-  {
-    id: "6",
-    type: "system",
-    title: "System Update",
-    message: "LitterSense firmware v1.2.4 was successfully installed on your device.",
-    timeLabel: "3d ago",
-    dateGroup: "earlier",
-    isRead: true,
-  },
-];
 
 // ─── Notification Icon ────────────────────────────────────────────────────────
 
@@ -125,33 +61,34 @@ function matchesTab(type: NotificationType, tab: NotificationTab): boolean {
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const {
+    notifications,
+    isLoading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAll,
+  } = useNotifications();
+
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  const handleMarkAllRead = async () => {
+    await markAllAsRead();
     setShowMenu(false);
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
+  const handleClearAll = async () => {
+    await clearAll();
     setShowMenu(false);
-  };
-
-  const handleMarkRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
-  };
-
-  const handleDelete = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const filtered = notifications.filter((n) => matchesTab(n.type, activeTab));
 
-  const dateGroups: { label: string; key: "today" | "yesterday" | "earlier" }[] = [
+  const dateGroups: {
+    label: string;
+    key: "today" | "yesterday" | "earlier";
+  }[] = [
     { label: "TODAY", key: "today" },
     { label: "YESTERDAY", key: "yesterday" },
     { label: "EARLIER", key: "earlier" },
@@ -263,10 +200,18 @@ export default function NotificationsPage() {
       </div>
 
       {/* ── Content ──────────────────────────────────────────────────────────── */}
-      {/* pt-[112px] = header height (top row ~60px + tabs ~52px) */}
       <main className="pt-[112px] max-w-lg mx-auto">
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col gap-3 px-4 pt-6">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-20 rounded-xl bg-litter-card animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-center px-8">
             <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center mb-4">
               <CheckCheck className="w-7 h-7 text-litter-primary" />
@@ -277,23 +222,25 @@ export default function NotificationsPage() {
         ) : (
           <>
             {dateGroups.map(({ label, key }) => {
-              const group = filtered.filter((n) => n.dateGroup === key);
+              const group = filtered.filter(
+                (n) => n.createdAt && getDateGroup(n.createdAt) === key
+              );
               if (group.length === 0) return null;
 
               return (
                 <div key={key}>
 
-                  {/* Date header — same grey label style as wireframe */}
+                  {/* Date header */}
                   <div className="px-4 pt-5 pb-2">
                     <p className="text-xs font-semibold text-theme-muted tracking-widest uppercase">
                       {label}
                     </p>
                   </div>
 
-                  {/* White card block for this group */}
+                  {/* White card block */}
                   <div className="bg-litter-card">
                     <AnimatePresence>
-                      {group.map((notif, idx) => (
+                      {group.map((notif: AppNotification, idx: number) => (
                         <motion.div
                           key={notif.id}
                           layout
@@ -301,7 +248,7 @@ export default function NotificationsPage() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.15 }}
-                          onClick={() => handleMarkRead(notif.id)}
+                          onClick={() => markAsRead(notif.id)}
                           className={`flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors hover:bg-theme-hover ${
                             idx === 0 ? "" : "border-t border-gray-100"
                           }`}
@@ -313,16 +260,20 @@ export default function NotificationsPage() {
                           <div className="flex-1 min-w-0">
                             {/* Title + timestamp + blue dot */}
                             <div className="flex items-start justify-between gap-2 mb-0.5">
-                              <p className={`text-sm leading-snug ${
+                              <p
+                                className={`text-sm leading-snug ${
                                   notif.isRead
                                     ? "font-semibold text-litter-text"
                                     : "font-bold text-litter-text"
-                                }`}>
+                                }`}
+                              >
                                 {notif.title}
                               </p>
                               <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                                 <span className="text-xs text-theme-muted whitespace-nowrap">
-                                  {notif.timeLabel}
+                                  {notif.createdAt
+                                    ? getTimeLabel(notif.createdAt)
+                                    : ""}
                                 </span>
                                 {!notif.isRead && (
                                   <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
@@ -340,7 +291,7 @@ export default function NotificationsPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(notif.id);
+                              deleteNotification(notif.id);
                             }}
                             className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors mt-0.5"
                           >

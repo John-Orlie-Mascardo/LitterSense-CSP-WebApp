@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 const features = [
@@ -39,13 +40,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard");
+      router.push(isAdmin ? "/admin" : "/dashboard");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, isAdmin, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,17 +54,19 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
-    } catch (err: any) {
+      router.push(isAdmin ? "/admin" : "/dashboard");
+    } catch (err) {
       let errorMessage = "Failed to sign in.";
-      if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-        errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
-      } else if (err.code === "auth/too-many-requests") {
-        errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
-      } else if (err.code === "auth/invalid-email") {
-        errorMessage = "Please enter a valid email address.";
-      } else {
-        errorMessage = err.message || "Failed to sign in.";
+      if (err instanceof FirebaseError) {
+        if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+          errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
+        } else if (err.code === "auth/too-many-requests") {
+          errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
+        } else if (err.code === "auth/invalid-email") {
+          errorMessage = "Please enter a valid email address.";
+        } else {
+          errorMessage = err.message || "Failed to sign in.";
+        }
       }
       setError(errorMessage);
     } finally {
@@ -87,9 +90,10 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Failed to sign in with Google.");
+      router.push(isAdmin ? "/admin" : "/dashboard");
+    } catch (err) {
+      const message = err instanceof FirebaseError ? err.message : "Failed to sign in with Google.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -153,25 +157,27 @@ export default function LoginPage() {
       </div>
 
       {/* Right Panel - Form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-litter-card">
-        <div className="w-full max-w-md">
-          {/* Mobile Header (only visible on mobile) */}
-          <div className="lg:hidden flex flex-col items-center text-center mb-8 -mx-6 -mt-12 px-6 pt-12 pb-8 bg-litter-primary rounded-b-[2rem]">
-            <div className="w-14 h-14 rounded-2xl bg-litter-card/20 flex items-center justify-center mb-3">
+      <div className="flex-1 flex flex-col lg:items-center lg:justify-center bg-litter-card">
+        {/* Mobile Header - Teal branded section with gradient */}
+        <div className="lg:hidden flex flex-col items-center text-center w-full px-6 pt-12 pb-8 bg-gradient-to-b from-[#145C54] to-[#1B7A6E] rounded-b-[2rem] mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-litter-card/20 flex items-center justify-center">
               <svg
                 viewBox="0 0 24 24"
-                className="w-8 h-8 text-white"
+                className="w-6 h-6 text-white"
                 fill="currentColor"
               >
                 <path d="M12 2C10.9 2 10 2.9 10 4C10 5.1 10.9 6 12 6C13.1 6 14 5.1 14 4C14 2.9 13.1 2 12 2ZM6 5C4.9 5 4 5.9 4 7C4 8.1 4.9 9 6 9C7.1 9 8 8.1 8 7C8 5.9 7.1 5 6 5ZM18 5C16.9 5 16 5.9 16 7C16 8.1 16.9 9 18 9C19.1 9 20 8.1 20 7C20 5.9 19.1 5 18 5ZM12 8C9.5 8 7.2 9.2 6 11.2V18C6 20.2 7.8 22 10 22H14C16.2 22 18 20.2 18 18V11.2C16.8 9.2 14.5 8 12 8ZM8.5 12C9.3 12 10 12.7 10 13.5C10 14.3 9.3 15 8.5 15C7.7 15 7 14.3 7 13.5C7 12.7 7.7 12 8.5 12ZM15.5 12C16.3 12 17 12.7 17 13.5C17 14.3 16.3 15 15.5 15C14.7 15 14 14.3 14 13.5C14 12.7 14.7 12 15.5 12ZM12 17C13.1 17 14 17.9 14 19H10C10 17.9 10.9 17 12 17Z" />
               </svg>
             </div>
-            <h2 className="font-display font-bold text-xl text-white">LitterSense</h2>
-            <p className="text-white/80 text-sm mt-1">
-              Early detection. Healthier cats.
-            </p>
+            <span className="font-display font-bold text-lg text-white">LitterSense</span>
           </div>
+          <h2 className="font-display font-bold text-2xl text-white mt-1">
+            Early detection. Healthier cats.
+          </h2>
+        </div>
 
+        <div className="w-full max-w-md px-6 pb-12 lg:py-12">
           {/* Welcome Text */}
           <div className="mb-8">
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-litter-text mb-2">
@@ -183,7 +189,7 @@ export default function LoginPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl">
                 {error}
@@ -193,7 +199,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-litter-text mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Email
               </label>
@@ -215,7 +221,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-litter-text mb-2"
+                className="block text-sm font-semibold text-litter-text mb-2"
               >
                 Password
               </label>
@@ -301,7 +307,7 @@ export default function LoginPage() {
           <button 
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-bg transition-all duration-200 flex items-center justify-center gap-3"
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path

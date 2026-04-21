@@ -78,40 +78,15 @@ export interface PastReport {
   filename: string;
 }
 // Mock data for testing and development
-export const mockCats: Cat[] = [
-  { id: "1", name: "Mochi", status: "watch", avatar: null, isOnline: true },
-  { id: "2", name: "Luna", status: "healthy", avatar: null, isOnline: false },
-  { id: "3", name: "Hera", status: "healthy", avatar: null, isOnline: false },
-];
+// ⚠️ EMPTY ARRAYS — Users add their own cats manually
+export const mockCats: Cat[] = [];
 
 /**
  * Per-cat stats — visits and duration are unique to each cat.
  * Every cat in mockCats must have a matching entry here or the dashboard
  * will show "undefined" values when that cat is selected.
  */
-export const mockStats: Record<string, CatStats> = {
-  "1": {
-    visits: 8,
-    avgDuration: "6m",
-    airQuality: "Elevated",
-    litterLevel: 67,
-    lastVisit: "Sep 28",
-  },
-  "2": {
-    visits: 12,
-    avgDuration: "7m",
-    airQuality: "Elevated",
-    litterLevel: 55,
-    lastVisit: "Oct 12",
-  },
-  "3": {
-    visits: 4,
-    avgDuration: "2m",
-    airQuality: "Normal",
-    litterLevel: 55,
-    lastVisit: "Oct 05",
-  },
-};
+export const mockStats: Record<string, CatStats> = {};
 
 /** Device-level stats — shared across all cats (one physical litter box). Not per-cat. */
 export const deviceStats = {
@@ -120,240 +95,287 @@ export const deviceStats = {
 };
 
 /** Recent activity feed items — displayed on the dashboard. catId must match a mockCats entry. */
-export const mockActivity: ActivityItemData[] = [
-  {
-    catId: "1",
-    action: "visited",
-    time: "12m ago",
-    duration: "1m 45s",
-    anomaly: false,
-  },
-  {
-    catId: "2",
-    action: "visited",
-    time: "34m ago",
-    duration: "2m 10s",
-    anomaly: false,
-  },
-  {
-    catId: "3",
-    action: "visited",
-    time: "1h ago",
-    duration: "1m 12s",
-    anomaly: false,
-  },
-  {
-    catId: "1",
-    action: "visited",
-    time: "2h ago",
-    duration: "8m",
-    anomaly: true,
-    anomalyNote: "Unusual duration",
-  },
-];
+export const mockActivity: ActivityItemData[] = [];
 
 /** Extended cat profile data — used on the Cat Profile Detail Page (03.01.11). */
-export const mockCatDetails: Record<string, CatDetails> = {
-  "1": {
-    breed: "Tabby",
-    dob: "2021-03",
-    weightKg: 4.2,
-    rfidTag: "A1B2C3D4",
-    healthInsight: "Air quality is slightly elevated. Mochi's visit duration has increased by 18% compared to last week — worth monitoring.",
-    baseline: {
-      avgVisitsPerDay: 4,
-      avgDurationSecs: 134,
-      mq135DeltaPercent: 8,
-      mq136DeltaPercent: 5,
-      lastUpdated: "2025-06-02",
-    },
-  },
-  "2": {
-    breed: "Siamese",
-    dob: "2023-03",
-    weightKg: 3.8,
-    rfidTag: "E5F6G7H8",
-    healthInsight: "Urinary health is stable. Luna's frequency has decreased by 12% compared to last week.",
-    baseline: {
-      avgVisitsPerDay: 5,
-      avgDurationSecs: 180,
-      mq135DeltaPercent: 10,
-      mq136DeltaPercent: 7,
-      lastUpdated: "2025-06-01",
-    },
-  },
-  "3": {
-    breed: "Bombay",
-    dob: "2024-03",
-    weightKg: 3.5,
-    rfidTag: "I9J0K1L2",
-    healthInsight: "All metrics are within normal range. Hera's litter box habits have been consistent over the past 7 days.",
-    baseline: {
-      avgVisitsPerDay: 3,
-      avgDurationSecs: 90,
-      mq135DeltaPercent: 6,
-      mq136DeltaPercent: 4,
-      lastUpdated: "2025-06-03",
-    },
-  },
-};
+export const mockCatDetails: Record<string, CatDetails> = {};
 
 /** Raw session logs — used on the Cat Profile Detail Page session history table. */
-export const mockSessions: Session[] = [
+export const mockSessions: Session[] = [];
+
+export const mockHealthLogs: HealthLog[] = [];
+
+export const mockPastReports: PastReport[] = [];
+
+// ─── Admin-only mock data ────────────────────────────────────────────────────
+// These are separate from the per-user cat arrays above, which are intentionally
+// empty (real users populate via Firebase). Admin stats are derived from these
+// arrays — change a user's cats here and the aggregates update automatically.
+
+export interface AdminCat {
+  name: string;
+  gender: "male" | "female";
+}
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  registeredDate: string; // ISO date string
+  status: "active" | "inactive";
+  cats: AdminCat[];
+}
+
+export interface DeleteRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  requestedDate: string; // ISO date string
+  status: "pending" | "approved" | "rejected";
+  resolvedDate?: string;
+  reason?: string;
+}
+
+export const mockAdminUsers: AdminUser[] = [
   {
-    id: "s1",
-    catId: "1",
-    date: "2025-06-05",
-    time: "07:14",
-    durationSecs: 142,
-    mq135Delta: 9,
-    mq136Delta: 4,
-    anomaly: false,
-    anomalyType: null,
+    id: "u1",
+    name: "Frederick Barbarossa",
+    email: "frederick@example.com",
+    registeredDate: "2024-01-12",
+    status: "active",
+    cats: [
+      { name: "Kaiser", gender: "male" },
+      { name: "Empress", gender: "female" },
+      { name: "Rhine", gender: "male" },
+    ],
   },
   {
-    id: "s2",
-    catId: "2",
-    date: "2025-06-05",
-    time: "08:32",
-    durationSecs: 421,
-    mq135Delta: 28,
-    mq136Delta: 19,
-    anomaly: true,
-    anomalyType: "Extended duration + elevated gas",
+    id: "u2",
+    name: "Lautaro",
+    email: "lautaro@outlook.com",
+    registeredDate: "2024-02-05",
+    status: "inactive",
+    cats: [{ name: "Mapuche", gender: "male" }],
   },
   {
-    id: "s3",
-    catId: "1",
-    date: "2025-06-05",
-    time: "11:05",
-    durationSecs: 98,
-    mq135Delta: 6,
-    mq136Delta: 3,
-    anomaly: false,
-    anomalyType: null,
+    id: "u3",
+    name: "Eleanor of Aquitaine",
+    email: "eleanor@france.net",
+    registeredDate: "2024-02-18",
+    status: "active",
+    cats: [
+      { name: "Duchess", gender: "female" },
+      { name: "Troubadour", gender: "male" },
+      { name: "Plantagenet", gender: "female" },
+      { name: "Crusade", gender: "male" },
+      { name: "Aquitaine", gender: "female" },
+    ],
   },
   {
-    id: "s4",
-    catId: "1",
-    date: "2025-06-05",
-    time: "14:22",
-    durationSecs: 156,
-    mq135Delta: 11,
-    mq136Delta: 6,
-    anomaly: false,
-    anomalyType: null,
+    id: "u4",
+    name: "Sundiata Keita",
+    email: "sundiata@mali.co",
+    registeredDate: "2024-03-01",
+    status: "active",
+    cats: [
+      { name: "Mansa", gender: "male" },
+      { name: "Kouroukan", gender: "female" },
+    ],
   },
   {
-    id: "s5",
-    catId: "2",
-    date: "2025-06-05",
-    time: "16:45",
-    durationSecs: 380,
-    mq135Delta: 25,
-    mq136Delta: 16,
-    anomaly: true,
-    anomalyType: "Extended duration",
+    id: "u5",
+    name: "Tomoe Gozen",
+    email: "tomoe@samurai.jp",
+    registeredDate: "2024-03-22",
+    status: "active",
+    cats: [
+      { name: "Bushido", gender: "male" },
+      { name: "Katana", gender: "female" },
+    ],
   },
   {
-    id: "s6",
-    catId: "3",
-    date: "2025-06-05",
-    time: "09:30",
-    durationSecs: 85,
-    mq135Delta: 5,
-    mq136Delta: 3,
-    anomaly: false,
-    anomalyType: null,
+    id: "u6",
+    name: "Genghis Khan",
+    email: "genghis@steppe.mn",
+    registeredDate: "2024-04-08",
+    status: "active",
+    cats: [
+      { name: "Borjigin", gender: "male" },
+      { name: "Temujin", gender: "male" },
+      { name: "Yurt", gender: "female" },
+    ],
   },
   {
-    id: "s7",
-    catId: "1",
-    date: "2025-06-04",
-    time: "06:50",
-    durationSecs: 128,
-    mq135Delta: 8,
-    mq136Delta: 4,
-    anomaly: false,
-    anomalyType: null,
+    id: "u7",
+    name: "Hatshepsut",
+    email: "hatshepsut@egypt.gov",
+    registeredDate: "2024-04-19",
+    status: "active",
+    cats: [
+      { name: "Nefertari", gender: "female" },
+      { name: "Pharaoh", gender: "male" },
+    ],
   },
   {
-    id: "s8",
-    catId: "2",
-    date: "2025-06-04",
-    time: "10:15",
-    durationSecs: 295,
-    mq135Delta: 18,
-    mq136Delta: 12,
-    anomaly: true,
-    anomalyType: "Elevated gas levels",
+    id: "u8",
+    name: "Nikola Tesla",
+    email: "tesla@wardenclyffe.io",
+    registeredDate: "2024-05-03",
+    status: "inactive",
+    cats: [{ name: "Voltage", gender: "male" }],
   },
   {
-    id: "s9",
-    catId: "1",
-    date: "2025-06-04",
-    time: "19:20",
-    durationSecs: 145,
-    mq135Delta: 10,
-    mq136Delta: 5,
-    anomaly: false,
-    anomalyType: null,
+    id: "u9",
+    name: "Cleopatra VII",
+    email: "cleo@ptolemy.eg",
+    registeredDate: "2024-05-14",
+    status: "active",
+    cats: [
+      { name: "Nile", gender: "female" },
+      { name: "Caesar", gender: "male" },
+      { name: "Sphinx", gender: "female" },
+    ],
   },
   {
-    id: "s10",
-    catId: "3",
-    date: "2025-06-04",
-    time: "08:00",
-    durationSecs: 92,
-    mq135Delta: 6,
-    mq136Delta: 4,
-    anomaly: false,
-    anomalyType: null,
+    id: "u10",
+    name: "Ada Lovelace",
+    email: "ada@babbage.co.uk",
+    registeredDate: "2024-06-01",
+    status: "active",
+    cats: [
+      { name: "Algorithm", gender: "female" },
+      { name: "Enchantress", gender: "female" },
+    ],
+  },
+  {
+    id: "u11",
+    name: "Shaka Zulu",
+    email: "shaka@zululand.za",
+    registeredDate: "2024-06-20",
+    status: "active",
+    cats: [{ name: "Assegai", gender: "male" }],
+  },
+  {
+    id: "u12",
+    name: "Isabella of Castile",
+    email: "isabella@castile.es",
+    registeredDate: "2024-07-07",
+    status: "inactive",
+    cats: [
+      { name: "Reconquista", gender: "female" },
+      { name: "Ferdinand", gender: "male" },
+    ],
+  },
+  {
+    id: "u13",
+    name: "Pachacuti",
+    email: "pachacuti@inca.pe",
+    registeredDate: "2024-07-25",
+    status: "active",
+    cats: [
+      { name: "Machu", gender: "male" },
+      { name: "Picchu", gender: "female" },
+    ],
+  },
+  {
+    id: "u14",
+    name: "Ching Shih",
+    email: "chingshih@southchina.sea",
+    registeredDate: "2024-08-12",
+    status: "active",
+    cats: [
+      { name: "Corsair", gender: "female" },
+      { name: "Admiral", gender: "female" },
+      { name: "Junk", gender: "male" },
+    ],
+  },
+  {
+    id: "u15",
+    name: "Mansa Musa",
+    email: "musa@timbuktu.ml",
+    registeredDate: "2024-09-03",
+    status: "active",
+    cats: [
+      { name: "Sahara", gender: "male" },
+      { name: "Gold", gender: "female" },
+    ],
   },
 ];
 
-export const mockHealthLogs: HealthLog[] = [
+export const mockDeleteRequests: DeleteRequest[] = [
   {
-    id: "l1",
-    catId: "2",
-    date: "2025-05-28",
-    type: "Vet Visit",
-    note: "Dr. Santos at Paws & Claws Clinic. Prescribed Hills c/d urinary diet. Follow-up in 2 weeks.",
+    id: "dr1",
+    userId: "u8",
+    userName: "Nikola Tesla",
+    userEmail: "tesla@wardenclyffe.io",
+    requestedDate: "2025-03-10",
+    status: "pending",
+    reason: "No longer using the service",
   },
   {
-    id: "l2",
-    catId: "2",
-    date: "2025-06-01",
-    type: "Observation",
-    note: "Luna visited the box 8 times today. Seems restless.",
+    id: "dr2",
+    userId: "u12",
+    userName: "Isabella of Castile",
+    userEmail: "isabella@castile.es",
+    requestedDate: "2025-03-18",
+    status: "pending",
+    reason: "Privacy concerns",
   },
   {
-    id: "l3",
-    catId: "1",
-    date: "2025-05-15",
-    type: "Vet Visit",
-    note: "Annual checkup. All vitals normal. Weight stable at 4.2kg.",
+    id: "dr3",
+    userId: "u2",
+    userName: "Lautaro",
+    userEmail: "lautaro@outlook.com",
+    requestedDate: "2025-04-01",
+    status: "pending",
+    reason: "Switching to a different app",
+  },
+  {
+    id: "dr4",
+    userId: "u6",
+    userName: "Genghis Khan",
+    userEmail: "genghis@steppe.mn",
+    requestedDate: "2025-04-09",
+    status: "pending",
+    reason: "Too many notifications",
+  },
+  {
+    id: "dr5",
+    userId: "u11",
+    userName: "Shaka Zulu",
+    userEmail: "shaka@zululand.za",
+    requestedDate: "2025-02-14",
+    status: "approved",
+    resolvedDate: "2025-02-16",
+    reason: "No longer using the service",
+  },
+  {
+    id: "dr6",
+    userId: "u4",
+    userName: "Sundiata Keita",
+    userEmail: "sundiata@mali.co",
+    requestedDate: "2025-02-28",
+    status: "rejected",
+    resolvedDate: "2025-03-02",
+    reason: "Privacy concerns",
   },
 ];
 
-export const mockPastReports: PastReport[] = [
-  {
-    id: "r1",
-    catId: "2",
-    catName: "Luna",
-    range: "May 1–31, 2025",
-    generatedOn: "2025-06-01",
-    filename: "LitterSense_Luna_2025-05.pdf",
-  },
-  {
-    id: "r2",
-    catId: "1",
-    catName: "Mochi",
-    range: "May 1–31, 2025",
-    generatedOn: "2025-06-01",
-    filename: "LitterSense_Mochi_2025-05.pdf",
-  },
-];
+// Aggregates — all derived from mockAdminUsers, single source of truth.
+const allAdminCats = mockAdminUsers.flatMap((u) => u.cats);
+
+export const adminAggregates = {
+  totalUsers: mockAdminUsers.length,
+  activeUsers: mockAdminUsers.filter((u) => u.status === "active").length,
+  inactiveUsers: mockAdminUsers.filter((u) => u.status === "inactive").length,
+  totalCats: allAdminCats.length,
+  maleCats: allAdminCats.filter((c) => c.gender === "male").length,
+  femaleCats: allAdminCats.filter((c) => c.gender === "female").length,
+  pendingDeleteRequests: mockDeleteRequests.filter((r) => r.status === "pending").length,
+};
+
+// ─── End admin mock data ──────────────────────────────────────────────────────
 
 export function getCatById(id: string): Cat | undefined {
   return mockCats.find((cat) => cat.id === id);

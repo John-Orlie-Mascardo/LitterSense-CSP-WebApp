@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(grep -r \"doc\\\\|setDoc\\\\|getDoc\\\\|collection\\\\|query\\\\|where\" /d/Codes/VSC/LitterSense-CSP-WebApp/app /d/Codes/VSC/LitterSense-CSP-WebApp/lib /d/Codes/VSC/LitterSense-CSP-WebApp/components --include=*.tsx --include=*.ts)",
+      "Bash(npx firebase:*)",
+      "Bash(find \"d:\\\\Codes\\\\VSC\\\\LitterSense-CSP-WebApp\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"notification\\\\|Notification\\\\|worker\\\\|service\" {} \\\\;)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

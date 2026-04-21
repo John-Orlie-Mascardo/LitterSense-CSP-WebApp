@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function ForgotPasswordPage() {
@@ -39,8 +40,9 @@ export default function ForgotPasswordPage() {
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+    } catch (err) {
+      const message = err instanceof FirebaseError ? err.message : "Failed to send reset email.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
