@@ -8,10 +8,18 @@ import {
   setDoc,
   deleteDoc,
   updateDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import type { Cat, CatStats, CatDetails } from "@/lib/data/mockData";
+
+interface FirebaseCatStatsDoc {
+  date: string;
+  visits: number;
+  totalDurationSecs: number;
+  lastVisit: string;
+}
 
 interface CatContextType {
   cats: Cat[];
@@ -24,6 +32,7 @@ interface CatContextType {
   getCatById: (id: string) => Cat | undefined;
   getStatsByCatId: (id: string) => CatStats | undefined;
   getDetailsByCatId: (id: string) => CatDetails | undefined;
+  recordVisit: (catId: string, durationSecs: number) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -31,9 +40,11 @@ const CatContext = createContext<CatContextType | undefined>(undefined);
 
 export function CatProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const uid = user?.uid;
   const [cats, setCats] = useState<Cat[]>([]);
   const [catStats, setCatStats] = useState<Record<string, CatStats>>({});
   const [catDetails, setCatDetails] = useState<Record<string, CatDetails>>({});
+  const [firebaseCatStats, setFirebaseCatStats] = useState<Record<string, FirebaseCatStatsDoc>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -41,17 +52,18 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     if (authLoading) return;
 
     // No user logged in — clear all cat data
-    if (!user) {
-      setCats([]);
-      setCatStats({});
-      setCatDetails({});
-      setIsLoading(false);
+    if (!uid) {
+      queueMicrotask(() => {
+        setCats([]);
+        setCatStats({});
+        setCatDetails({});
+        setFirebaseCatStats({});
+        setIsLoading(false);
+      });
       return;
     }
 
-    setIsLoading(true);
-
-    const uid = user.uid;
+    queueMicrotask(() => setIsLoading(true));
 
     // Real-time listener for the user's cats subcollection
     const unsubCats = onSnapshot(
@@ -83,11 +95,26 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    const unsubCatStats = onSnapshot(
+      collection(db, "users", uid, "catStats"),
+      (snapshot) => {
+        const loaded: Record<string, FirebaseCatStatsDoc> = {};
+        snapshot.forEach((d) => {
+          loaded[d.id] = d.data() as FirebaseCatStatsDoc;
+        });
+        setFirebaseCatStats(loaded);
+      },
+      (error) => {
+        console.error("Failed to sync cat stats:", error);
+      }
+    );
+
     return () => {
       unsubCats();
       unsubDetails();
+      unsubCatStats();
     };
-  }, [user?.uid, authLoading]);
+  }, [uid, authLoading]);
 
   const addCat = async (cat: Cat, stats?: CatStats, details?: CatDetails) => {
     if (!user) return;
@@ -137,8 +164,63 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const recordVisit = async (catId: string, durationSecs: number) => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    const ref = doc(db, "users", user.uid, "catStats", catId);
+    const lastVisit = new Date().toISOString();
+
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      const existing = snapshot.exists()
+        ? (snapshot.data() as FirebaseCatStatsDoc)
+        : null;
+
+      if (!existing || existing.date !== today) {
+        transaction.set(ref, {
+          date: today,
+          visits: 1,
+          totalDurationSecs: durationSecs,
+          lastVisit,
+        });
+        return;
+      }
+
+      transaction.update(ref, {
+        visits: existing.visits + 1,
+        totalDurationSecs: existing.totalDurationSecs + durationSecs,
+        lastVisit,
+      });
+    });
+  };
+
   const getCatById = (id: string) => cats.find((cat) => cat.id === id);
-  const getStatsByCatId = (id: string) => catStats[id];
+
+  const getStatsByCatId = (id: string): CatStats | undefined => {
+    const today = new Date().toISOString().split("T")[0];
+    const fb = firebaseCatStats[id];
+    if (fb && fb.date === today) {
+      const avgSecs = fb.visits > 0 ? Math.round(fb.totalDurationSecs / fb.visits) : 0;
+      const m = Math.floor(avgSecs / 60);
+      const s = avgSecs % 60;
+      const avgDuration = fb.visits === 0 ? "--" : s > 0 ? `${m}m ${s}s` : `${m}m`;
+      return {
+        visits: fb.visits,
+        avgDuration,
+        airQuality: "Normal",
+        litterLevel: 68,
+        lastVisit: fb.lastVisit,
+      };
+    }
+    return catStats[id] ?? {
+      visits: 0,
+      avgDuration: "--",
+      airQuality: "Normal",
+      litterLevel: 0,
+      lastVisit: "",
+    };
+  };
+
   const getDetailsByCatId = (id: string) => catDetails[id];
 
   return (
@@ -154,6 +236,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         getCatById,
         getStatsByCatId,
         getDetailsByCatId,
+        recordVisit,
         isLoading,
       }}
     >

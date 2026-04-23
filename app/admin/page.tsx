@@ -220,7 +220,7 @@ export default function AdminDashboardPage() {
     user?.displayName || user?.email?.split("@")[0] || "Admin";
   const adminInitial = adminName[0].toUpperCase();
 
-  function SortIcon({ field }: { field: SortKey }) {
+  const renderSortIcon = (field: SortKey) => {
     if (sortKey !== field)
       return (
         <ChevronsUpDown className="w-3.5 h-3.5 ml-1 opacity-30 shrink-0" />
@@ -230,7 +230,7 @@ export default function AdminDashboardPage() {
     ) : (
       <ChevronDown className="w-3.5 h-3.5 ml-1 text-litter-primary shrink-0" />
     );
-  }
+  };
 
   const tooltipStyle = {
     background: "var(--color-card)",
@@ -357,9 +357,9 @@ export default function AdminDashboardPage() {
                   </Pie>
                   <RechartsTooltip
                     contentStyle={tooltipStyle}
-                    formatter={(value: number, name: string) => [
-                      `${value} cats`,
-                      name,
+                    formatter={(value: number | undefined, name: string | undefined) => [
+                      `${value ?? 0} cats`,
+                      name ?? "",
                     ]}
                   />
                 </PieChart>
@@ -428,8 +428,8 @@ export default function AdminDashboardPage() {
                 <RechartsTooltip
                   contentStyle={tooltipStyle}
                   cursor={{ fill: "var(--color-overlay)" }}
-                  formatter={(value: number) => [
-                    `${value} cat${value !== 1 ? "s" : ""}`,
+                  formatter={(value: number | undefined) => [
+                    `${value ?? 0} cat${value !== 1 ? "s" : ""}`,
                     "Cats",
                   ]}
                 />
@@ -587,7 +587,7 @@ export default function AdminDashboardPage() {
                       className="flex items-center text-xs font-semibold text-litter-muted uppercase tracking-wider hover:text-litter-primary transition-colors"
                     >
                       Name
-                      <SortIcon field="name" />
+                      {renderSortIcon("name")}
                     </button>
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-litter-muted uppercase tracking-wider">
@@ -599,7 +599,7 @@ export default function AdminDashboardPage() {
                       className="flex items-center text-xs font-semibold text-litter-muted uppercase tracking-wider hover:text-litter-primary transition-colors"
                     >
                       Registered
-                      <SortIcon field="registeredDate" />
+                      {renderSortIcon("registeredDate")}
                     </button>
                   </th>
                   <th className="text-left px-4 py-3">
@@ -608,7 +608,7 @@ export default function AdminDashboardPage() {
                       className="flex items-center text-xs font-semibold text-litter-muted uppercase tracking-wider hover:text-litter-primary transition-colors"
                     >
                       Cats
-                      <SortIcon field="cats" />
+                      {renderSortIcon("cats")}
                     </button>
                   </th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-litter-muted uppercase tracking-wider">

@@ -8,14 +8,13 @@ import {
   Clock,
   Timer,
   Wind,
-  Droplets,
+  Tag,
   Info,
   Plus,
   Trash2,
   FileText,
   Filter,
   AlertTriangle,
-  Tag,
   Lightbulb,
   Camera,
   Upload,
@@ -38,11 +37,11 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import {
   getSessionsByCatId,
   getHealthLogsByCatId,
   getTrendData,
-  deviceStats,
   type Session,
   type HealthLog,
 } from "@/lib/data/mockData";
@@ -64,6 +63,29 @@ const tabs = [
   { id: "health", label: "Health Log" },
 ];
 
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+) => {
+  if (!mq135 || !mq136) return "Normal";
+  return isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)
+    ? "Poor"
+    : "Normal";
+};
+
+const getAirQualityStatus = (airQuality: string) => {
+  if (airQuality === "Poor") return "alert";
+  if (airQuality === "Elevated") return "watch";
+  return "healthy";
+};
+
 interface EditFormData {
   name: string;
   breed: string;
@@ -78,6 +100,7 @@ export default function CatDetailClient() {
   const router = useRouter();
   const catId = params.catId as string;
   const { getCatById, getDetailsByCatId, getStatsByCatId, updateCat, updateDetails, removeCat } = useCats();
+  const { data: sensorData, isLoading: sensorsLoading, error: sensorsError } = useDeviceSensors();
 
   const cat = getCatById(catId);
   const details = getDetailsByCatId(catId);
@@ -405,6 +428,9 @@ export default function CatDetailClient() {
                   catId={catId}
                   stats={stats}
                   details={details ?? null}
+                  sensorData={sensorData}
+                  sensorsLoading={sensorsLoading}
+                  sensorsError={sensorsError}
                 />
               )}
               {activeTab === "history" && (
@@ -460,11 +486,26 @@ interface OverviewTabProps {
       lastUpdated: string;
     };
   } | null;
+  sensorData: ReturnType<typeof useDeviceSensors>["data"];
+  sensorsLoading: boolean;
+  sensorsError: string | null;
 }
 
-function OverviewTab({ stats, details }: OverviewTabProps) {
-  const sessions = getSessionsByCatId("1"); // Mock recent anomalies
-  const recentAnomalies = sessions.filter((s) => s.anomaly).slice(0, 3);
+function OverviewTab({ stats, details, sensorData, sensorsLoading, sensorsError }: OverviewTabProps) {
+  const recentAnomalies: Session[] = [];
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  const rfidValue = sensorsError
+    ? "Offline"
+    : sensorsLoading
+      ? "Syncing"
+      : sensorData?.online
+        ? "Online"
+        : "Offline";
 
   return (
     <div className="space-y-6">
@@ -499,27 +540,15 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
           />
           <StatCard
             icon={Wind}
-            value={deviceStats.airQuality}
+            value={airQuality}
             label="Air Quality"
-            status={
-              deviceStats.airQuality === "Normal"
-                ? "healthy"
-                : deviceStats.airQuality === "Elevated"
-                  ? "watch"
-                  : "alert"
-            }
+            status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
           />
           <StatCard
-            icon={Droplets}
-            value={`${deviceStats.litterLevel}%`}
-            label="Litter Level"
-            status={
-              deviceStats.litterLevel >= 80
-                ? "alert"
-                : deviceStats.litterLevel >= 60
-                  ? "watch"
-                  : "healthy"
-            }
+            icon={Tag}
+            value={rfidValue}
+            label="RFID Reader"
+            status={sensorData?.online && !sensorsError ? "healthy" : "watch"}
           />
         </div>
       </div>

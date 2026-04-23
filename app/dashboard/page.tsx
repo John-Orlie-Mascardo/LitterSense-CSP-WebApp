@@ -7,7 +7,7 @@
  * 3. Anomaly — at least one cat flagged, alert banner visible
  *
  * The cat selector switches per-cat data (visits, duration).
- * Air quality and litter level come from deviceStats (device-level, not per-cat).
+ * Visits come from Firebase catStats, updated by live RFID scans.
  */
 
 "use client";
@@ -20,10 +20,8 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { CatChip } from "@/components/cats/CatChip";
-import { ActivityItem } from "@/components/dashboard/ActivityItem";
-import { mockActivity, deviceStats } from "@/lib/data/mockData";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 
 
 const getGreeting = () => {
@@ -56,10 +54,22 @@ const getAirQualityStatus = (quality: string) => {
   }
 };
 
-const getLitterLevelStatus = (level: number) => {
-  if (level >= 80) return "alert";
-  if (level >= 60) return "watch";
-  return "healthy";
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+): "Normal" | "Elevated" | "Poor" => {
+  if (!mq135 || !mq136) return "Normal";
+  if (isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)) {
+    return "Poor";
+  }
+  return "Normal";
 };
 
 const getVisitsStatus = (visits: number) => {
@@ -85,19 +95,6 @@ const getDurationStatus = (duration: string) => {
   if (mins >= 5) return "alert";
   if (mins >= 3) return "watch";
   return "healthy";
-};
-
-const getStatusClass = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return "bg-green-100 text-green-700";
-    case "watch":
-      return "bg-amber-100 text-amber-700";
-    case "alert":
-      return "bg-red-100 text-red-700";
-    default:
-      return "bg-green-100 text-green-700";
-  }
 };
 
 const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
@@ -131,30 +128,48 @@ const getAirQualityStatusLabel = (airQuality: string) => {
   }
 };
 
+const formatLastVisit = (iso?: string) => {
+  if (!iso) return "No visits yet";
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getRfidStatus = (
+  sensorData: ReturnType<typeof useDeviceSensors>["data"],
+  sensorsLoading: boolean,
+  sensorsError: string | null,
+) => {
+  if (sensorsError) return { value: "Offline", status: "watch" as const, label: "Check IP" };
+  if (sensorsLoading) return { value: "Syncing", status: "normal" as const, label: "Polling" };
+  if (!sensorData?.online) return { value: "Offline", status: "watch" as const, label: "No data" };
+  return { value: "Online", status: "healthy" as const, label: "Live" };
+};
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { cats, getCatById, getStatsByCatId } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
   const [showAlertBanner, setShowAlertBanner] = useState(true);
-
-  // ── Update selectedCatId when cats change ──
-  useEffect(() => {
-    if (cats.length > 0 && !selectedCatId) {
-      setSelectedCatId(cats[0].id);
-    }
-  }, [cats, selectedCatId]);
+  const {
+    data: sensorData,
+    isLoading: sensorsLoading,
+    error: sensorsError,
+  } = useDeviceSensors();
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
-    status: notifStatus,
-    showBanner,
-    requestPermission,
-    dismissBanner,
     triggerOnAnomaly,
   } = useNotificationPermission();
 
-  const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId, getCatById]);
-  const stats = useMemo(() => getStatsByCatId(selectedCatId), [selectedCatId, getStatsByCatId]);
+  const activeCatId = useMemo(() => {
+    if (cats.some((cat) => cat.id === selectedCatId)) return selectedCatId;
+    return cats[0]?.id || "";
+  }, [cats, selectedCatId]);
+
+  const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
+  const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
 
   const hasAnomaly = useMemo(
     () => cats.some((cat) => cat.status !== "healthy"),
@@ -172,11 +187,26 @@ export default function DashboardPage() {
     }
   }, [hasAnomaly, triggerOnAnomaly]);
 
-  const selectedCatStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
-  const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
-  const airQualityStatusLabel = getAirQualityStatusLabel(deviceStats.airQuality || "Normal");
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  const airQualityStatusLabel = sensorsError
+    ? "Offline"
+    : sensorsLoading
+      ? "Syncing"
+      : getAirQualityStatusLabel(airQuality);
+  const rfidStatus = getRfidStatus(sensorData, sensorsLoading, sensorsError);
+  const recentVisits = cats
+    .map((cat) => ({ cat, stats: getStatsByCatId(cat.id) }))
+    .filter(({ stats }) => stats?.lastVisit)
+    .sort(
+      (a, b) =>
+        new Date(b.stats?.lastVisit ?? 0).getTime() -
+        new Date(a.stats?.lastVisit ?? 0).getTime(),
+    );
 
   const isEmpty = cats.length === 0;
 
@@ -260,7 +290,7 @@ export default function DashboardPage() {
                     <CatChip
                       key={cat.id}
                       cat={cat}
-                      isActive={selectedCatId === cat.id}
+                      isActive={activeCatId === cat.id}
                       onClick={() => setSelectedCatId(cat.id)}
                     />
                   ))}
@@ -327,11 +357,7 @@ export default function DashboardPage() {
                         : "bg-red-100 text-red-700"
                   }`}
                 >
-                  {selectedCat?.status === "healthy"
-                    ? "● Healthy"
-                    : selectedCat?.status === "watch"
-                      ? "● Watch"
-                      : "● Alert"}
+                  {getStatusLabel(selectedCat?.status, true)}
                 </span>
               </div>
             </div>
@@ -379,24 +405,20 @@ export default function DashboardPage() {
                   />
                   <StatCard
                     icon={Wind}
-                    value={deviceStats.airQuality}
+                    value={airQuality}
                     label="Air Quality"
-                    status={getAirQualityStatus(deviceStats.airQuality)}
-                    statusLabel={
-                      deviceStats.airQuality === "Normal"
-                        ? "Healthy"
-                        : deviceStats.airQuality === "Elevated"
-                          ? "Unusual"
-                          : "Alert"
-                    }
+                    status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
+                    statusLabel={airQualityStatusLabel}
                   />
                   <StatCard
                     icon={BarChart2}
-                    value={`${deviceStats.litterLevel}%`}
-                    label="Litter Level"
-                    status={getLitterLevelStatus(deviceStats.litterLevel)}
+                    value={rfidStatus.value}
+                    label="RFID Reader"
+                    status={rfidStatus.status}
+                    statusLabel={rfidStatus.label}
                   />
                 </div>
+
               </section>
 
               {/* Recent Activity Feed */}
@@ -405,24 +427,53 @@ export default function DashboardPage() {
                   <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
                     Recent Activity
                   </h2>
-                  <button className="text-litter-primary text-sm font-medium hover:underline">
-                    See all
-                  </button>
+                  <span className="text-litter-primary text-xs font-semibold">
+                    Realtime
+                  </span>
                 </div>
 
-                <div className="space-y-3">
-                  {mockActivity.map((activity, index) => (
-                    <ActivityItem
-                      key={index}
-                      catId={activity.catId}
-                      action={activity.action}
-                      time={activity.time}
-                      duration={activity.duration}
-                      anomaly={activity.anomaly}
-                      anomalyNote={activity.anomalyNote}
-                    />
-                  ))}
-                </div>
+                {recentVisits.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentVisits.map(({ cat, stats }) => (
+                      <div
+                        key={cat.id}
+                        className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0 overflow-hidden">
+                          {cat.avatar ? (
+                            <img
+                              src={cat.avatar}
+                              alt={cat.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            cat.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body text-litter-text font-semibold text-sm leading-snug">
+                            {cat.name} RFID visit recorded
+                          </p>
+                          <p className="font-body text-litter-muted text-xs mt-0.5">
+                            Today&apos;s visits: {stats?.visits ?? 0}
+                          </p>
+                        </div>
+                        <span className="font-body text-litter-muted text-xs">
+                          {formatLastVisit(stats?.lastVisit)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-litter-card rounded-xl border border-litter-border text-center">
+                    <p className="text-sm font-semibold text-litter-text">
+                      Waiting for RFID visits
+                    </p>
+                    <p className="text-xs text-litter-muted mt-1">
+                      Tap the key fob near the antenna to record the first visit.
+                    </p>
+                  </div>
+                )}
               </section>
             </div>
           </div>
