@@ -14,6 +14,20 @@ type Esp32SensorPayload = {
   rfidHex?: string;
   rfidCard?: string;
   lastRfidMs?: number;
+  rfidEvent?: string;
+  sessionActive?: boolean;
+  activeRfidHex?: string;
+  activeRfidCard?: string;
+  activeSessionStartMs?: number;
+  activeSessionDurationMs?: number;
+  currentSessionStatus?: string;
+  lastSessionStatus?: string;
+  lastSessionDurationMs?: number;
+  lastSessionEndMs?: number;
+  completedSessionCount?: number;
+  falseEntryCount?: number;
+  noExitTimeoutCount?: number;
+  noExitTimeoutMs?: number;
 };
 
 const sensorText = (value: unknown, fallback: string) =>
@@ -21,6 +35,9 @@ const sensorText = (value: unknown, fallback: string) =>
 
 const sensorNumber = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const sensorBoolean = (value: unknown) =>
+  typeof value === "boolean" ? value : false;
 
 export async function GET() {
   const controller = new AbortController();
@@ -54,6 +71,20 @@ export async function GET() {
         rfidHex: sensorText(payload.rfidHex, ""),
         rfidCard: sensorText(payload.rfidCard, ""),
         lastRfidMs: sensorNumber(payload.lastRfidMs),
+        rfidEvent: sensorText(payload.rfidEvent, "none"),
+        sessionActive: sensorBoolean(payload.sessionActive),
+        activeRfidHex: sensorText(payload.activeRfidHex, ""),
+        activeRfidCard: sensorText(payload.activeRfidCard, ""),
+        activeSessionStartMs: sensorNumber(payload.activeSessionStartMs),
+        activeSessionDurationMs: sensorNumber(payload.activeSessionDurationMs),
+        currentSessionStatus: sensorText(payload.currentSessionStatus, "IDLE"),
+        lastSessionStatus: sensorText(payload.lastSessionStatus, "NONE"),
+        lastSessionDurationMs: sensorNumber(payload.lastSessionDurationMs),
+        lastSessionEndMs: sensorNumber(payload.lastSessionEndMs),
+        completedSessionCount: sensorNumber(payload.completedSessionCount),
+        falseEntryCount: sensorNumber(payload.falseEntryCount),
+        noExitTimeoutCount: sensorNumber(payload.noExitTimeoutCount),
+        noExitTimeoutMs: sensorNumber(payload.noExitTimeoutMs),
         updatedAt: new Date().toISOString(),
       },
       {

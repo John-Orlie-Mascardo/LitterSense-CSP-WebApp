@@ -4,9 +4,6 @@ import { useEffect, useRef } from "react";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { DeviceSensors } from "@/lib/hooks/useDeviceSensors";
 
-// The ESP32 keeps returning the last scanned RFID card while the web app polls.
-// This key prevents one physical scan from being counted repeatedly.
-const FALLBACK_SCAN_COOLDOWN_MS = 2000;
 const DEFAULT_VISIT_DURATION_SECS = 1;
 
 const hexToDec = (hex: string): string => {
@@ -17,75 +14,91 @@ const hexToDec = (hex: string): string => {
 const normalizeTag = (s: string) =>
   s.toLowerCase().replace(/[^a-f0-9]/g, "");
 
-const hasRegisteredTag = (s: string) => normalizeTag(s).length > 0;
-
 /**
- * Records one visit for each new RFID scan event from the ESP32.
+ * Records one visit only when the ESP32 reports a completed successful session.
  *
  * Matching order:
- * 1. Match scanned card/full UID against a cat's registered RFID tag.
- * 2. If there is exactly one cat and it has no RFID registered yet, assign the
- *    scan to that cat so hardware testing works before tag setup is complete.
+ * 1. Match completed session card/full UID against a cat's registered RFID tag.
+ * 2. If there is exactly one cat, assign the session to that cat for hardware testing.
  */
 export function useRfidVisitTracker(sensor: DeviceSensors | null) {
   const { cats, catDetails, recordVisit } = useCats();
-  const lastRecordedScanKey = useRef("");
-  const lastFallbackScanAt = useRef(0);
+  const lastRecordedSessionKey = useRef("");
 
   useEffect(() => {
     if (!sensor?.online) return;
 
-    const { rfidCard, rfidHex, lastRfidMs } = sensor;
-    if (!rfidCard && !rfidHex) return;
+    const {
+      completedSessionCount,
+      lastSessionDurationMs,
+      lastSessionEndMs,
+      lastSessionStatus,
+      activeRfidCard,
+      activeRfidHex,
+      rfidCard,
+      rfidHex,
+    } = sensor;
 
-    const scanKey =
-      lastRfidMs !== null
-        ? `${rfidCard}|${rfidHex}|${lastRfidMs}`
-        : `${rfidCard}|${rfidHex}`;
+    const sessionCompleted =
+      completedSessionCount !== null &&
+      completedSessionCount > 0 &&
+      (lastSessionStatus === "NORMAL" ||
+        lastSessionStatus === "ABNORMAL" ||
+        lastSessionStatus === "SHORT_SESSION" ||
+        lastSessionStatus === "NO_EXIT_TIMEOUT");
 
-    if (scanKey === lastRecordedScanKey.current) return;
+    if (sessionCompleted) {
+      const sessionKey = `${completedSessionCount}|${lastSessionEndMs ?? ""}|${lastSessionDurationMs ?? ""}`;
+      if (sessionKey === lastRecordedSessionKey.current) return;
 
-    const card = rfidCard ?? "";
-    const hex = rfidHex ?? "";
-    const matchedCat = cats.find((cat) => {
-      const tag = normalizeTag(catDetails[cat.id]?.rfidTag ?? "");
-      if (!tag) return false;
+      const card = activeRfidCard || rfidCard || "";
+      const hex = activeRfidHex || rfidHex || "";
+      const catToRecord = findCatByRfid(cats, catDetails, card, hex);
 
-      return (
-        tag === normalizeTag(card) ||
-        tag === normalizeTag(hex) ||
-        tag === hexToDec(card) ||
-        tag === hexToDec(hex)
+      if (!catToRecord) {
+        console.debug("[RFID] completed session but no cat matched", {
+          card,
+          hex,
+          completedSessionCount,
+          lastSessionStatus,
+        });
+        lastRecordedSessionKey.current = sessionKey;
+        return;
+      }
+
+      lastRecordedSessionKey.current = sessionKey;
+      const durationSecs = Math.max(
+        DEFAULT_VISIT_DURATION_SECS,
+        Math.round((lastSessionDurationMs ?? 0) / 1000),
       );
-    });
-
-    const fallbackCat =
-      cats.length === 1 && !hasRegisteredTag(catDetails[cats[0].id]?.rfidTag ?? "")
-        ? cats[0]
-        : undefined;
-
-    const catToRecord = matchedCat ?? fallbackCat;
-
-    if (!catToRecord) {
-      console.debug("[RFID] card present but no cat matched", {
-        card,
-        hex,
-        cardDecimal: hexToDec(card),
-        hexDecimal: hexToDec(hex),
-      });
-      lastRecordedScanKey.current = scanKey;
+      console.debug("[RFID] completed visit recorded for", catToRecord.id);
+      recordVisit(catToRecord.id, durationSecs);
       return;
     }
 
-    // If firmware ever omits lastRfidMs, fall back to a short cooldown.
-    if (lastRfidMs === null) {
-      const now = Date.now();
-      if (now - lastFallbackScanAt.current < FALLBACK_SCAN_COOLDOWN_MS) return;
-      lastFallbackScanAt.current = now;
-    }
-
-    lastRecordedScanKey.current = scanKey;
-    console.debug("[RFID] visit recorded for", catToRecord.id);
-    recordVisit(catToRecord.id, DEFAULT_VISIT_DURATION_SECS);
+    // Do not count ENTER, raw scans, IN_PROGRESS, or FALSE_ENTRY_IGNORED.
   }, [sensor, cats, catDetails, recordVisit]);
+}
+
+function findCatByRfid(
+  cats: ReturnType<typeof useCats>["cats"],
+  catDetails: ReturnType<typeof useCats>["catDetails"],
+  card: string,
+  hex: string,
+) {
+  const matchedCat = cats.find((cat) => {
+    const tag = normalizeTag(catDetails[cat.id]?.rfidTag ?? "");
+    if (!tag) return false;
+
+    return (
+      tag === normalizeTag(card) ||
+      tag === normalizeTag(hex) ||
+      tag === hexToDec(card) ||
+      tag === hexToDec(hex)
+    );
+  });
+
+  const fallbackCat = cats.length === 1 ? cats[0] : undefined;
+
+  return matchedCat ?? fallbackCat;
 }

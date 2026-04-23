@@ -15,10 +15,12 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import type { Cat, CatStats, CatDetails } from "@/lib/data/mockData";
 
 interface FirebaseCatStatsDoc {
+  catId?: string;
   date: string;
   visits: number;
   totalDurationSecs: number;
   lastVisit: string;
+  updatedAt?: string;
 }
 
 interface CatContextType {
@@ -95,8 +97,9 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
+    const today = new Date().toISOString().split("T")[0];
     const unsubCatStats = onSnapshot(
-      collection(db, "users", uid, "catStats"),
+      collection(db, "users", uid, "dailyCatStats", today, "cats"),
       (snapshot) => {
         const loaded: Record<string, FirebaseCatStatsDoc> = {};
         snapshot.forEach((d) => {
@@ -167,30 +170,28 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const recordVisit = async (catId: string, durationSecs: number) => {
     if (!user) return;
     const today = new Date().toISOString().split("T")[0];
-    const ref = doc(db, "users", user.uid, "catStats", catId);
+    const dailyRef = doc(db, "users", user.uid, "dailyCatStats", today, "cats", catId);
+    const catDailyRef = doc(db, "users", user.uid, "catStats", catId, "daily", today);
+    const summaryRef = doc(db, "users", user.uid, "catStats", catId);
     const lastVisit = new Date().toISOString();
 
     await runTransaction(db, async (transaction) => {
-      const snapshot = await transaction.get(ref);
+      const snapshot = await transaction.get(dailyRef);
       const existing = snapshot.exists()
         ? (snapshot.data() as FirebaseCatStatsDoc)
         : null;
-
-      if (!existing || existing.date !== today) {
-        transaction.set(ref, {
-          date: today,
-          visits: 1,
-          totalDurationSecs: durationSecs,
-          lastVisit,
-        });
-        return;
-      }
-
-      transaction.update(ref, {
-        visits: existing.visits + 1,
-        totalDurationSecs: existing.totalDurationSecs + durationSecs,
+      const nextStats = {
+        catId,
+        date: today,
+        visits: (existing?.visits ?? 0) + 1,
+        totalDurationSecs: (existing?.totalDurationSecs ?? 0) + durationSecs,
         lastVisit,
-      });
+        updatedAt: lastVisit,
+      };
+
+      transaction.set(dailyRef, nextStats);
+      transaction.set(catDailyRef, nextStats);
+      transaction.set(summaryRef, nextStats);
     });
   };
 

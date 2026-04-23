@@ -11,6 +11,38 @@ export type DeviceSensors = {
   rfidHex: string;
   rfidCard: string;
   lastRfidMs: number | null;
+  rfidEvent:
+    | "none"
+    | "ENTER"
+    | "OUT"
+    | "FALSE_ENTRY_IGNORED"
+    | "DIFFERENT_TAG_IGNORED"
+    | "NO_EXIT_TIMEOUT";
+  sessionActive: boolean;
+  activeRfidHex: string;
+  activeRfidCard: string;
+  activeSessionStartMs: number | null;
+  activeSessionDurationMs: number | null;
+  currentSessionStatus:
+    | "IDLE"
+    | "IN_PROGRESS"
+    | "NORMAL_WINDOW"
+    | "ABNORMAL_IN_PROGRESS"
+    | "NO_EXIT_TIMEOUT";
+  lastSessionStatus:
+    | "NONE"
+    | "IN_PROGRESS"
+    | "NORMAL"
+    | "ABNORMAL"
+    | "SHORT_SESSION"
+    | "FALSE_ENTRY_IGNORED"
+    | "NO_EXIT_TIMEOUT";
+  lastSessionDurationMs: number | null;
+  lastSessionEndMs: number | null;
+  completedSessionCount: number | null;
+  falseEntryCount: number | null;
+  noExitTimeoutCount: number | null;
+  noExitTimeoutMs: number | null;
   updatedAt: string;
 };
 
