@@ -60,10 +60,14 @@ async function fetchDeviceSensors(signal?: AbortSignal): Promise<DeviceSensors> 
     signal,
   });
 
-  const payload = await response.json();
+  const payload = await response.json() as {
+    error?: string;
+    detail?: string;
+  };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Unable to read device sensors");
+    const message = [payload.error, payload.detail].filter(Boolean).join(": ");
+    throw new Error(message || "Unable to read device sensors");
   }
 
   return payload as DeviceSensors;

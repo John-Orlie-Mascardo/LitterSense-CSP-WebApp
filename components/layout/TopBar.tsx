@@ -3,9 +3,9 @@
 import { Bell, Check, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useEffect } from "react";
-import { useNotifications, getTimeLabel } from "@/lib/contexts/NotificationContext";
+import { useNotifications, getTimeLabel, type AppNotification } from "@/lib/contexts/NotificationContext";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
 export function TopBar() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const pathname = usePathname();
+  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +36,13 @@ export function TopBar() {
   const pageTitle = Object.entries(pageTitles).find(([key]) =>
     key === pathname || (key !== "/dashboard" && pathname?.startsWith(key + "/"))
   )?.[1] ?? "Dashboard";
+
+  const handleNotificationClick = (notification: AppNotification) => {
+    void markAsRead(notification.id);
+    if (!notification.route) return;
+    setDropdownOpen(false);
+    router.push(notification.route);
+  };
 
   return (
     <header
@@ -192,10 +200,12 @@ export function TopBar() {
                       notifications.slice(0, 20).map((n) => (
                         <div
                           key={n.id}
+                          onClick={() => handleNotificationClick(n)}
                           className="flex items-start gap-3 px-5 py-4 transition-colors"
                           style={{
                             background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.06)",
                             borderBottom: "1px solid var(--color-border)",
+                            cursor: "pointer",
                           }}
                         >
                           <div
@@ -211,11 +221,11 @@ export function TopBar() {
                           </div>
                           <div className="flex flex-col gap-1 flex-shrink-0">
                             {!n.isRead && (
-                              <button onClick={() => markAsRead(n.id)} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
+                              <button onClick={(e) => { e.stopPropagation(); void markAsRead(n.id); }} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            <button onClick={() => deleteNotification(n.id)} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
+                            <button onClick={(e) => { e.stopPropagation(); void deleteNotification(n.id); }} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>

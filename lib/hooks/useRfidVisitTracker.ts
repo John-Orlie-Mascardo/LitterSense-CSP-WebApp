@@ -72,7 +72,9 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
         Math.round((lastSessionDurationMs ?? 0) / 1000),
       );
       console.debug("[RFID] completed visit recorded for", catToRecord.id);
-      recordVisit(catToRecord.id, durationSecs);
+      recordVisit(catToRecord.id, durationSecs, {
+        sessionStatus: lastSessionStatus,
+      });
       return;
     }
 

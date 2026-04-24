@@ -39,6 +39,14 @@ const sensorNumber = (value: unknown) =>
 const sensorBoolean = (value: unknown) =>
   typeof value === "boolean" ? value : false;
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return "Unknown error";
+};
+
 export async function GET() {
   const controller = new AbortController();
   const timeoutId = setTimeout(
@@ -53,8 +61,14 @@ export async function GET() {
     });
 
     if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => "");
+
       return Response.json(
-        { online: false, error: `ESP32 returned ${upstream.status}` },
+        {
+          online: false,
+          error: `ESP32 returned ${upstream.status}`,
+          detail,
+        },
         { status: 502 },
       );
     }
@@ -93,10 +107,25 @@ export async function GET() {
         },
       },
     );
-  } catch {
+  } catch (error) {
+    const message = getErrorMessage(error);
+    const timedOut =
+      error instanceof Error &&
+      (error.name === "AbortError" || message.toLowerCase().includes("aborted"));
+
+    console.error("ESP32 sensor proxy failed.", {
+      url: ESP32_SENSOR_URL,
+      timedOut,
+      message,
+    });
+
     return Response.json(
-      { online: false, error: "ESP32 sensors unavailable" },
-      { status: 503 },
+      {
+        online: false,
+        error: timedOut ? "ESP32 sensors timed out" : "ESP32 sensors unavailable",
+        detail: message,
+      },
+      { status: timedOut ? 504 : 503 },
     );
   } finally {
     clearTimeout(timeoutId);

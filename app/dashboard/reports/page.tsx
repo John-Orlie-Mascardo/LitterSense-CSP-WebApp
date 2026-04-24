@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FileText,
   Download,
@@ -19,14 +19,14 @@ import {
   Lightbulb,
   MoreVertical,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { mockCats, getTrendData, type PastReport } from "@/lib/data/mockData";
-import { useReports } from "@/lib/hooks/useReports";
+import { useCats } from "@/lib/contexts/CatContext";
+import type { PastReport } from "@/lib/data/mockData";
+import { useReports, type ReportData } from "@/lib/hooks/useReports";
 import {
   formatDuration,
   formatDate,
@@ -35,14 +35,21 @@ import {
   getHealthLogTypeColor,
 } from "@/lib/utils/formatters";
 
-const dateRanges = [
+type DateRangeValue = "7" | "30" | "90";
+
+const dateRanges: { value: DateRangeValue; label: string }[] = [
   { value: "7", label: "Last 7 Days" },
   { value: "30", label: "Last 30 Days" },
   { value: "90", label: "Last 90 Days" },
 ];
 
+const csvCell = (value: string | number | boolean) => {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
 export default function ReportsPage() {
-  const router = useRouter();
+  const { cats, isLoading: catsLoading } = useCats();
   const {
     isGenerating,
     progress,
@@ -53,10 +60,24 @@ export default function ReportsPage() {
   } = useReports();
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
-  const [selectedRange, setSelectedRange] = useState<string>("7");
+  const [selectedRange, setSelectedRange] = useState<DateRangeValue>("7");
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const hasCats = cats.length > 0;
+
+  useEffect(() => {
+    const requestedCatId = new URLSearchParams(globalThis.location.search).get("catId");
+    if (requestedCatId) {
+      queueMicrotask(() => setSelectedCat(requestedCatId));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedCat !== "all" && cats.length > 0 && !cats.some((cat) => cat.id === selectedCat)) {
+      queueMicrotask(() => setSelectedCat("all"));
+    }
+  }, [cats, selectedCat]);
 
   const addToast = (message: string, type: ToastProps["type"] = "info") => {
     const id = generateId();
@@ -64,9 +85,14 @@ export default function ReportsPage() {
   };
 
   const handleGenerate = async () => {
+    if (!hasCats) {
+      addToast("Add a cat before generating a report", "info");
+      return;
+    }
+
     await generateReport({
       catId: selectedCat,
-      dateRange: selectedRange as "7" | "30" | "90" | "custom",
+      dateRange: selectedRange,
     });
     setTimeout(() => {
       reportRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,11 +109,20 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-    const headers = "Date,Time,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
+    const headers = "Cat,Date,Time,Visits,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
     const rows = currentReport.sessions
       .map(
         (s) =>
-          `${s.date},${s.time},${s.durationSecs},${s.mq135Delta},${s.mq136Delta},${s.anomaly ? "Yes" : "No"}`
+          [
+            csvCell(s.catName),
+            csvCell(s.date),
+            csvCell(s.time || "--"),
+            csvCell(s.summaryVisits ?? 1),
+            csvCell(s.durationSecs),
+            csvCell(s.mq135Delta),
+            csvCell(s.mq136Delta),
+            csvCell(s.anomaly ? "Yes" : "No"),
+          ].join(",")
       )
       .join("\n");
     const blob = new Blob([headers + rows], { type: "text/csv" });
@@ -164,10 +199,11 @@ export default function ReportsPage() {
                 id="select-cat"
                 value={selectedCat}
                 onChange={(e) => setSelectedCat(e.target.value)}
+                disabled={catsLoading || isGenerating || !hasCats}
                 className="w-full px-4 py-3 rounded-xl border border-litter-border bg-litter-card text-litter-text appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
               >
                 <option value="all">All Cats</option>
-                {mockCats.map((cat) => (
+                {cats.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
@@ -175,6 +211,11 @@ export default function ReportsPage() {
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-theme-muted pointer-events-none" />
             </div>
+            {!catsLoading && !hasCats && (
+              <p className="text-xs text-theme-muted mt-2">
+                Add a cat first so reports can use your saved sessions and health logs.
+              </p>
+            )}
           </div>
 
           {/* Date Range */}
@@ -186,7 +227,8 @@ export default function ReportsPage() {
               <select
                 id="select-range"
                 value={selectedRange}
-                onChange={(e) => setSelectedRange(e.target.value)}
+                onChange={(e) => setSelectedRange(e.target.value as DateRangeValue)}
+                disabled={isGenerating}
                 className="w-full px-4 py-3 rounded-xl border border-litter-border bg-litter-card text-litter-text appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
               >
                 {dateRanges.map((range) => (
@@ -202,7 +244,7 @@ export default function ReportsPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating}
+            disabled={isGenerating || catsLoading || !hasCats}
             className="w-full py-3.5 rounded-xl bg-litter-primary text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -323,41 +365,13 @@ export default function ReportsPage() {
 // ─── Report Preview ───────────────────────────────────────────────────────────
 
 interface ReportPreviewProps {
-  readonly report: {
-    readonly catId: string;
-    readonly catName: string;
-    readonly period: string;
-    readonly generatedOn: string;
-    readonly ownerName: string;
-    readonly summary: {
-      readonly totalSessions: number;
-      readonly avgSessionsPerDay: number;
-      readonly avgDuration: string;
-      readonly anomaliesDetected: number;
-      readonly overallStatus: "healthy" | "watch" | "alert";
-      readonly statusMessage: string;
-    };
-    readonly sessions: ReadonlyArray<{
-      readonly id: string;
-      readonly date: string;
-      readonly time: string;
-      readonly durationSecs: number;
-      readonly mq135Delta: number;
-      readonly mq136Delta: number;
-      readonly anomaly: boolean;
-    }>;
-    readonly healthLogs: ReadonlyArray<{
-      readonly id: string;
-      readonly date: string;
-      readonly type: string;
-      readonly note: string;
-    }>;
-  };
+  readonly report: ReportData;
 }
 
 function ReportPreview({ report }: ReportPreviewProps) {
   const statusColors = getStatusColor(report.summary.overallStatus);
-  const trendData = getTrendData(report.catId === "all" ? "1" : report.catId);
+  const trendData = report.trendData;
+  const showCatColumn = report.catId === "all";
 
   return (
     <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
@@ -433,8 +447,10 @@ function ReportPreview({ report }: ReportPreviewProps) {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-theme-muted border-b border-litter-border">
+                {showCatColumn && <th className="pb-2 font-medium">Cat</th>}
                 <th className="pb-2 font-medium">Date</th>
                 <th className="pb-2 font-medium">Time</th>
+                <th className="pb-2 font-medium">Visits</th>
                 <th className="pb-2 font-medium">Duration</th>
                 <th className="pb-2 font-medium">MQ-135 Δ</th>
                 <th className="pb-2 font-medium">MQ-136 Δ</th>
@@ -444,13 +460,21 @@ function ReportPreview({ report }: ReportPreviewProps) {
             <tbody>
               {report.sessions.slice(0, 10).map((session) => (
                 <tr key={session.id} className={session.anomaly ? "bg-status-watch" : ""}>
+                  {showCatColumn && (
+                    <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
+                  )}
                   <td className="py-1.5 text-litter-text">{session.date}</td>
-                  <td className="py-1.5 text-litter-text">{session.time}</td>
+                  <td className="py-1.5 text-litter-text">{session.time || "--"}</td>
+                  <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
                   <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
                   <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
                   <td className="py-1.5 text-litter-text">{session.mq136Delta}%</td>
                   <td className="py-1.5">
-                    {session.anomaly && (
+                    {session.summaryVisits ? (
+                      <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
+                        Summary
+                      </span>
+                    ) : session.anomaly && (
                       <span className="px-1.5 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
                         Flagged
                       </span>
@@ -526,6 +550,9 @@ function ReportPreview({ report }: ReportPreviewProps) {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}>
                       {log.type}
                     </span>
+                    {showCatColumn && (
+                      <span className="text-xs text-theme-muted">{log.catName}</span>
+                    )}
                     <span className="text-xs text-theme-muted">{formatDate(log.date)}</span>
                   </div>
                   <p className="text-sm text-litter-text">{log.note}</p>
