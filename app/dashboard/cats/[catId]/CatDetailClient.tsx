@@ -1,21 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Pencil,
   Clock,
   Timer,
   Wind,
-  Droplets,
+  Tag,
   Info,
   Plus,
   Trash2,
   FileText,
   Filter,
   AlertTriangle,
-  Tag,
   Lightbulb,
   Camera,
   Upload,
@@ -38,14 +37,8 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
-import {
-  getSessionsByCatId,
-  getHealthLogsByCatId,
-  getTrendData,
-  deviceStats,
-  type Session,
-  type HealthLog,
-} from "@/lib/data/mockData";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import type { Session, HealthLog } from "@/lib/data/mockData";
 import {
   getStatusColor,
   getStatusLabel,
@@ -64,6 +57,75 @@ const tabs = [
   { id: "health", label: "Health Log" },
 ];
 
+type CatDetailTabId = (typeof tabs)[number]["id"];
+
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+) => {
+  if (!mq135 || !mq136) return "Normal";
+  return isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)
+    ? "Poor"
+    : "Normal";
+};
+
+const getAirQualityStatus = (airQuality: string) => {
+  if (airQuality === "Poor") return "alert";
+  if (airQuality === "Elevated") return "watch";
+  return "healthy";
+};
+
+const getTrendBaseline = (
+  details:
+    | {
+        baseline: {
+          avgVisitsPerDay: number;
+          avgDurationSecs: number;
+          mq135DeltaPercent: number;
+        };
+      }
+    | null,
+  trendData:
+    | Array<{
+        visits: number;
+        avgDuration: number;
+        mq135Delta: number;
+      }>
+    | null,
+) => {
+  if (details?.baseline) return details.baseline;
+
+  const activeDays = trendData?.filter((day) => day.visits > 0) ?? [];
+  if (activeDays.length === 0) {
+    return {
+      avgVisitsPerDay: 1,
+      avgDurationSecs: 120,
+      mq135DeltaPercent: 0,
+    };
+  }
+
+  return {
+    avgVisitsPerDay: Math.round(
+      activeDays.reduce((sum, day) => sum + day.visits, 0) / activeDays.length,
+    ),
+    avgDurationSecs: Math.round(
+      activeDays.reduce((sum, day) => sum + day.avgDuration, 0) /
+        activeDays.length,
+    ),
+    mq135DeltaPercent: Math.round(
+      activeDays.reduce((sum, day) => sum + day.mq135Delta, 0) /
+        activeDays.length,
+    ),
+  };
+};
+
 interface EditFormData {
   name: string;
   breed: string;
@@ -76,15 +138,33 @@ interface EditFormData {
 export default function CatDetailClient() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const catId = params.catId as string;
-  const { getCatById, getDetailsByCatId, getStatsByCatId, updateCat, updateDetails, removeCat } = useCats();
+  const {
+    getCatById,
+    getDetailsByCatId,
+    getStatsByCatId,
+    getSessionsByCatId,
+    getHealthLogsByCatId,
+    getTrendData,
+    updateCat,
+    updateDetails,
+    removeCat,
+    addHealthLog,
+    removeHealthLog,
+  } = useCats();
+  const { data: sensorData, isLoading: sensorsLoading, error: sensorsError } = useDeviceSensors();
 
   const cat = getCatById(catId);
   const details = getDetailsByCatId(catId);
   const stats = getStatsByCatId(catId);
+  const sessions = getSessionsByCatId(catId);
+  const healthLogs = getHealthLogsByCatId(catId);
   const trendData = getTrendData(catId);
+  const trendBaseline = getTrendBaseline(details ?? null, trendData);
 
-  const [activeTab, setActiveTab] = useState("overview");
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<CatDetailTabId>("overview");
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
@@ -104,6 +184,13 @@ export default function CatDetailClient() {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
+
+  useEffect(() => {
+    if (!requestedTab) return;
+    if (tabs.some((tab) => tab.id === requestedTab)) {
+      setActiveTab(requestedTab as CatDetailTabId);
+    }
+  }, [requestedTab]);
 
   const openEdit = () => {
     // Refresh form with latest saved values
@@ -405,21 +492,31 @@ export default function CatDetailClient() {
                   catId={catId}
                   stats={stats}
                   details={details ?? null}
+                  sessions={sessions}
+                  sensorData={sensorData}
+                  sensorsLoading={sensorsLoading}
+                  sensorsError={sensorsError}
                 />
               )}
               {activeTab === "history" && (
-                <HistoryTab key="history" catId={catId} />
+                <HistoryTab key="history" sessions={sessions} />
               )}
               {activeTab === "trends" && (
                 <TrendsTab
                   key="trends"
-                  catId={catId}
                   trendData={trendData}
-                  details={details ?? null}
+                  baseline={trendBaseline}
                 />
               )}
               {activeTab === "health" && (
-                <HealthLogTab key="health" catId={catId} addToast={addToast} />
+                <HealthLogTab
+                  key="health"
+                  catId={catId}
+                  logs={healthLogs}
+                  addToast={addToast}
+                  addHealthLog={addHealthLog}
+                  removeHealthLog={removeHealthLog}
+                />
               )}
             </div>
           </div>
@@ -460,11 +557,27 @@ interface OverviewTabProps {
       lastUpdated: string;
     };
   } | null;
+  sessions: Session[];
+  sensorData: ReturnType<typeof useDeviceSensors>["data"];
+  sensorsLoading: boolean;
+  sensorsError: string | null;
 }
 
-function OverviewTab({ stats, details }: OverviewTabProps) {
-  const sessions = getSessionsByCatId("1"); // Mock recent anomalies
-  const recentAnomalies = sessions.filter((s) => s.anomaly).slice(0, 3);
+function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: OverviewTabProps) {
+  const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  const rfidValue = sensorsError
+    ? "Offline"
+    : sensorsLoading
+      ? "Syncing"
+      : sensorData?.online
+        ? "Online"
+        : "Offline";
 
   return (
     <div className="space-y-6">
@@ -499,27 +612,15 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
           />
           <StatCard
             icon={Wind}
-            value={deviceStats.airQuality}
+            value={airQuality}
             label="Air Quality"
-            status={
-              deviceStats.airQuality === "Normal"
-                ? "healthy"
-                : deviceStats.airQuality === "Elevated"
-                  ? "watch"
-                  : "alert"
-            }
+            status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
           />
           <StatCard
-            icon={Droplets}
-            value={`${deviceStats.litterLevel}%`}
-            label="Litter Level"
-            status={
-              deviceStats.litterLevel >= 80
-                ? "alert"
-                : deviceStats.litterLevel >= 60
-                  ? "watch"
-                  : "healthy"
-            }
+            icon={Tag}
+            value={rfidValue}
+            label="RFID Reader"
+            status={sensorData?.online && !sensorsError ? "healthy" : "watch"}
           />
         </div>
       </div>
@@ -613,12 +714,11 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
 
 // History Tab
 interface HistoryTabProps {
-  catId: string;
+  sessions: Session[];
 }
 
-function HistoryTab({ catId }: HistoryTabProps) {
+function HistoryTab({ sessions }: HistoryTabProps) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
-  const sessions = getSessionsByCatId(catId);
   const filteredSessions =
     filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
 
@@ -667,6 +767,7 @@ function HistoryTab({ catId }: HistoryTabProps) {
 
 function SessionRow({ session }: { session: Session }) {
   const deltaLabel = getDeltaLabel(session.mq135Delta);
+  const isSummary = session.sessionStatus === "DAILY_SUMMARY";
 
   return (
     <div
@@ -678,18 +779,35 @@ function SessionRow({ session }: { session: Session }) {
     >
       <div>
         <p className="font-medium text-litter-text">{formatDate(session.date)}</p>
-        <p className="text-sm text-theme-muted">{session.time}</p>
+        <p className="text-sm text-theme-muted">
+          {isSummary
+            ? `Daily summary: ${session.summaryVisits ?? 1} visit${
+                (session.summaryVisits ?? 1) === 1 ? "" : "s"
+              }`
+            : session.time}
+        </p>
       </div>
       <div className="text-center">
         <p className="font-medium text-litter-text">
           {formatDuration(session.durationSecs)}
         </p>
+        {isSummary && (
+          <p className="text-[11px] text-theme-muted">avg duration</p>
+        )}
       </div>
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
-          <span className="text-sm text-theme-secondary">{session.mq135Delta}%</span>
-        </div>
+        {isSummary ? (
+          <span className="px-2 py-0.5 bg-litter-primary-light text-litter-primary text-xs rounded-full">
+            Synced
+          </span>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
+            <span className="text-sm text-theme-secondary">
+              {session.mq135Delta}%
+            </span>
+          </div>
+        )}
         {session.anomaly && (
           <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
             Flagged
@@ -702,24 +820,21 @@ function SessionRow({ session }: { session: Session }) {
 
 // Trends Tab
 interface TrendsTabProps {
-  catId: string;
   trendData: Array<{
     day: string;
     visits: number;
     avgDuration: number;
     mq135Delta: number;
   }> | null;
-  details: {
-    baseline: {
-      avgVisitsPerDay: number;
-      avgDurationSecs: number;
-      mq135DeltaPercent: number;
-    };
+  baseline: {
+    avgVisitsPerDay: number;
+    avgDurationSecs: number;
+    mq135DeltaPercent: number;
   } | null;
 }
 
-function TrendsTab({ trendData, details }: TrendsTabProps) {
-  if (!trendData || !details) {
+function TrendsTab({ trendData, baseline }: TrendsTabProps) {
+  if (!trendData || !baseline) {
     return (
       <EmptyState
         icon={AlertTriangle}
@@ -741,7 +856,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
-          baseline={details.baseline.avgVisitsPerDay}
+          baseline={baseline.avgVisitsPerDay}
           color="#1B7A6E"
         />
       </div>
@@ -756,7 +871,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
-          baseline={details.baseline.avgDurationSecs}
+          baseline={baseline.avgDurationSecs}
           color="#E8924A"
         />
       </div>
@@ -771,7 +886,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
-          baseline={details.baseline.mq135DeltaPercent}
+          baseline={baseline.mq135DeltaPercent}
           color="#1B7A6E"
         />
       </div>
@@ -790,37 +905,47 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
 // Health Log Tab
 interface HealthLogTabProps {
   catId: string;
+  logs: HealthLog[];
   addToast: (message: string, type: ToastProps["type"]) => void;
+  addHealthLog: (
+    catId: string,
+    type: HealthLog["type"],
+    note: string,
+  ) => Promise<void>;
+  removeHealthLog: (id: string) => Promise<void>;
 }
 
-function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
-  const [logs, setLogs] = useState<HealthLog[]>(getHealthLogsByCatId(catId));
+function HealthLogTab({
+  catId,
+  logs,
+  addToast,
+  addHealthLog,
+  removeHealthLog,
+}: HealthLogTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [newLog, setNewLog] = useState({
     type: "Observation" as HealthLog["type"],
     note: "",
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!newLog.note.trim()) return;
 
-    const log: HealthLog = {
-      id: generateId(),
-      catId,
-      date: new Date().toISOString().split("T")[0],
-      type: newLog.type,
-      note: newLog.note,
-    };
-
-    setLogs((prev) => [log, ...prev]);
-    setNewLog({ type: "Observation", note: "" });
-    setIsModalOpen(false);
-    addToast("Health note added successfully", "success");
+    setIsSaving(true);
+    try {
+      await addHealthLog(catId, newLog.type, newLog.note.trim());
+      setNewLog({ type: "Observation", note: "" });
+      setIsModalOpen(false);
+      addToast("Health note added successfully", "success");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setLogs((prev) => prev.filter((l) => l.id !== id));
+  const handleDelete = async (id: string) => {
+    await removeHealthLog(id);
     setDeleteConfirmId(null);
     addToast("Health note deleted", "info");
   };
@@ -903,10 +1028,10 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
 
           <button
             onClick={handleSave}
-            disabled={!newLog.note.trim()}
+            disabled={!newLog.note.trim() || isSaving}
             className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Save Note
+            {isSaving ? "Saving..." : "Save Note"}
           </button>
         </div>
       </BottomSheet>

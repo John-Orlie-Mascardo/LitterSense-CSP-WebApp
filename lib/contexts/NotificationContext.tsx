@@ -6,12 +6,14 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import {
   collection,
   doc,
   onSnapshot,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   writeBatch,
@@ -22,10 +24,13 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import type { Cat } from "@/lib/data/mockData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type NotificationType = "health" | "system" | "cat_visit";
+export type NotificationSource = "dashboard_alert";
+export type NotificationStatus = Extract<Cat["status"], "watch" | "alert">;
 
 export interface AppNotification {
   id: string;
@@ -34,23 +39,63 @@ export interface AppNotification {
   message: string;
   createdAt: Timestamp;
   isRead: boolean;
+  source?: NotificationSource;
+  alertKey?: string;
+  catId?: string;
+  catName?: string;
+  route?: string;
+  status?: NotificationStatus;
+  visitCount?: number;
+  avgDuration?: string;
 }
 
 export type NewNotificationData = Pick<
   AppNotification,
   "type" | "title" | "message"
->;
+> &
+  Partial<
+    Pick<
+      AppNotification,
+      "source" | "alertKey" | "catId" | "catName" | "route" | "status" | "visitCount" | "avgDuration"
+    >
+  >;
+
+export type UpsertNotificationData = NewNotificationData &
+  Required<Pick<AppNotification, "alertKey">>;
 
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   isLoading: boolean;
   addNotification: (data: NewNotificationData) => Promise<void>;
+  upsertNotification: (data: UpsertNotificationData) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
 }
+
+const stripUndefinedFields = <T extends Record<string, unknown>>(value: T) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined),
+  ) as Partial<T>;
+
+const buildNotificationSyncPayload = (data: Partial<AppNotification>) =>
+  stripUndefinedFields({
+    type: data.type,
+    title: data.title,
+    message: data.message,
+    source: data.source,
+    alertKey: data.alertKey,
+    catId: data.catId,
+    catName: data.catName,
+    route: data.route,
+    status: data.status,
+    visitCount: data.visitCount,
+    avgDuration: data.avgDuration,
+  });
+
+const getNotificationDocId = (alertKey: string) => encodeURIComponent(alertKey);
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +113,11 @@ export function NotificationProvider({
   const { user, loading: authLoading } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const notificationsRef = useRef<AppNotification[]>([]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -109,12 +159,42 @@ export function NotificationProvider({
     async (data: NewNotificationData) => {
       if (!user) return;
       await addDoc(collection(db, "users", user.uid, "notifications"), {
-        ...data,
+        ...buildNotificationSyncPayload(data),
         createdAt: serverTimestamp(),
         isRead: false,
       });
     },
     [user]
+  );
+
+  const upsertNotification = useCallback(
+    async (data: UpsertNotificationData) => {
+      if (!user) return;
+
+      const notificationId = getNotificationDocId(data.alertKey);
+      const notificationRef = doc(db, "users", user.uid, "notifications", notificationId);
+      const existing = notificationsRef.current.find((notification) => notification.id === notificationId);
+      const nextPayload = buildNotificationSyncPayload(data);
+
+      if (!existing) {
+        await setDoc(notificationRef, {
+          ...nextPayload,
+          createdAt: serverTimestamp(),
+          isRead: false,
+        });
+        return;
+      }
+
+      const currentPayload = buildNotificationSyncPayload(existing);
+      const updates = Object.fromEntries(
+        Object.entries(nextPayload).filter(([key, value]) => currentPayload[key as keyof typeof currentPayload] !== value),
+      );
+
+      if (Object.keys(updates).length === 0) return;
+
+      await updateDoc(notificationRef, updates);
+    },
+    [user],
   );
 
   const markAsRead = useCallback(
@@ -167,6 +247,7 @@ export function NotificationProvider({
         unreadCount,
         isLoading,
         addNotification,
+        upsertNotification,
         markAsRead,
         markAllAsRead,
         deleteNotification,

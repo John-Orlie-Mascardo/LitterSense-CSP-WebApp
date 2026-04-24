@@ -59,6 +59,8 @@ export interface Session {
   mq136Delta: number;
   anomaly: boolean;
   anomalyType: string | null;
+  sessionStatus?: string;
+  summaryVisits?: number;
 }
 
 export interface HealthLog {

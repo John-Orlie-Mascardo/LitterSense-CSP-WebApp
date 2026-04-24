@@ -22,7 +22,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCats } from "@/lib/contexts/CatContext";
-import type { Cat } from "@/lib/data/mockData";
+import type { Cat, CatDetails, CatStats } from "@/lib/data/mockData";
 import {
   getStatusColor,
   calculateAge,
@@ -48,7 +48,7 @@ const initialFormData: CatFormData = {
 };
 
 export default function CatsPage() {
-  const { cats, addCat, catDetails: contextCatDetails } = useCats();
+  const { cats, addCat, catDetails: contextCatDetails, getStatsByCatId } = useCats();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CatFormData>(initialFormData);
   const [errors, setErrors] = useState<
@@ -184,7 +184,12 @@ export default function CatsPage() {
             </div>
           ) : (
             cats.map((cat) => (
-              <CatCard key={cat.id} cat={cat} catDetails={contextCatDetails} />
+              <CatCard
+                key={cat.id}
+                cat={cat}
+                catDetails={contextCatDetails}
+                stats={getStatsByCatId(cat.id)}
+              />
             ))
           )}
         </section>
@@ -388,12 +393,21 @@ export default function CatsPage() {
 // ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
-  catDetails: Record<string, any>;
+  catDetails: Record<string, CatDetails>;
+  stats?: CatStats;
 }
 
 const badgeLabel: Record<string, string> = { healthy: "HEALTHY", watch: "WATCH", alert: "ALERT" };
 
-function CatCard({ cat, catDetails }: CatCardProps) {
+const formatLastVisit = (iso?: string) => {
+  if (!iso) return "--";
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+function CatCard({ cat, catDetails, stats }: CatCardProps) {
   const details = catDetails[cat.id];
   const statusColors = getStatusColor(cat.status);
 
@@ -441,15 +455,15 @@ function CatCard({ cat, catDetails }: CatCardProps) {
           <div className="grid grid-cols-3 divide-x divide-litter-border px-5 py-4">
             <div className="pr-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
-              <p className="font-bold text-litter-text text-lg">--</p>
+              <p className="font-bold text-litter-text text-lg">{stats?.visits ?? 0}</p>
             </div>
             <div className="px-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
-              <p className="font-bold text-litter-text text-lg">--</p>
+              <p className="font-bold text-litter-text text-lg">{stats?.avgDuration ?? "--"}</p>
             </div>
             <div className="pl-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
-              <p className="font-bold text-litter-text text-lg">--</p>
+              <p className="font-bold text-litter-text text-lg">{formatLastVisit(stats?.lastVisit)}</p>
             </div>
           </div>
         </div>

@@ -100,6 +100,13 @@ export default function NotificationsPage() {
     { key: "system", label: "System" },
   ];
 
+  const handleNotificationClick = async (notification: AppNotification) => {
+    await markAsRead(notification.id);
+    if (notification.route) {
+      router.push(notification.route);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F2F2F2] pb-24">
 
@@ -248,7 +255,7 @@ export default function NotificationsPage() {
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.15 }}
-                          onClick={() => markAsRead(notif.id)}
+                          onClick={() => void handleNotificationClick(notif)}
                           className={`flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors hover:bg-theme-hover ${
                             idx === 0 ? "" : "border-t border-gray-100"
                           }`}

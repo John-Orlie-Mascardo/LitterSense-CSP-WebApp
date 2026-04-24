@@ -1,5 +1,8 @@
+const DEFAULT_ESP32_BASE_URL = "http://192.168.68.116";
+
 const ESP32_STREAM_URL =
-  process.env.ESP32_STREAM_URL ?? "http://192.168.68.116:81/stream";
+  process.env.ESP32_STREAM_URL ??
+  `${process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL}:81/stream`;
 
 export async function GET() {
   try {

@@ -21,6 +21,9 @@ import { BottomNav } from "@/components/layout/BottomNav";
 
 const ESP32_STREAM_URL = "/api/stream";
 const FASTAPI_URL = "http://localhost:8000";
+const SHOW_RECORDINGS_UI = false;
+
+type LiveStreamState = "unknown" | "connected" | "error";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -102,7 +105,11 @@ const MOCK_RECORDINGS: RecordingEvent[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function LiveView() {
+function LiveView({
+  onStreamStateChange,
+}: {
+  readonly onStreamStateChange: (state: LiveStreamState) => void;
+}) {
   const [error, setError] = useState(false);
 
   return (
@@ -113,7 +120,10 @@ function LiveView() {
           <p className="text-theme-muted text-sm">Cannot reach camera</p>
           <p className="text-theme-secondary text-xs">{ESP32_STREAM_URL}</p>
           <button
-            onClick={() => setError(false)}
+            onClick={() => {
+              setError(false);
+              onStreamStateChange("unknown");
+            }}
             className="mt-2 px-3 py-1 rounded-full bg-litter-primary text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
           >
             Retry
@@ -126,7 +136,14 @@ function LiveView() {
             src={ESP32_STREAM_URL}
             alt="ESP32-CAM live stream"
             className="w-full h-full object-cover"
-            onError={() => setError(true)}
+            onLoad={() => {
+              setError(false);
+              onStreamStateChange("connected");
+            }}
+            onError={() => {
+              setError(true);
+              onStreamStateChange("error");
+            }}
           />
           <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -273,6 +290,7 @@ export default function PlaybackPage() {
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [dvrStatus, setDvrStatus] = useState("idle");
+  const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("unknown");
 
   // Poll DVR status every 3 seconds while connected
   useEffect(() => {
@@ -280,6 +298,9 @@ export default function PlaybackPage() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${FASTAPI_URL}/dvr/status`);
+        if (!res.ok) {
+          throw new Error("DVR status unavailable");
+        }
         const { status } = await res.json();
         setDvrStatus(status);
       } catch {
@@ -291,6 +312,7 @@ export default function PlaybackPage() {
 
   const handleConnect = async () => {
     setIsConnecting(true);
+    setLiveStreamState("unknown");
     try {
       await fetch(`${FASTAPI_URL}/dvr/start`, { method: "POST" });
       setDeviceConnected(true);
@@ -308,6 +330,7 @@ export default function PlaybackPage() {
     } finally {
       setDeviceConnected(false);
       setDvrStatus("idle");
+      setLiveStreamState("unknown");
     }
   };
 
@@ -328,16 +351,22 @@ export default function PlaybackPage() {
   const visibleRecordings = showAllRecordings
     ? filteredRecordings
     : filteredRecordings.slice(0, 3);
+  const activeView = SHOW_RECORDINGS_UI ? activeTab : "live";
+  const dvrHasError = dvrStatus === "error" || dvrStatus.startsWith("error");
+  const showConnectedStatus = liveStreamState === "connected";
+  const showErrorStatus = liveStreamState === "error" || dvrHasError;
 
   const statusLabel =
+    showConnectedStatus       ? "Connected" :
     dvrStatus === "recording" ? "Recording" :
     dvrStatus === "waiting"   ? "Waiting" :
-    dvrStatus === "error"     ? "Error" :
-    "Connected";
+    showErrorStatus           ? "Error" :
+    "Connecting";
 
   const statusColor =
+    showConnectedStatus       ? "bg-green-500" :
     dvrStatus === "recording" ? "bg-red-500" :
-    dvrStatus === "error"     ? "bg-yellow-500" :
+    showErrorStatus           ? "bg-yellow-500" :
     "bg-green-500";
 
   return (
@@ -351,32 +380,41 @@ export default function PlaybackPage() {
             Playback
           </h1>
           <p className="text-[#6B7280] text-sm">
-            Review your LitterSense camera recordings
+            {SHOW_RECORDINGS_UI
+              ? "Review your LitterSense camera recordings"
+              : "Watch your LitterSense camera live feed"}
           </p>
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => setActiveTab("live")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                activeTab === "live"
-                  ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-              }`}
-            >
+          {SHOW_RECORDINGS_UI ? (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => setActiveTab("live")}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  activeTab === "live"
+                    ? "bg-litter-primary text-white border-litter-primary"
+                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                Live
+              </button>
+              <button
+                onClick={() => setActiveTab("recordings")}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  activeTab === "recordings"
+                    ? "bg-litter-primary text-white border-litter-primary"
+                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+                }`}
+              >
+                <Video className="w-3.5 h-3.5" />
+                Recordings
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-1.5 text-sm font-medium text-litter-primary">
               <Radio className="w-3.5 h-3.5" />
               Live
-            </button>
-            <button
-              onClick={() => setActiveTab("recordings")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                activeTab === "recordings"
-                  ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              Recordings
-            </button>
-          </div>
+            </div>
+          )}
         </section>
 
         {/* ── Device Gate ─────────────────────────────────────── */}
@@ -392,7 +430,9 @@ export default function PlaybackPage() {
               <div>
                 <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
                 <p className="mt-1 text-sm text-theme-muted max-w-[260px] mx-auto">
-                  Pair your LitterSense unit to watch the live feed and browse recording history.
+                  {SHOW_RECORDINGS_UI
+                    ? "Pair your LitterSense unit to watch the live feed and browse recording history."
+                    : "Pair your LitterSense unit to watch the live feed."}
                 </p>
               </div>
               <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
@@ -436,15 +476,15 @@ export default function PlaybackPage() {
           <div>
             {/* Video player */}
             <div className="mb-4">
-              {activeTab === "live" ? (
-                <LiveView />
+              {activeView === "live" ? (
+                <LiveView onStreamStateChange={setLiveStreamState} />
               ) : (
                 <VideoPlayer recording={selectedRecording} />
               )}
             </div>
 
             {/* Device Info Row (recordings only) */}
-            {activeTab === "recordings" && selectedRecording && (
+            {activeView === "recordings" && selectedRecording && (
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
@@ -492,6 +532,8 @@ export default function PlaybackPage() {
             </div>
 
             {/* ── Filters Card ── */}
+            {SHOW_RECORDINGS_UI && (
+              <>
             <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
               <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
                 Filters
@@ -570,7 +612,9 @@ export default function PlaybackPage() {
                   ))}
                 </div>
               )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>

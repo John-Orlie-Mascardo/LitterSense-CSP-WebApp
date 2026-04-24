@@ -7,23 +7,47 @@
  * 3. Anomaly — at least one cat flagged, alert banner visible
  *
  * The cat selector switches per-cat data (visits, duration).
- * Air quality and litter level come from deviceStats (device-level, not per-cat).
+ * Visits come from Firebase catStats, updated by live RFID scans.
  */
 
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { useNotifications } from "@/lib/contexts/NotificationContext";
 import { useCats } from "@/lib/contexts/CatContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { CatChip } from "@/components/cats/CatChip";
-import { ActivityItem } from "@/components/dashboard/ActivityItem";
-import { mockActivity, deviceStats } from "@/lib/data/mockData";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import { formatDuration } from "@/lib/utils/formatters";
+
+const DISMISSED_ALERTS_STORAGE_KEY = "dashboard-dismissed-alerts";
+
+const getAlertSignature = (cat: { id: string; status: string }) => `${cat.id}:${cat.status}`;
+
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getAlertNotificationKey = (cat: { id: string; status: string }, dateKey: string) =>
+  `dashboard-alert:${dateKey}:${cat.id}:${cat.status}`;
+
+const buildAlertNotificationMessage = (visitCount: number, avgDuration: string) => {
+  const visitLabel = `${visitCount} visit${visitCount === 1 ? "" : "s"} logged`;
+  const durationLabel = avgDuration && avgDuration !== "--"
+    ? `avg duration ${avgDuration}`
+    : "avg duration unavailable";
+
+  return `Unusual litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
+};
 
 
 const getGreeting = () => {
@@ -56,19 +80,32 @@ const getAirQualityStatus = (quality: string) => {
   }
 };
 
-const getLitterLevelStatus = (level: number) => {
-  if (level >= 80) return "alert";
-  if (level >= 60) return "watch";
-  return "healthy";
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+): "Normal" | "Elevated" | "Poor" => {
+  if (!mq135 || !mq136) return "Normal";
+  if (isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)) {
+    return "Poor";
+  }
+  return "Normal";
 };
 
 const getVisitsStatus = (visits: number) => {
-  if (visits > 6) return "watch";
   if (visits > 8) return "alert";
+  if (visits > 6) return "watch";
   return "healthy";
 };
 
 const getVisitsLabel = (visits: number) => {
+  if (visits > 8) return "Alert";
   if (visits > 6) return "Unusual";
   return "Healthy";
 };
@@ -85,19 +122,6 @@ const getDurationStatus = (duration: string) => {
   if (mins >= 5) return "alert";
   if (mins >= 3) return "watch";
   return "healthy";
-};
-
-const getStatusClass = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return "bg-green-100 text-green-700";
-    case "watch":
-      return "bg-amber-100 text-amber-700";
-    case "alert":
-      return "bg-red-100 text-red-700";
-    default:
-      return "bg-green-100 text-green-700";
-  }
 };
 
 const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
@@ -131,39 +155,169 @@ const getAirQualityStatusLabel = (airQuality: string) => {
   }
 };
 
-export default function DashboardPage() {
-  const { user } = useAuth();
-  const { cats, getCatById, getStatsByCatId } = useCats();
-  const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
-  const [showAlertBanner, setShowAlertBanner] = useState(true);
+const getSensorErrorLabel = (error: string | null) => {
+  if (!error) return "Check IP";
 
-  // ── Update selectedCatId when cats change ──
-  useEffect(() => {
-    if (cats.length > 0 && !selectedCatId) {
-      setSelectedCatId(cats[0].id);
-    }
-  }, [cats, selectedCatId]);
+  const normalized = error.toLowerCase();
+  if (normalized.includes("timed out")) return "Timeout";
+  if (normalized.includes("returned 404")) return "Missing route";
+  if (
+    normalized.includes("unavailable") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("bad port")
+  ) {
+    return "Server down";
+  }
+
+  return "Check IP";
+};
+
+const getRfidStatus = (
+  sensorData: ReturnType<typeof useDeviceSensors>["data"],
+  sensorsLoading: boolean,
+  sensorsError: string | null,
+) => {
+  if (sensorsError) {
+    return {
+      value: "Offline",
+      status: "watch" as const,
+      label: getSensorErrorLabel(sensorsError),
+    };
+  }
+  if (sensorsLoading) return { value: "Syncing", status: "normal" as const, label: "Polling" };
+  if (!sensorData?.online) return { value: "Offline", status: "watch" as const, label: "No data" };
+  return { value: "Online", status: "healthy" as const, label: "Live" };
+};
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
+  const { cats, getCatById, getStatsByCatId, sessions } = useCats();
+  const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
+  const [dismissedAlertKeys, setDismissedAlertKeys] = useState<string[]>([]);
+  const [isDismissedAlertsReady, setIsDismissedAlertsReady] = useState(false);
+  const {
+    data: sensorData,
+    isLoading: sensorsLoading,
+    error: sensorsError,
+  } = useDeviceSensors();
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
-    status: notifStatus,
-    showBanner,
-    requestPermission,
-    dismissBanner,
     triggerOnAnomaly,
   } = useNotificationPermission();
 
-  const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId, getCatById]);
-  const stats = useMemo(() => getStatsByCatId(selectedCatId), [selectedCatId, getStatsByCatId]);
+  const activeCatId = useMemo(() => {
+    if (cats.some((cat) => cat.id === selectedCatId)) return selectedCatId;
+    return cats[0]?.id || "";
+  }, [cats, selectedCatId]);
 
-  const hasAnomaly = useMemo(
-    () => cats.some((cat) => cat.status !== "healthy"),
+  const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
+  const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
+
+  const alertCats = useMemo(
+    () => cats.filter((cat) => cat.status !== "healthy"),
     [cats],
   );
+  const hasAnomaly = alertCats.length > 0;
   const alertCat = useMemo(
-    () => cats.find((cat) => cat.status !== "healthy"),
-    [cats],
+    () => alertCats.find((cat) => !dismissedAlertKeys.includes(getAlertSignature(cat))),
+    [alertCats, dismissedAlertKeys],
   );
+  const alertNotificationPayloads = useMemo(() => {
+    const dateKey = getLocalDateKey();
+
+    return alertCats.map((cat) => {
+      const alertStats = getStatsByCatId(cat.id);
+      const visitCount = alertStats?.visits ?? 0;
+      const avgDuration = alertStats?.avgDuration ?? "--";
+      const notificationStatus = cat.status === "healthy" ? "watch" : cat.status;
+
+      return {
+        type: "health" as const,
+        title: `${cat.name} - Unusual Behavior`,
+        message: buildAlertNotificationMessage(visitCount, avgDuration),
+        source: "dashboard_alert" as const,
+        alertKey: getAlertNotificationKey(cat, dateKey),
+        catId: cat.id,
+        catName: cat.name,
+        route: `/dashboard/cats/${cat.id}`,
+        status: notificationStatus,
+        visitCount,
+        avgDuration,
+      };
+    });
+  }, [alertCats, getStatsByCatId]);
+
+  useEffect(() => {
+    try {
+      const rawValue = window.localStorage.getItem(DISMISSED_ALERTS_STORAGE_KEY);
+      if (!rawValue) {
+        setDismissedAlertKeys([]);
+        return;
+      }
+
+      const parsed = JSON.parse(rawValue);
+      setDismissedAlertKeys(
+        Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [],
+      );
+    } catch {
+      setDismissedAlertKeys([]);
+    } finally {
+      setIsDismissedAlertsReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isDismissedAlertsReady) return;
+
+    const activeAlertKeys = new Set(alertCats.map((cat) => getAlertSignature(cat)));
+    setDismissedAlertKeys((prev) => {
+      const next = prev.filter((key) => activeAlertKeys.has(key));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [alertCats, isDismissedAlertsReady]);
+
+  useEffect(() => {
+    if (!isDismissedAlertsReady) return;
+
+    try {
+      window.localStorage.setItem(
+        DISMISSED_ALERTS_STORAGE_KEY,
+        JSON.stringify(dismissedAlertKeys),
+      );
+    } catch {
+      // Ignore storage failures; alert dismissal still works for the current render.
+    }
+  }, [dismissedAlertKeys, isDismissedAlertsReady]);
+
+  useEffect(() => {
+    if (notificationsLoading || alertNotificationPayloads.length === 0) return;
+
+    const syncAlertNotifications = async () => {
+      for (const notification of alertNotificationPayloads) {
+        await upsertNotification(notification);
+      }
+    };
+
+    void syncAlertNotifications();
+  }, [alertNotificationPayloads, notificationsLoading, upsertNotification]);
+
+  const handleViewAlertDetails = () => {
+    if (!alertCat) return;
+    router.push(`/dashboard/cats/${alertCat.id}`);
+  };
+
+  const handleDismissAlert = () => {
+    if (!alertCat) return;
+
+    const alertKey = getAlertSignature(alertCat);
+    setDismissedAlertKeys((prev) => (
+      prev.includes(alertKey) ? prev : [...prev, alertKey]
+    ));
+  };
 
   // ── Trigger permission prompt when anomaly is detected ──
   useEffect(() => {
@@ -172,11 +326,22 @@ export default function DashboardPage() {
     }
   }, [hasAnomaly, triggerOnAnomaly]);
 
-  const selectedCatStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
-  const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
-  const airQualityStatusLabel = getAirQualityStatusLabel(deviceStats.airQuality || "Normal");
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  const airQualityStatusLabel = sensorsError
+    ? "Offline"
+    : sensorsLoading
+      ? "Syncing"
+      : getAirQualityStatusLabel(airQuality);
+  const rfidStatus = getRfidStatus(sensorData, sensorsLoading, sensorsError);
+  const recentVisits = sessions
+    .map((session) => ({ session, cat: getCatById(session.catId) }))
+    .filter(({ cat }) => Boolean(cat))
+    .slice(0, 5);
 
   const isEmpty = cats.length === 0;
 
@@ -260,7 +425,7 @@ export default function DashboardPage() {
                     <CatChip
                       key={cat.id}
                       cat={cat}
-                      isActive={selectedCatId === cat.id}
+                      isActive={activeCatId === cat.id}
                       onClick={() => setSelectedCatId(cat.id)}
                     />
                   ))}
@@ -268,7 +433,7 @@ export default function DashboardPage() {
               </section>
 
               {/* Health Alert Banner */}
-              {showAlertBanner && hasAnomaly && alertCat && (
+              {isDismissedAlertsReady && alertCat && (
                 <div className="overflow-hidden mb-6">
                   <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-r-2xl rounded-l-sm p-4">
                     <div className="flex items-start gap-3 mb-3">
@@ -285,12 +450,20 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowAlertBanner(false)}
-                      className="w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleViewAlertDetails}
+                        className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={handleDismissAlert}
+                        className="px-4 py-2.5 bg-white/80 hover:bg-white text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -327,11 +500,7 @@ export default function DashboardPage() {
                         : "bg-red-100 text-red-700"
                   }`}
                 >
-                  {selectedCat?.status === "healthy"
-                    ? "● Healthy"
-                    : selectedCat?.status === "watch"
-                      ? "● Watch"
-                      : "● Alert"}
+                  {getStatusLabel(selectedCat?.status, true)}
                 </span>
               </div>
             </div>
@@ -379,24 +548,20 @@ export default function DashboardPage() {
                   />
                   <StatCard
                     icon={Wind}
-                    value={deviceStats.airQuality}
+                    value={airQuality}
                     label="Air Quality"
-                    status={getAirQualityStatus(deviceStats.airQuality)}
-                    statusLabel={
-                      deviceStats.airQuality === "Normal"
-                        ? "Healthy"
-                        : deviceStats.airQuality === "Elevated"
-                          ? "Unusual"
-                          : "Alert"
-                    }
+                    status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
+                    statusLabel={airQualityStatusLabel}
                   />
                   <StatCard
                     icon={BarChart2}
-                    value={`${deviceStats.litterLevel}%`}
-                    label="Litter Level"
-                    status={getLitterLevelStatus(deviceStats.litterLevel)}
+                    value={rfidStatus.value}
+                    label="RFID Reader"
+                    status={rfidStatus.status}
+                    statusLabel={rfidStatus.label}
                   />
                 </div>
+
               </section>
 
               {/* Recent Activity Feed */}
@@ -405,24 +570,55 @@ export default function DashboardPage() {
                   <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
                     Recent Activity
                   </h2>
-                  <button className="text-litter-primary text-sm font-medium hover:underline">
-                    See all
-                  </button>
+                  <span className="text-litter-primary text-xs font-semibold">
+                    Realtime
+                  </span>
                 </div>
 
-                <div className="space-y-3">
-                  {mockActivity.map((activity, index) => (
-                    <ActivityItem
-                      key={index}
-                      catId={activity.catId}
-                      action={activity.action}
-                      time={activity.time}
-                      duration={activity.duration}
-                      anomaly={activity.anomaly}
-                      anomalyNote={activity.anomalyNote}
-                    />
-                  ))}
-                </div>
+                {recentVisits.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentVisits.map(({ cat, session }) => (
+                      <div
+                        key={session.id}
+                        className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0 overflow-hidden">
+                          {cat?.avatar ? (
+                            <img
+                              src={cat.avatar}
+                              alt={cat.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            cat?.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body text-litter-text font-semibold text-sm leading-snug">
+                            {cat?.name} RFID visit recorded
+                          </p>
+                          <p className="font-body text-litter-muted text-xs mt-0.5">
+                            {session.anomaly
+                              ? session.anomalyType ?? "Anomaly flagged"
+                              : `${formatDuration(session.durationSecs)} visit`}
+                          </p>
+                        </div>
+                        <span className="font-body text-litter-muted text-xs">
+                          {session.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-litter-card rounded-xl border border-litter-border text-center">
+                    <p className="text-sm font-semibold text-litter-text">
+                      Waiting for RFID visits
+                    </p>
+                    <p className="text-xs text-litter-muted mt-1">
+                      Tap the key fob near the antenna to record the first visit.
+                    </p>
+                  </div>
+                )}
               </section>
             </div>
           </div>

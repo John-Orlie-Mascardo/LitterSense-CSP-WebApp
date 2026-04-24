@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { mockCats, mockSessions, mockHealthLogs, mockPastReports, type PastReport } from "../data/mockData";
+import { useCallback, useState } from "react";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import { useCats, type CatTrendPoint } from "@/lib/contexts/CatContext";
+import {
+  mockPastReports,
+  type HealthLog,
+  type PastReport,
+  type Session,
+} from "../data/mockData";
 import { generateId } from "../utils/formatters";
 
 export interface ReportConfig {
@@ -10,6 +17,14 @@ export interface ReportConfig {
   customStartDate?: string;
   customEndDate?: string;
 }
+
+export type ReportSession = Session & {
+  catName: string;
+};
+
+export type ReportHealthLog = HealthLog & {
+  catName: string;
+};
 
 export interface ReportData {
   id: string;
@@ -26,11 +41,136 @@ export interface ReportData {
     overallStatus: "healthy" | "watch" | "alert";
     statusMessage: string;
   };
-  sessions: typeof mockSessions;
-  healthLogs: typeof mockHealthLogs;
+  sessions: ReportSession[];
+  healthLogs: ReportHealthLog[];
+  trendData: CatTrendPoint[] | null;
 }
 
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateKey = (dateKey: string) => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const getDateRange = (config: ReportConfig) => {
+  const customEnd = config.customEndDate
+    ? parseDateKey(config.customEndDate)
+    : null;
+  const endDate = customEnd ?? new Date();
+  const rangeDays = Number.parseInt(config.dateRange, 10);
+  const customStart = config.customStartDate
+    ? parseDateKey(config.customStartDate)
+    : null;
+  const startDate =
+    config.dateRange === "custom" && customStart
+      ? customStart
+      : addDays(endDate, -(Number.isFinite(rangeDays) ? rangeDays - 1 : 6));
+
+  if (startDate > endDate) {
+    return {
+      startDate: endDate,
+      endDate: startDate,
+      startKey: getLocalDateKey(endDate),
+      endKey: getLocalDateKey(startDate),
+    };
+  }
+
+  return {
+    startDate,
+    endDate,
+    startKey: getLocalDateKey(startDate),
+    endKey: getLocalDateKey(endDate),
+  };
+};
+
+const getInclusiveDayCount = (startDate: Date, endDate: Date) => {
+  const start = new Date(
+    startDate.getFullYear(),
+    startDate.getMonth(),
+    startDate.getDate(),
+  );
+  const end = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate(),
+  );
+  return Math.max(1, Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1);
+};
+
+const getVisitCount = (session: Session) => session.summaryVisits ?? 1;
+
+const getSessionSortValue = (session: Session) => {
+  const parsed = Date.parse(`${session.date} ${session.time}`);
+  if (!Number.isNaN(parsed)) return parsed;
+  return Date.parse(session.date) || 0;
+};
+
+const buildAggregateTrendData = (
+  sessions: ReportSession[],
+): CatTrendPoint[] | null => {
+  if (sessions.length === 0) return null;
+
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(new Date(), -(6 - index));
+    return {
+      key: getLocalDateKey(date),
+      label: date.toLocaleDateString("en-US", { weekday: "short" }),
+    };
+  });
+
+  return days.map((day) => {
+    const daySessions = sessions.filter((session) => session.date === day.key);
+    const visits = daySessions.reduce(
+      (sum, session) => sum + getVisitCount(session),
+      0,
+    );
+    const totalDuration = daySessions.reduce(
+      (sum, session) => sum + session.durationSecs * getVisitCount(session),
+      0,
+    );
+    const detailedGasRows = daySessions.filter(
+      (session) => !session.summaryVisits,
+    );
+    const mq135Delta =
+      detailedGasRows.length > 0
+        ? Math.round(
+            detailedGasRows.reduce(
+              (sum, session) => sum + session.mq135Delta,
+              0,
+            ) / detailedGasRows.length,
+          )
+        : 0;
+
+    return {
+      day: day.label,
+      visits,
+      avgDuration: visits > 0 ? Math.round(totalDuration / visits) : 0,
+      mq135Delta,
+    };
+  });
+};
+
 export function useReports() {
+  const { user } = useAuth();
+  const {
+    cats,
+    getHealthLogsByCatId,
+    getSessionsByCatId,
+    getTrendData,
+  } = useCats();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentReport, setCurrentReport] = useState<ReportData | null>(null);
@@ -40,7 +180,6 @@ export function useReports() {
     setIsGenerating(true);
     setProgress(0);
 
-    // Simulate generation progress
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -51,67 +190,79 @@ export function useReports() {
       });
     }, 400);
 
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 2000));
     clearInterval(progressInterval);
     setProgress(100);
 
-    // Get cat info
-    const cat = config.catId === "all" 
-      ? null 
-      : mockCats.find((c) => c.id === config.catId);
-    
+    const cat = config.catId === "all"
+      ? null
+      : cats.find((item) => item.id === config.catId);
     const catName = cat?.name || "All Cats";
     const actualCatId = cat?.id || "all";
+    const catNameById = new Map(cats.map((item) => [item.id, item.name]));
+    const { startDate, endDate, startKey, endKey } = getDateRange(config);
+    const period = `${startDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })} - ${endDate.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })}`;
 
-    // Calculate date range
-    const endDate = new Date();
-    const startDate = new Date();
-    
-    if (config.dateRange === "custom" && config.customStartDate) {
-      startDate.setTime(new Date(config.customStartDate).getTime());
-    } else {
-      startDate.setDate(endDate.getDate() - parseInt(config.dateRange));
-    }
+    const sourceSessions =
+      actualCatId === "all"
+        ? cats.flatMap((item) => getSessionsByCatId(item.id))
+        : getSessionsByCatId(actualCatId);
+    const filteredSessions = sourceSessions
+      .filter((session) => session.date >= startKey && session.date <= endKey)
+      .map<ReportSession>((session) => ({
+        ...session,
+        catName: catNameById.get(session.catId) ?? "Unknown Cat",
+      }))
+      .sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a));
 
-    const period = `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+    const sourceHealthLogs =
+      actualCatId === "all"
+        ? cats.flatMap((item) => getHealthLogsByCatId(item.id))
+        : getHealthLogsByCatId(actualCatId);
+    const filteredHealthLogs = sourceHealthLogs
+      .filter((log) => log.date >= startKey && log.date <= endKey)
+      .map<ReportHealthLog>((log) => ({
+        ...log,
+        catName: catNameById.get(log.catId) ?? "Unknown Cat",
+      }));
 
-    // Filter sessions
-    const filteredSessions = mockSessions.filter((session) => {
-      if (config.catId !== "all" && session.catId !== config.catId) return false;
-      const sessionDate = new Date(session.date);
-      return sessionDate >= startDate && sessionDate <= endDate;
-    });
-
-    // Filter health logs
-    const filteredHealthLogs = mockHealthLogs.filter((log) => {
-      if (config.catId !== "all" && log.catId !== config.catId) return false;
-      const logDate = new Date(log.date);
-      return logDate >= startDate && logDate <= endDate;
-    });
-
-    // Calculate summary
-    const totalSessions = filteredSessions.length;
-    const daysDiff = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const totalSessions = filteredSessions.reduce(
+      (sum, session) => sum + getVisitCount(session),
+      0,
+    );
+    const daysDiff = getInclusiveDayCount(startDate, endDate);
     const avgSessionsPerDay = Math.round((totalSessions / daysDiff) * 10) / 10;
-    
-    const totalDuration = filteredSessions.reduce((sum, s) => sum + s.durationSecs, 0);
-    const avgDurationSecs = totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
-    const avgDuration = `${Math.floor(avgDurationSecs / 60)}m ${(avgDurationSecs % 60).toString().padStart(2, "0")}s`;
-    
-    const anomaliesDetected = filteredSessions.filter((s) => s.anomaly).length;
-    
-    // Determine overall status
+    const totalDuration = filteredSessions.reduce(
+      (sum, session) => sum + session.durationSecs * getVisitCount(session),
+      0,
+    );
+    const avgDurationSecs =
+      totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+    const avgDuration = `${Math.floor(avgDurationSecs / 60)}m ${(
+      avgDurationSecs % 60
+    ).toString().padStart(2, "0")}s`;
+    const anomaliesDetected = filteredSessions.reduce(
+      (sum, session) => sum + (session.anomaly ? getVisitCount(session) : 0),
+      0,
+    );
+
     let overallStatus: "healthy" | "watch" | "alert" = "healthy";
     let statusMessage = "No concerning patterns detected";
-    
+
     if (anomaliesDetected > 0) {
       if (anomaliesDetected > 2) {
         overallStatus = "alert";
-        statusMessage = "Multiple anomalies detected — recommend vet consultation";
+        statusMessage = "Multiple anomalies detected - recommend vet consultation";
       } else {
         overallStatus = "watch";
-        statusMessage = "Elevated visit frequency — monitor closely";
+        statusMessage = "Elevated visit frequency - monitor closely";
       }
     }
 
@@ -120,8 +271,12 @@ export function useReports() {
       catName,
       catId: actualCatId,
       period,
-      generatedOn: new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }),
-      ownerName: "Maria Santos",
+      generatedOn: new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }),
+      ownerName: user?.displayName || user?.email || "LitterSense User",
       summary: {
         totalSessions,
         avgSessionsPerDay,
@@ -132,12 +287,15 @@ export function useReports() {
       },
       sessions: filteredSessions,
       healthLogs: filteredHealthLogs,
+      trendData:
+        actualCatId === "all"
+          ? buildAggregateTrendData(filteredSessions)
+          : getTrendData(actualCatId),
     };
 
     setCurrentReport(report);
     setIsGenerating(false);
 
-    // Add to past reports
     const newPastReport: PastReport = {
       id: report.id,
       catId: actualCatId,
@@ -149,14 +307,13 @@ export function useReports() {
     setPastReports((prev) => [newPastReport, ...prev]);
 
     return report;
-  }, []);
+  }, [cats, getHealthLogsByCatId, getSessionsByCatId, getTrendData, user]);
 
   const deleteReport = useCallback((reportId: string) => {
-    setPastReports((prev) => prev.filter((r) => r.id !== reportId));
+    setPastReports((prev) => prev.filter((report) => report.id !== reportId));
   }, []);
 
   const downloadReport = useCallback((filename: string) => {
-    // Mock download
     console.log(`Downloading ${filename}...`);
   }, []);
 
