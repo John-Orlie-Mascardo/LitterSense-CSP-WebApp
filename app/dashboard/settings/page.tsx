@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   Database,
   LogOut,
@@ -17,7 +16,6 @@ import {
   Download,
   History,
   XSquare,
-  ExternalLink,
   Check,
   AlertTriangle,
   Clock,
@@ -36,9 +34,13 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme-provider";
-import { useSettings } from "@/lib/hooks/useSettings";
+import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
+import {
+  SETUP_DEVICE_PROVISION_URL,
+  buildDeviceProvisioningBody,
+} from "@/lib/utils/deviceProvisioning";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
@@ -52,6 +54,12 @@ import {
 import { FirebaseError } from "firebase/app";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
+type AppearanceTheme = UserSettings["appearance"]["theme"];
+const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+];
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -84,8 +92,10 @@ export default function SettingsPage() {
   const [deleteReason, setDeleteReason] = useState("");
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showWifiProvisioning, setShowWifiProvisioning] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showWifiPassword, setShowWifiPassword] = useState(false);
+  const [isSendingDeviceProvisioning, setIsSendingDeviceProvisioning] = useState(false);
 
   // Data Retention dropdown
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
@@ -239,6 +249,62 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSendDeviceProvisioningToHardware = async () => {
+    const wifiSsid = deviceConfig.wifiSsid.trim();
+    const wifiPassword = deviceConfig.wifiPassword.trim();
+
+    if (!wifiSsid || !wifiPassword) {
+      addToast("Enter both the Wi-Fi name and password", "error");
+      return;
+    }
+
+    setIsSendingDeviceProvisioning(true);
+
+    try {
+      const body = buildDeviceProvisioningBody({
+        wifiSsid,
+        wifiPassword,
+        configUrl: provisioningUrl,
+      });
+
+      const response = await fetch(SETUP_DEVICE_PROVISION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Device setup returned HTTP ${response.status}`);
+      }
+
+      let cloudSaveSucceeded = true;
+      try {
+        await saveDeviceConfig(deviceConfig);
+        updateDeviceSetting("wifiNetwork", wifiSsid);
+        updateDeviceSetting("lastSynced", "Just now");
+      } catch {
+        cloudSaveSucceeded = false;
+      }
+
+      addToast(
+        cloudSaveSucceeded
+          ? "Wi-Fi config sent to the setup device"
+          : "Sent to device. Reconnect to internet later and save to sync cloud settings.",
+        cloudSaveSucceeded ? "success" : "info",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes("HTTP")
+          ? error.message
+          : "Connect to LitterSense-Setup Wi-Fi, then try again or open 192.168.4.1.";
+      addToast(message, "error");
+    } finally {
+      setIsSendingDeviceProvisioning(false);
+    }
+  };
+
   const handleCopyValue = async (value: string, label: string) => {
     if (!value) {
       addToast(`No ${label.toLowerCase()} available yet`, "error");
@@ -297,6 +363,41 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Device Network Section */}
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+            DEVICE NETWORK
+          </h3>
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
+            <button
+              onClick={() => setShowWifiProvisioning(true)}
+              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left rounded-2xl"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-theme-overlay flex items-center justify-center shrink-0">
+                  <Wifi className="w-5 h-5 text-theme-muted" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-litter-text">ESP32 Wi-Fi Provisioning</span>
+                  <p className="truncate text-xs text-theme-muted">
+                    {isDeviceProvisioningLoading
+                      ? "Loading device setup..."
+                      : deviceConfig.wifiSsid.trim()
+                        ? `Network: ${deviceConfig.wifiSsid.trim()}`
+                        : "Set owner Wi-Fi and setup URL"}
+                  </p>
+                </div>
+              </div>
+              <div className="ml-3 flex shrink-0 items-center gap-2">
+                {isDeviceProvisioningSaving && (
+                  <Loader2 className="h-4 w-4 animate-spin text-theme-muted" />
+                )}
+                <ChevronRight className="w-5 h-5 text-theme-muted" />
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Notifications Section */}
         <div>
           <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
@@ -325,150 +426,6 @@ export default function SettingsPage() {
                 }
               />
             </div>
-          </div>
-        </div>
-
-        {/* Device Network Section */}
-        <div>
-          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
-            DEVICE NETWORK
-          </h3>
-          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 p-4 space-y-4">
-            <div className="flex items-start gap-3 rounded-xl border border-litter-border bg-litter-bg p-3">
-              <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-litter-primary-light">
-                <Wifi className="h-5 w-5 text-litter-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-litter-text">ESP32 Wi-Fi Provisioning</p>
-                <p className="mt-1 text-xs leading-relaxed text-theme-muted">
-                  Save the owner&apos;s Wi-Fi credentials here. Your ESP32 can fetch them later using the
-                  provisioning token instead of hardcoded SSID and password.
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="deviceName" className="mb-1.5 block text-sm font-medium text-theme-secondary">
-                Device Name
-              </label>
-              <input
-                id="deviceName"
-                type="text"
-                value={deviceConfig.deviceName}
-                onChange={(e) => setDeviceConfig((prev) => ({ ...prev, deviceName: e.target.value }))}
-                className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                placeholder="LitterSense Unit #1"
-                disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="wifiSsid" className="mb-1.5 block text-sm font-medium text-theme-secondary">
-                Wi-Fi Name (SSID)
-              </label>
-              <input
-                id="wifiSsid"
-                type="text"
-                value={deviceConfig.wifiSsid}
-                onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiSsid: e.target.value }))}
-                className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                placeholder="Enter the owner Wi-Fi name"
-                disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="wifiPassword" className="mb-1.5 block text-sm font-medium text-theme-secondary">
-                Wi-Fi Password
-              </label>
-              <div className="relative">
-                <input
-                  id="wifiPassword"
-                  type={showWifiPassword ? "text" : "password"}
-                  value={deviceConfig.wifiPassword}
-                  onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiPassword: e.target.value }))}
-                  className="w-full rounded-xl border border-litter-border px-4 py-3 pr-12 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
-                  placeholder="Enter the owner Wi-Fi password"
-                  disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowWifiPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-theme-muted"
-                  aria-label={showWifiPassword ? "Hide Wi-Fi password" : "Show Wi-Fi password"}
-                >
-                  {showWifiPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-litter-text">Provisioning Token</p>
-                  <p className="mt-1 break-all font-mono text-xs text-theme-muted">{deviceConfig.configToken}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyValue(deviceConfig.configToken, "Provisioning token")}
-                    className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
-                    title="Copy token"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={regenerateConfigToken}
-                    className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
-                    title="Generate new token"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-theme-muted">
-                Use this token in the ESP32 sketch to fetch the latest Wi-Fi config.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-litter-text">Device Fetch URL</p>
-                  <p className="mt-1 break-all text-xs text-theme-muted">{provisioningUrl || "Save first to generate a usable URL."}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void handleCopyValue(provisioningUrl, "Device fetch URL")}
-                  className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
-                  title="Copy fetch URL"
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-theme-muted">
-                Last synced: {isDeviceProvisioningLoading ? "Loading..." : deviceConfig.updatedAtLabel}
-              </p>
-            </div>
-
-            <button
-              onClick={handleSaveDeviceProvisioning}
-              disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-[#165a4e] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isDeviceProvisioningSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving Wi-Fi Config...
-                </>
-              ) : (
-                <>
-                  <Wifi className="h-4 w-4" />
-                  Save Device Wi-Fi
-                </>
-              )}
-            </button>
           </div>
         </div>
 
@@ -575,14 +532,10 @@ export default function SettingsPage() {
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 p-4">
             <p className="font-medium text-litter-text text-sm mb-3">Theme</p>
             <SegmentedControl
-              options={[
-                { value: "light", label: "Light" },
-                { value: "dark", label: "Dark" },
-                { value: "system", label: "System" },
-              ]}
-              value={theme || settings.appearance.theme}
+              options={THEME_OPTIONS}
+              value={(theme || settings.appearance.theme) as AppearanceTheme}
               onChange={(v) => {
-                updateAppearanceSetting("theme", v as any);
+                updateAppearanceSetting("theme", v);
                 setTheme(v);
               }}
             />
@@ -800,6 +753,180 @@ export default function SettingsPage() {
             className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password
+          </button>
+        </div>
+      </BottomSheet>
+
+      {/* Wi-Fi Provisioning Bottom Sheet */}
+      <BottomSheet
+        isOpen={showWifiProvisioning}
+        onClose={() => setShowWifiProvisioning(false)}
+        title="ESP32 Wi-Fi Setup"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-litter-border bg-litter-bg p-3">
+            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl bg-litter-primary-light">
+              <Wifi className="h-5 w-5 text-litter-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-litter-text">ESP32 Wi-Fi Provisioning</p>
+              <p className="mt-1 text-xs leading-relaxed text-theme-muted">
+                Save the owner&apos;s Wi-Fi here, then connect your phone or laptop to LitterSense-Setup
+                and send it to the ESP32. Future Wi-Fi changes sync through the Device Fetch URL.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
+            <p className="text-sm font-medium text-litter-text">First-time hardware setup</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-relaxed text-theme-muted">
+              <li>Power the ESP32 from the supply module.</li>
+              <li>Connect this phone or laptop to the LitterSense-Setup Wi-Fi. Password: littersense.</li>
+              <li>No Internet on that setup Wi-Fi is normal.</li>
+              <li>If the setup page does not open automatically, open http://192.168.4.1.</li>
+              <li>Tap Send to Setup Device after entering the owner Wi-Fi below.</li>
+            </ol>
+          </div>
+
+          <div>
+            <label htmlFor="deviceName" className="mb-1.5 block text-sm font-medium text-theme-secondary">
+              Device Name
+            </label>
+            <input
+              id="deviceName"
+              type="text"
+              value={deviceConfig.deviceName}
+              onChange={(e) => setDeviceConfig((prev) => ({ ...prev, deviceName: e.target.value }))}
+              className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+              placeholder="LitterSense Unit #1"
+              disabled={isDeviceProvisioningSaving}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="wifiSsid" className="mb-1.5 block text-sm font-medium text-theme-secondary">
+              Wi-Fi Name (SSID)
+            </label>
+            <input
+              id="wifiSsid"
+              type="text"
+              value={deviceConfig.wifiSsid}
+              onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiSsid: e.target.value }))}
+              className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+              placeholder="Enter the owner Wi-Fi name"
+              disabled={isDeviceProvisioningSaving}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="wifiPassword" className="mb-1.5 block text-sm font-medium text-theme-secondary">
+              Wi-Fi Password
+            </label>
+            <div className="relative">
+              <input
+                id="wifiPassword"
+                type={showWifiPassword ? "text" : "password"}
+                value={deviceConfig.wifiPassword}
+                onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiPassword: e.target.value }))}
+                className="w-full rounded-xl border border-litter-border px-4 py-3 pr-12 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+                placeholder="Enter the owner Wi-Fi password"
+                disabled={isDeviceProvisioningSaving}
+              />
+              <button
+                type="button"
+                onClick={() => setShowWifiPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-theme-muted"
+                aria-label={showWifiPassword ? "Hide Wi-Fi password" : "Show Wi-Fi password"}
+              >
+                {showWifiPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-litter-text">Provisioning Token</p>
+                <p className="mt-1 break-all font-mono text-xs text-theme-muted">{deviceConfig.configToken}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyValue(deviceConfig.configToken, "Provisioning token")}
+                  className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
+                  title="Copy token"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={regenerateConfigToken}
+                  className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
+                  title="Generate new token"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-theme-muted">
+              Use this token in the ESP32 sketch to fetch the latest Wi-Fi config.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-litter-text">Device Fetch URL</p>
+                <p className="mt-1 break-all text-xs text-theme-muted">{provisioningUrl || "Save first to generate a usable URL."}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleCopyValue(provisioningUrl, "Device fetch URL")}
+                className="rounded-lg border border-litter-border p-2 text-theme-muted transition-colors hover:bg-theme-hover"
+                title="Copy fetch URL"
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-theme-muted">
+              Last synced: {isDeviceProvisioningLoading ? "Loading..." : deviceConfig.updatedAtLabel}
+            </p>
+          </div>
+
+          <button
+            onClick={handleSaveDeviceProvisioning}
+            disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-[#165a4e] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isDeviceProvisioningSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving Wi-Fi Config...
+              </>
+            ) : (
+              <>
+                <Wifi className="h-4 w-4" />
+                Save Device Wi-Fi
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleSendDeviceProvisioningToHardware}
+            disabled={isSendingDeviceProvisioning}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-litter-primary bg-litter-card px-4 py-3 font-medium text-litter-primary transition-colors hover:bg-litter-primary-light disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSendingDeviceProvisioning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Sending to Setup Device...
+              </>
+            ) : (
+              <>
+                <Wifi className="h-4 w-4" />
+                Send to Setup Device
+              </>
+            )}
           </button>
         </div>
       </BottomSheet>
