@@ -4,9 +4,18 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
-// DEV ONLY: set NEXT_PUBLIC_DEV_ADMIN=true in .env.local to bypass admin check.
-// When the backend ships custom claims, flip it to false and real path takes over.
-const DEV_ADMIN_OVERRIDE = process.env.NEXT_PUBLIC_DEV_ADMIN === "true";
+// TEMP (DEV ONLY): hardcoded to true so all logged-in accounts can access the
+// admin page during UI/UX review. Remove this line and the DEV_ADMIN_OVERRIDE
+// branch below once the backend is ready.
+//
+// TODO (backend): to properly restrict admin access —
+//   1. Use a Firebase Admin SDK Cloud Function to set a custom claim on the
+//      user's token: admin.auth().setCustomUserClaims(uid, { role: "admin" })
+//   2. The user must sign out and back in (or call getIdToken(true)) to refresh
+//      their token so the new claim is picked up.
+//   3. Delete the line below and set NEXT_PUBLIC_DEV_ADMIN=false (or remove it)
+//      so the real claim-check path below takes over.
+const DEV_ADMIN_OVERRIDE = true;
 
 interface AuthContextType {
   user: User | null;

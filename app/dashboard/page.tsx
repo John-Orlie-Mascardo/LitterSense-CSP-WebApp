@@ -105,16 +105,16 @@ const getVisitsStatus = (visits: number) => {
 };
 
 const getVisitsLabel = (visits: number) => {
-  if (visits > 8) return "Alert";
+  if (visits > 8) return "Abnormal";
   if (visits > 6) return "Unusual";
-  return "Healthy";
+  return "Normal";
 };
 
 const getDurationLabel = (duration: string) => {
   const mins = Number.parseInt(duration);
-  if (mins >= 5) return "High";
+  if (mins >= 5) return "Abnormal";
   if (mins >= 3) return "Unusual";
-  return "Healthy";
+  return "Normal";
 };
 
 const getDurationStatus = (duration: string) => {
@@ -128,16 +128,16 @@ const getStatusLabel = (status: string | undefined, includeIcon: boolean = false
   let baseLabel: string;
   switch (status) {
     case "healthy":
-      baseLabel = "Healthy";
+      baseLabel = "Normal";
       break;
     case "watch":
-      baseLabel = "Watch";
+      baseLabel = "Unusual";
       break;
     case "alert":
-      baseLabel = "Alert";
+      baseLabel = "Abnormal";
       break;
     default:
-      baseLabel = "Healthy";
+      baseLabel = "Normal";
   }
   return includeIcon ? `● ${baseLabel}` : baseLabel;
 };
@@ -145,13 +145,13 @@ const getStatusLabel = (status: string | undefined, includeIcon: boolean = false
 const getAirQualityStatusLabel = (airQuality: string) => {
   switch (airQuality) {
     case "Normal":
-      return "Healthy";
+      return "Normal";
     case "Elevated":
       return "Unusual";
     case "Poor":
-      return "Alert";
+      return "Abnormal";
     default:
-      return "Healthy";
+      return "Normal";
   }
 };
 
@@ -524,10 +524,10 @@ export default function DashboardPage() {
                     }`}
                   >
                     {selectedCat?.status === "healthy"
-                      ? "Healthy"
+                      ? "Normal"
                       : selectedCat?.status === "watch"
-                        ? "Watch"
-                        : "Alert"}
+                        ? "Unusual"
+                        : "Abnormal"}
                   </span>
                 </div>
 
