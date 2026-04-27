@@ -147,9 +147,9 @@ export default function SettingsPage() {
       await refreshUser();
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
-    } catch (e) {
+    } catch (error) {
       const message =
-        e instanceof FirebaseError ? e.message : "Failed to update profile";
+        error instanceof FirebaseError ? error.message : "Failed to update profile";
       addToast(message, "error");
     }
   };
@@ -174,15 +174,15 @@ export default function SettingsPage() {
       setShowChangePassword(false);
       setPasswordForm({ current: "", new: "", confirm: "" });
       addToast("Password changed successfully", "success");
-    } catch (e) {
-      if (e instanceof FirebaseError) {
+    } catch (error) {
+      if (error instanceof FirebaseError) {
         if (
-          e.code === "auth/wrong-password" ||
-          e.code === "auth/invalid-credential"
+          error.code === "auth/wrong-password" ||
+          error.code === "auth/invalid-credential"
         ) {
           addToast("Current password is incorrect", "error");
         } else {
-          addToast(e.message || "Failed to change password", "error");
+          addToast(error.message || "Failed to change password", "error");
         }
       } else {
         addToast("Failed to change password", "error");
@@ -202,16 +202,16 @@ export default function SettingsPage() {
       await signOut(auth);
       setShowSignOutConfirm(false);
       router.push("/login");
-    } catch (e) {
+    } catch (error) {
       const message =
-        e instanceof FirebaseError ? e.message : "Failed to sign out";
+        error instanceof FirebaseError ? error.message : "Failed to sign out";
       addToast(message, "error");
       setIsSigningOut(false);
     }
   };
 
-  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {

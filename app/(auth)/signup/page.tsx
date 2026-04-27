@@ -35,8 +35,8 @@ export default function SignUpPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setError("");
     if (password !== confirmPassword) {
       setError("Passwords do not match");
