@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   doc,
   getDoc,
   serverTimestamp,
-  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -61,6 +68,7 @@ export function useDeviceProvisioning() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const hasLocalEditsRef = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -75,6 +83,7 @@ export function useDeviceProvisioning() {
 
     const loadConfig = async () => {
       setIsLoading(true);
+      hasLocalEditsRef.current = false;
 
       try {
         const ownerConfigRef = doc(
@@ -97,7 +106,7 @@ export function useDeviceProvisioning() {
 
         if (isCancelled) return;
 
-        setDeviceConfig({
+        const loadedConfig = {
           deviceName:
             typeof publicConfigData?.deviceName === "string" && publicConfigData.deviceName
               ? publicConfigData.deviceName
@@ -114,11 +123,13 @@ export function useDeviceProvisioning() {
           updatedAtLabel: formatUpdatedAt(
             publicConfigData?.updatedAt ?? ownerConfigData?.updatedAt,
           ),
-        });
-      } catch {
-        if (!isCancelled) {
-          setDeviceConfig(defaultDeviceProvisioningConfig());
+        };
+
+        if (!hasLocalEditsRef.current) {
+          setDeviceConfig(loadedConfig);
         }
+      } catch {
+        // Keep any setup-AP edits in place so local provisioning can continue offline.
       } finally {
         if (!isCancelled) {
           setIsLoading(false);
@@ -191,6 +202,7 @@ export function useDeviceProvisioning() {
           configToken,
           updatedAtLabel: "Just now",
         });
+        hasLocalEditsRef.current = false;
       } finally {
         setIsSaving(false);
       }
@@ -199,12 +211,21 @@ export function useDeviceProvisioning() {
   );
 
   const regenerateConfigToken = useCallback(() => {
+    hasLocalEditsRef.current = true;
     setDeviceConfig((prev) => ({
       ...prev,
       configToken: createConfigToken(),
       updatedAtLabel: prev.updatedAtLabel,
     }));
   }, []);
+
+  const updateDeviceConfig = useCallback<Dispatch<SetStateAction<DeviceProvisioningConfig>>>(
+    (nextConfig) => {
+      hasLocalEditsRef.current = true;
+      setDeviceConfig(nextConfig);
+    },
+    [],
+  );
 
   const provisioningUrl = useMemo(() => {
     if (globalThis.window === undefined) return "";
@@ -213,7 +234,7 @@ export function useDeviceProvisioning() {
 
   return {
     deviceConfig,
-    setDeviceConfig,
+    setDeviceConfig: updateDeviceConfig,
     saveDeviceConfig,
     regenerateConfigToken,
     provisioningUrl,
