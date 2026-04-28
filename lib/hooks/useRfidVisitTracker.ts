@@ -19,7 +19,7 @@ const normalizeTag = (s: string) =>
  *
  * Matching order:
  * 1. Match completed session card/full UID against a cat's registered RFID tag.
- * 2. If there is exactly one cat, assign the session to that cat for hardware testing.
+ * 2. Ignore completed sessions whose RFID tag is not registered to a cat.
  */
 export function useRfidVisitTracker(sensor: DeviceSensors | null) {
   const { cats, catDetails, recordVisit } = useCats();
@@ -100,7 +100,5 @@ function findCatByRfid(
     );
   });
 
-  const fallbackCat = cats.length === 1 ? cats[0] : undefined;
-
-  return matchedCat ?? fallbackCat;
+  return matchedCat;
 }
