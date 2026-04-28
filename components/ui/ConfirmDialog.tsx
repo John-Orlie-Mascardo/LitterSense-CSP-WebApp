@@ -27,8 +27,8 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   // Close on escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
 
     if (isOpen) {

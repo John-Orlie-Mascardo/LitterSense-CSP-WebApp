@@ -13,6 +13,9 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
       if (!user) {
         router.push("/login");
       } else if (!isAdmin) {
+        // TODO (backend): this redirect enforces admin-only access.
+        // Once DEV_ADMIN_OVERRIDE is removed in AuthContext.tsx and custom
+        // claims are live, non-admin accounts will be correctly bounced here.
         router.push("/dashboard");
       }
     }

@@ -48,8 +48,8 @@ export default function LoginPage() {
     }
   }, [user, authLoading, isAdmin, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setError("");
     try {

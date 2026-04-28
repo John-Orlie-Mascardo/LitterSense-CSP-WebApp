@@ -23,8 +23,8 @@ export function BottomSheet({
 
   // Close on escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
 
     if (isOpen) {
@@ -39,8 +39,8 @@ export function BottomSheet({
   }, [isOpen, onClose]);
 
   // Handle backdrop click
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+  const handleBackdropClick = (event: React.MouseEvent) => {
+    if (event.target === event.currentTarget) {
       onClose();
     }
   };
