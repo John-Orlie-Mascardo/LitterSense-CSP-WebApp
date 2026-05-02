@@ -34,7 +34,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
@@ -165,7 +165,7 @@ export default function CatDetailClient() {
 
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<CatDetailTabId>("overview");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
@@ -180,7 +180,7 @@ export default function CatDetailClient() {
     photo: cat?.avatar ?? null,
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -906,7 +906,7 @@ function TrendsTab({ trendData, baseline }: TrendsTabProps) {
 interface HealthLogTabProps {
   catId: string;
   logs: HealthLog[];
-  addToast: (message: string, type: ToastProps["type"]) => void;
+  addToast: (message: string, type: ToastParams["type"]) => void;
   addHealthLog: (
     catId: string,
     type: HealthLog["type"],
