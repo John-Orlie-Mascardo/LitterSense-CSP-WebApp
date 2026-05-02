@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { CatProvider } from "@/lib/contexts/CatContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
+import { DynamicPageTitle } from "@/components/layout/DynamicPageTitle";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -41,6 +42,7 @@ export default function RootLayout({
             <DeleteRequestProvider>
               <CatProvider>
                 <NotificationProvider>
+                  <DynamicPageTitle />
                   {children}
                 </NotificationProvider>
               </CatProvider>
