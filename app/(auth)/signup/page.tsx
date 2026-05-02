@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/configs/firebase";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
@@ -42,12 +42,12 @@ export default function SignUpPage() {
       setError("Passwords do not match");
       return;
     }
-    
+
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
+
       await updateProfile(user, {
         displayName: fullName,
       });
@@ -204,7 +204,7 @@ export default function SignUpPage() {
                 {error}
               </div>
             )}
-            
+
             {/* Full Name Field */}
             <div>
               <label
@@ -359,7 +359,7 @@ export default function SignUpPage() {
           </div>
 
           {/* Google Sign Up */}
-          <button 
+          <button
             type="button"
             onClick={handleGoogleSignUp}
             className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"
