@@ -101,10 +101,8 @@ export default function ReportsPage() {
 
   const handleExportPDF = () => {
     if (!currentReport) return;
-    addToast(
-      `Report saved as ${currentReport.catName.replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
-      "success"
-    );
+    addToast("Opening print dialog. Choose Save as PDF to export.", "info");
+    window.print();
   };
 
   const handleExportCSV = () => {
@@ -159,17 +157,22 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div
+      className="reports-print-page min-h-screen bg-litter-bg pb-24"
+      data-print-ready={currentReport ? "true" : "false"}
+    >
       <TopBar />
-      <ToastContainer
-        toasts={toasts}
-        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
-      />
+      <div className="reports-screen-only">
+        <ToastContainer
+          toasts={toasts}
+          onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
+        />
+      </div>
 
-      <main className="pt-20 px-4 max-w-lg mx-auto">
+      <main className="reports-print-shell pt-20 px-4 max-w-lg mx-auto">
 
         {/* ── Page Header ── */}
-        <div className="flex items-start justify-between pt-4 mb-5">
+        <div className="reports-screen-only flex items-start justify-between pt-4 mb-5">
           <div>
             <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
             <p className="text-sm text-theme-muted mt-0.5">
@@ -182,7 +185,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Generate New Report Card ── */}
-        <div className="bg-litter-card rounded-2xl p-5 shadow-sm border border-litter-border mb-6">
+        <div className="reports-screen-only bg-litter-card rounded-2xl p-5 shadow-sm border border-litter-border mb-6">
           {/* Card title */}
           <div className="flex items-center gap-2 mb-4">
             <PlusCircle className="w-5 h-5 text-litter-text" strokeWidth={2} />
@@ -273,12 +276,12 @@ export default function ReportsPage() {
 
         {/* ── Generated Report Preview ── */}
         {currentReport && (
-          <div ref={reportRef} className="mb-6">
-            <h2 className="text-base font-bold text-litter-text mb-3">Generated Report</h2>
+          <div ref={reportRef} className="reports-print-area mb-6">
+            <h2 className="reports-screen-only text-base font-bold text-litter-text mb-3">Generated Report</h2>
             <ReportPreview report={currentReport} />
 
             {/* Export Controls */}
-            <div className="bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
+            <div className="reports-screen-only bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={handleExportPDF}
                 className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-lg font-medium text-sm hover:bg-[#165a4e] transition-colors"
@@ -305,7 +308,7 @@ export default function ReportsPage() {
         )}
 
         {/* ── Previous Reports ── */}
-        <div className="mb-6">
+        <div className="reports-screen-only mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-litter-text">Previous Reports</h2>
             <button className="text-sm font-semibold text-litter-primary hover:underline">
@@ -336,7 +339,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Pro Tip Banner ── */}
-        <div className="bg-litter-primary-light border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
+        <div className="reports-screen-only bg-litter-primary-light border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
           <Lightbulb className="w-5 h-5 text-litter-primary shrink-0 mt-0.5" />
           <p className="text-sm text-litter-text leading-relaxed">
             <span className="font-semibold">Pro Tip:</span> You can directly email these reports to
@@ -374,10 +377,10 @@ function ReportPreview({ report }: ReportPreviewProps) {
   const showCatColumn = report.catId === "all";
 
   return (
-    <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
+    <div className="reports-print-document bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
 
       {/* Report header */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-litter-primary flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
@@ -410,7 +413,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Summary */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Summary</p>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-theme-overlay rounded-xl p-3">
@@ -441,7 +444,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Session Log */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section reports-print-section--table p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Session Log</p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -458,8 +461,13 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </tr>
             </thead>
             <tbody>
-              {report.sessions.slice(0, 10).map((session) => (
-                <tr key={session.id} className={session.anomaly ? "bg-status-watch" : ""}>
+              {report.sessions.map((session, index) => (
+                <tr
+                  key={session.id}
+                  className={`${index >= 10 ? "reports-print-extra-row hidden" : ""} ${
+                    session.anomaly ? "bg-status-watch" : ""
+                  }`}
+                >
                   {showCatColumn && (
                     <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
                   )}
@@ -486,7 +494,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </table>
         </div>
         {report.sessions.length > 10 && (
-          <p className="text-xs text-theme-muted mt-2">
+          <p className="reports-screen-only text-xs text-theme-muted mt-2">
             Full log included in export ({report.sessions.length - 10} more entries)
           </p>
         )}
@@ -494,7 +502,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
 
       {/* Trend Charts */}
       {trendData && (
-        <div className="p-5 border-b border-litter-border">
+        <div className="reports-print-section p-5 border-b border-litter-border">
           <p className="font-semibold text-litter-text text-sm mb-3">Trends</p>
           <div className="grid grid-cols-1 gap-3">
             <div className="bg-theme-overlay rounded-xl p-4">
@@ -536,7 +544,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       )}
 
       {/* Vet Notes */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Vet Notes</p>
         {report.healthLogs.length === 0 ? (
           <p className="text-sm text-theme-muted">No vet notes for this period</p>
@@ -564,7 +572,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Recommendations */}
-      <div className="p-5">
+      <div className="reports-print-section p-5">
         <p className="font-semibold text-litter-text text-sm mb-2">Recommendations</p>
         <p className="text-sm text-theme-muted leading-relaxed">
           {report.summary.anomaliesDetected === 0
