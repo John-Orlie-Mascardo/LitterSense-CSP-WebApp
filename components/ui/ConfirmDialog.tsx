@@ -73,7 +73,7 @@ export function ConfirmDialog({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             className="bg-litter-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
           >
             {/* Header */}

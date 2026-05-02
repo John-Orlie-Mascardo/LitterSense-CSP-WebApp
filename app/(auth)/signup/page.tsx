@@ -61,17 +61,17 @@ export default function SignUpPage() {
       });
 
       router.push("/dashboard");
-    } catch (err) {
+    } catch (error) {
       let errorMessage = "Failed to create an account.";
-      if (err instanceof FirebaseError) {
-        if (err.code === "auth/email-already-in-use") {
+      if (error instanceof FirebaseError) {
+        if (error.code === "auth/email-already-in-use") {
           errorMessage = "This email is already registered. Please log in.";
-        } else if (err.code === "auth/weak-password") {
+        } else if (error.code === "auth/weak-password") {
           errorMessage = "Password is too weak. Please use at least 6 characters.";
-        } else if (err.code === "auth/invalid-email") {
+        } else if (error.code === "auth/invalid-email") {
           errorMessage = "Please enter a valid email address.";
         } else {
-          errorMessage = err.message || "Failed to create an account.";
+          errorMessage = error.message || "Failed to create an account.";
         }
       }
       setError(errorMessage);
@@ -97,8 +97,8 @@ export default function SignUpPage() {
       }, { merge: true });
 
       router.push("/dashboard");
-    } catch (err) {
-      const message = err instanceof FirebaseError ? err.message : "Failed to sign up with Google.";
+    } catch (error) {
+      const message = error instanceof FirebaseError ? error.message : "Failed to sign up with Google.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -219,7 +219,7 @@ export default function SignUpPage() {
                   type="text"
                   id="fullName"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(event) => setFullName(event.target.value)}
                   placeholder="Enter your full name"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
@@ -241,7 +241,7 @@ export default function SignUpPage() {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
@@ -263,7 +263,7 @@ export default function SignUpPage() {
                   type={showPassword ? "text" : "password"}
                   id="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
                   className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
@@ -296,7 +296,7 @@ export default function SignUpPage() {
                   type={showConfirmPassword ? "text" : "password"}
                   id="confirmPassword"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Repeat your password"
                   className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required

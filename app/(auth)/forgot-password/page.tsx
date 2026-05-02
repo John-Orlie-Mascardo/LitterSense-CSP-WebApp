@@ -40,8 +40,8 @@ export default function ForgotPasswordPage() {
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );
-    } catch (err) {
-      const message = err instanceof FirebaseError ? err.message : "Failed to send reset email.";
+    } catch (error) {
+      const message = error instanceof FirebaseError ? error.message : "Failed to send reset email.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="example@email.com"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required

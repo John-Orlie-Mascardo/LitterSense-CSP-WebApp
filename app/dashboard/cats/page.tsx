@@ -235,7 +235,7 @@ export default function CatsPage() {
             {formData.photo && (
               <button
                 type="button"
-                onClick={(e) => { e.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); }}
+                onClick={(event) => { event.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); }}
                 className="flex items-center gap-1 text-xs text-litter-muted hover:text-red-500 transition-colors"
               >
                 <XIcon className="w-3 h-3" /> Remove photo
@@ -258,7 +258,7 @@ export default function CatsPage() {
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="e.g. Whiskers"
                   className={`w-full pl-10 pr-4 py-3 rounded-xl border ${errors.name ? "border-red-500 bg-red-50/5" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />
@@ -310,7 +310,7 @@ export default function CatsPage() {
                     step="0.1"
                     min="0"
                     value={formData.weightKg}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, weightKg: e.target.value }))}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, weightKg: event.target.value }))}
                     placeholder="4.2"
                     className="w-full pl-9 pr-2 py-3 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
                   />
@@ -336,7 +336,7 @@ export default function CatsPage() {
                 <input
                   type="text"
                   value={formData.rfidTag}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, rfidTag: e.target.value }))}
+                  onChange={(event) => setFormData((prev) => ({ ...prev, rfidTag: event.target.value }))}
                   placeholder="Scan or enter RFID tag"
                   className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />
