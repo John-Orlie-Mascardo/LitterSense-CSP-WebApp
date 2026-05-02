@@ -19,7 +19,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { Cat, CatDetails, CatStats } from "@/lib/data/mockData";
@@ -55,9 +55,9 @@ export default function CatsPage() {
     Partial<Record<keyof CatFormData, string>>
   >({});
   const [isSaving, setIsSaving] = useState(false);
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
