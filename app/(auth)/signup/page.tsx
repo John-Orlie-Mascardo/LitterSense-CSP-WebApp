@@ -27,13 +27,13 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/dashboard");
+      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, isAdmin, router]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -60,7 +60,7 @@ export default function SignUpPage() {
         createdAt: serverTimestamp(),
       });
 
-      router.push("/dashboard");
+      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
     } catch (err) {
       let errorMessage = "Failed to create an account.";
       if (err instanceof FirebaseError) {
@@ -96,7 +96,7 @@ export default function SignUpPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push("/dashboard");
+      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
     } catch (err) {
       const message = err instanceof FirebaseError ? err.message : "Failed to sign up with Google.";
       setError(message);

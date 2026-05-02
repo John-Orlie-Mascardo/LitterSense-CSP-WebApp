@@ -15,7 +15,8 @@ import { auth } from "@/lib/firebase";
 //      their token so the new claim is picked up.
 //   3. Delete the line below and set NEXT_PUBLIC_DEV_ADMIN=false (or remove it)
 //      so the real claim-check path below takes over.
-const DEV_ADMIN_OVERRIDE = true;
+const DEV_ADMIN_OVERRIDE = false;
+const ADMIN_EMAILS = ["maclaurenz.cultura@gmail.com"];
 
 interface AuthContextType {
   user: User | null;
@@ -43,7 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
 
       if (currentUser) {
-        if (DEV_ADMIN_OVERRIDE) {
+        if (DEV_ADMIN_OVERRIDE || (currentUser.email && ADMIN_EMAILS.includes(currentUser.email))) {
           setIsAdmin(true);
         } else {
           // Real path: check custom claims set by the backend
