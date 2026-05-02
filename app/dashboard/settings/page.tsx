@@ -594,7 +594,7 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-semibold text-red-700 dark:text-red-400">Deletion Approved</p>
                       <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 leading-relaxed">
-                        Your account has been approved for deletion and will be permanently removed shortly.
+                        Your account deletion has been approved. Your account, all cat profiles, monitoring history, and health logs will be permanently removed and cannot be recovered.
                       </p>
                     </div>
                   </div>
@@ -1027,7 +1027,7 @@ export default function SettingsPage() {
         onClose={() => setShowDeleteFinalConfirm(false)}
         onConfirm={handleSubmitDeletion}
         title="Submit Deletion Request?"
-        message="An admin will review your request. You can continue using the app until it's processed. This does not immediately delete your account."
+        message="An admin will review your request. Once approved, your account and all data will be permanently deleted and cannot be recovered. You can continue using the app until an admin processes it."
         confirmText="Submit Request"
         variant="danger"
       />
