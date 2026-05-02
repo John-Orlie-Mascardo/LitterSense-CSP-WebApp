@@ -43,7 +43,7 @@ import {
 } from "@/lib/utils/deviceProvisioning";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import {
   updateProfile,
   updatePassword,
@@ -451,9 +451,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1">
                   <span className="text-sm text-theme-muted">{selectedRetention}</span>
                   <ChevronDown
-                    className={`w-4 h-4 text-theme-muted transition-transform duration-200 ${
-                      showRetentionDropdown ? "rotate-180" : ""
-                    }`}
+                    className={`w-4 h-4 text-theme-muted transition-transform duration-200 ${showRetentionDropdown ? "rotate-180" : ""
+                      }`}
                   />
                 </div>
               </button>
@@ -469,11 +468,10 @@ export default function SettingsPage() {
                         setShowRetentionDropdown(false);
                         addToast(`Data retention set to ${option}`, "success");
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-theme-overlay ${
-                        selectedRetention === option
+                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-theme-overlay ${selectedRetention === option
                           ? "text-litter-primary font-semibold bg-litter-primary-light"
                           : "text-litter-text"
-                      }`}
+                        }`}
                     >
                       {option}
                       {selectedRetention === option && (

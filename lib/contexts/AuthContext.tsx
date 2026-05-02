@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 
 // TEMP (DEV ONLY): hardcoded to true so all logged-in accounts can access the
 // admin page during UI/UX review. Remove this line and the DEV_ADMIN_OVERRIDE
@@ -29,7 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   isAdmin: false,
-  refreshUser: async () => {},
+  refreshUser: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);

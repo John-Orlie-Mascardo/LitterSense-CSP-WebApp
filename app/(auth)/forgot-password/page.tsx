@@ -12,7 +12,7 @@ import { useState, useEffect } from "react";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setIsLoading(true);
     setError("");
-    
+
     try {
       await sendPasswordResetEmail(auth, email);
       router.push(
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
                 {error}
               </div>
             )}
-            
+
             {/* Email Field */}
             <div>
               <label
