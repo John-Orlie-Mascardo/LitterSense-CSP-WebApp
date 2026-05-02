@@ -37,6 +37,7 @@ import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { mockAdminUsers, type AdminUser } from "@/lib/data/mockData";
 import { generateId } from "@/lib/utils/formatters";
 import { RulesManager } from "@/components/admin/RulesManager";
+import { deleteUserData } from "@/lib/utils/deleteUserData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ export default function AdminDashboardPage() {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeletingUserId, setIsDeletingUserId] = useState<string | null>(null);
 
   // Simulate data fetch — flip to false once data is ready
   useEffect(() => {
@@ -185,14 +187,34 @@ export default function AdminDashboardPage() {
     }
   }
 
-  function handleApprove(id: string) {
+  async function handleApprove(id: string) {
     const req = requests.find((r) => r.id === id);
-    approveRequest(id);
-    // Remove the matching user from the admin table
-    if (req) {
+    if (!req) return;
+
+    setIsDeletingUserId(req.userId);
+    try {
+      // Perform hard delete of user data
+      await deleteUserData(req.userId);
+      
+      // Approve the deletion request
+      approveRequest(id);
+      
+      // Remove the matching user from the admin table
       setUsers((prev) => prev.filter((u) => u.id !== req.userId));
+      
+      addToast(
+        `Hard delete completed for ${req.userName}. All data permanently removed.`,
+        "success"
+      );
+    } catch (error) {
+      addToast(
+        `Failed to delete user data: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "error"
+      );
+      console.error("Deletion error:", error);
+    } finally {
+      setIsDeletingUserId(null);
     }
-    addToast("Account deletion approved. User removed.", "success");
   }
 
   function handleReject(id: string) {
@@ -530,14 +552,25 @@ export default function AdminDashboardPage() {
                     <div className="flex gap-2 shrink-0">
                       <button
                         onClick={() => handleApprove(req.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-primary text-white text-xs font-semibold rounded-lg hover:bg-litter-primary-hover transition-colors"
+                        disabled={isDeletingUserId === req.userId}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-primary text-white text-xs font-semibold rounded-lg hover:bg-litter-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        Approve
+                        {isDeletingUserId === req.userId ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            Approve
+                          </>
+                        )}
                       </button>
                       <button
                         onClick={() => handleReject(req.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-card border border-litter-border text-litter-text text-xs font-semibold rounded-lg hover:border-litter-alert hover:text-litter-alert transition-colors"
+                        disabled={isDeletingUserId === req.userId}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-card border border-litter-border text-litter-text text-xs font-semibold rounded-lg hover:border-litter-alert hover:text-litter-alert transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <X className="w-3.5 h-3.5" />
                         Reject
