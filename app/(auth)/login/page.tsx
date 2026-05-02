@@ -85,7 +85,9 @@ export default function LoginPage() {
       // Ensure a document exists in Firestore for this Google user, even if they started on Login instead of Signup
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
-        fullName: user.displayName || "Google User",
+        firstName: user.displayName || "Google User",
+        middleName: user.displayName || "Google User",
+        lastName: user.displayName || "Google User",
         authProvider: "google",
         createdAt: serverTimestamp(),
       }, { merge: true });
@@ -159,7 +161,7 @@ export default function LoginPage() {
       {/* Right Panel - Form */}
       <div className="flex-1 flex flex-col lg:items-center lg:justify-center bg-litter-card">
         {/* Mobile Header - Teal branded section with gradient */}
-        <div className="lg:hidden flex flex-col items-center text-center w-full px-6 pt-12 pb-8 bg-gradient-to-b from-[#145C54] to-[#1B7A6E] rounded-b-[2rem] mb-8">
+        <div className="lg:hidden flex flex-col items-center text-center w-full px-6 pt-12 pb-8 bg-linear-to-b from-[#145C54] to-[#1B7A6E] rounded-b-4xl mb-8">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-10 h-10 rounded-xl bg-litter-card/20 flex items-center justify-center">
               <svg

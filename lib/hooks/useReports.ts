@@ -8,15 +8,10 @@ import {
   type HealthLog,
   type PastReport,
   type Session,
-} from "../data/mockData";
+} from "../data/data";
 import { generateId } from "../utils/formatters";
-
-export interface ReportConfig {
-  catId: string | "all";
-  dateRange: "7" | "30" | "90" | "custom";
-  customStartDate?: string;
-  customEndDate?: string;
-}
+import { ReportConfig } from "../interfaces/reportconfig";
+import { ReportData } from "../interfaces/reportData";
 
 export type ReportSession = Session & {
   catName: string;
@@ -25,26 +20,6 @@ export type ReportSession = Session & {
 export type ReportHealthLog = HealthLog & {
   catName: string;
 };
-
-export interface ReportData {
-  id: string;
-  catName: string;
-  catId: string;
-  period: string;
-  generatedOn: string;
-  ownerName: string;
-  summary: {
-    totalSessions: number;
-    avgSessionsPerDay: number;
-    avgDuration: string;
-    anomaliesDetected: number;
-    overallStatus: "healthy" | "watch" | "alert";
-    statusMessage: string;
-  };
-  sessions: ReportSession[];
-  healthLogs: ReportHealthLog[];
-  trendData: CatTrendPoint[] | null;
-}
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();

@@ -23,7 +23,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { PastReport } from "@/lib/data/mockData";
 import { useReports, type ReportData } from "@/lib/hooks/useReports";
@@ -61,7 +61,7 @@ export default function ReportsPage() {
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [selectedRange, setSelectedRange] = useState<DateRangeValue>("7");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
   const hasCats = cats.length > 0;
@@ -79,7 +79,7 @@ export default function ReportsPage() {
     }
   }, [cats, selectedCat]);
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };

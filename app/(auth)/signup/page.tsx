@@ -16,12 +16,15 @@ import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, up
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { last } from "firebase/firestore/pipelines";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -49,13 +52,15 @@ export default function SignUpPage() {
       const user = userCredential.user;
       
       await updateProfile(user, {
-        displayName: fullName,
+        displayName: `${firstName} ${middleName} ${lastName}`,
       });
 
       // Create a user document in Firestore to store custom profile data securely
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
-        fullName: fullName,
+        firstName: firstName,
+        middleName: middleName,
+        lastName: lastName,
         authProvider: "email",
         createdAt: serverTimestamp(),
       });
@@ -91,7 +96,9 @@ export default function SignUpPage() {
       // Merge true prevents overwriting if the user document already exists
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
-        fullName: user.displayName || "Google User",
+        firstName: user.displayName || "Google User",
+        middleName: user.displayName || "Google User",
+        lastName: user.displayName || "Google User",
         authProvider: "google",
         createdAt: serverTimestamp(),
       }, { merge: true });
@@ -169,7 +176,7 @@ export default function SignUpPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-litter-card">
         <div className="w-full max-w-md">
           {/* Mobile Header - Teal branded section with gradient */}
-          <div className="lg:hidden flex flex-col items-center text-center mb-8 -mx-6 -mt-12 px-6 pt-10 pb-8 bg-gradient-to-b from-[#145C54] to-[#1B7A6E] rounded-b-[2rem]">
+          <div className="lg:hidden flex flex-col items-center text-center mb-8 -mx-6 -mt-12 px-6 pt-10 pb-8 bg-linear-to-b from-[#145C54] to-[#1B7A6E] rounded-b-4xl">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-10 h-10 rounded-xl bg-litter-card/20 flex items-center justify-center">
                 <svg
@@ -205,22 +212,66 @@ export default function SignUpPage() {
               </div>
             )}
             
-            {/* Full Name Field */}
+            {/* First Name Field */}
             <div>
               <label
-                htmlFor="fullName"
+                htmlFor="firstName"
                 className="block text-sm font-semibold text-litter-text mb-2"
               >
-                Full Name
+                First Name
               </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
                 <input
                   type="text"
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your full name"
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Enter your first name"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Middle Name Field */}
+            <div>
+              <label
+                htmlFor="middleName"
+                className="block text-sm font-semibold text-litter-text mb-2"
+              >
+                Middle Name
+              </label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <input
+                  type="text"
+                  id="middleName"
+                  value={middleName}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  placeholder="Enter your middle name"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Last Name Field */}
+            <div>
+              <label
+                htmlFor="lastName"
+                className="block text-sm font-semibold text-litter-text mb-2"
+              >
+                Last Name
+              </label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <input
+                  type="text"
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName (e.target.value)}
+                  placeholder="Enter your last name"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
                 />
