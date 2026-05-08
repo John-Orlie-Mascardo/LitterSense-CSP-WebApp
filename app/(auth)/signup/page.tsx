@@ -35,7 +35,7 @@ export default function SignUpPage() {
     }
   }, [user, authLoading, isAdmin, router]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault();
     setError("");
     if (password !== confirmPassword) {
