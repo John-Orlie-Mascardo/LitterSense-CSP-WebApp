@@ -36,6 +36,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
 import { mockAdminUsers, type AdminUser } from "@/lib/data/mockData";
 import { generateId } from "@/lib/utils/formatters";
+import { RulesManager } from "@/components/admin/RulesManager";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -552,6 +553,9 @@ export default function AdminDashboardPage() {
             </ul>
           )}
         </div>
+
+        {/* ── System Rules ──────────────────────────────────────────────── */}
+        <RulesManager />
 
         {/* ── Users table ──────────────────────────────────────────────── */}
         <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">

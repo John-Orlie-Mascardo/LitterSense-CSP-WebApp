@@ -54,7 +54,7 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push(isAdmin ? "/admin" : "/dashboard");
+      router.push(email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
     } catch (error) {
       let errorMessage = "Failed to sign in.";
       if (error instanceof FirebaseError) {
@@ -90,7 +90,7 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push(isAdmin ? "/admin" : "/dashboard");
+      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
     } catch (error) {
       const message = error instanceof FirebaseError ? error.message : "Failed to sign in with Google.";
       setError(message);
