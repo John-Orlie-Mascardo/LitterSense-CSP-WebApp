@@ -17,7 +17,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import type {
   Cat,
@@ -290,8 +290,8 @@ const deriveStatsForCat = (
       todaySessions.reduce((sum, session) => sum + session.durationSecs, 0),
       todaySessions[0]?.date
         ? new Date(
-            dateTimeSortValue(todaySessions[0].date, todaySessions[0].time),
-          ).toISOString()
+          dateTimeSortValue(todaySessions[0].date, todaySessions[0].time),
+        ).toISOString()
         : "",
     );
   }
@@ -368,9 +368,9 @@ const buildTrendData = (
     const mq135Delta =
       daySessions.length > 0
         ? Math.round(
-            daySessions.reduce((sum, session) => sum + session.mq135Delta, 0) /
-              daySessions.length,
-          )
+          daySessions.reduce((sum, session) => sum + session.mq135Delta, 0) /
+          daySessions.length,
+        )
         : 0;
 
     return {
