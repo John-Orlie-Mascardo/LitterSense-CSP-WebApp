@@ -1,10 +1,28 @@
-const DEFAULT_ESP32_BASE_URL = "http://192.168.68.116";
+import {
+  FirestoreRestError,
+  getFirestoreRestClient,
+} from "@/lib/utils/firestoreRest";
+import {
+  buildSessionDocumentId,
+  buildVisitWritePlan,
+  findCatIdByRfid,
+  normalizeSensorSyncRequest,
+} from "@/lib/utils/sensorSync";
+
+export const runtime = "nodejs";
+
+const DEFAULT_ESP32_BASE_URL = "http://192.168.189.40";
 
 const ESP32_SENSOR_URL =
   process.env.ESP32_SENSOR_URL ??
   `${process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL}/sensors`;
 
 const SENSOR_REQUEST_TIMEOUT_MS = 2500;
+const CONFIG_TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,}$/;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store",
+};
 
 type Esp32SensorPayload = {
   mq135?: string;
@@ -39,12 +57,49 @@ const sensorNumber = (value: unknown) =>
 const sensorBoolean = (value: unknown) =>
   typeof value === "boolean" ? value : false;
 
+const getString = (value: unknown) =>
+  typeof value === "string" ? value : "";
+
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error && error.message) {
     return error.message;
   }
 
   return "Unknown error";
+};
+
+const getConfigToken = (request: Request, body: unknown) => {
+  const queryToken = new URL(request.url).searchParams.get("configToken") ?? "";
+  const headerToken =
+    request.headers.get("x-litersense-config-token") ??
+    request.headers.get("x-device-config-token") ??
+    "";
+  const bodyToken =
+    typeof body === "object" &&
+    body !== null &&
+    "configToken" in body &&
+    typeof body.configToken === "string"
+      ? body.configToken
+      : "";
+
+  return (headerToken || queryToken || bodyToken).trim();
+};
+
+const readRequestBody = async (request: Request) => {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return await request.json();
+  }
+
+  const text = await request.text();
+  if (!text.trim()) return {};
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return Object.fromEntries(new URLSearchParams(text));
+  }
 };
 
 export async function GET() {
@@ -103,7 +158,7 @@ export async function GET() {
       },
       {
         headers: {
-          "Cache-Control": "no-store",
+          ...NO_STORE_HEADERS,
         },
       },
     );
@@ -129,5 +184,139 @@ export async function GET() {
     );
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+export async function POST(request: Request) {
+  let body: unknown;
+
+  try {
+    body = await readRequestBody(request);
+  } catch {
+    return Response.json(
+      { ok: false, error: "Invalid sensor sync body." },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  const configToken = getConfigToken(request, body);
+  if (!CONFIG_TOKEN_PATTERN.test(configToken)) {
+    return Response.json(
+      { ok: false, error: "Missing or invalid device config token." },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  const normalized = normalizeSensorSyncRequest(
+    {
+      ...(typeof body === "object" && body !== null ? body : {}),
+      configToken,
+    },
+    new Date(),
+  );
+
+  try {
+    const client = getFirestoreRestClient();
+    const configDoc = await client.getDocument(`deviceConfigs/${configToken}`);
+    const ownerId = getString(configDoc?.data.ownerId).trim();
+    if (!configDoc || !ownerId) {
+      return Response.json(
+        {
+          ok: false,
+          error: "Device config not found or missing owner.",
+          detail: "Save the ESP32 Wi-Fi provisioning settings again before syncing sensor logs.",
+        },
+        { status: configDoc ? 422 : 404, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    const catDetailDocs = await client.listDocuments(
+      `users/${ownerId}/catDetails`,
+    );
+    const catDetails = catDetailDocs.map((doc) => [
+      doc.id,
+      { rfidTag: doc.data.rfidTag },
+    ] satisfies [string, { rfidTag?: unknown }]);
+    const recorded: Array<{ sessionId: string; catId: string }> = [];
+    const duplicates: Array<{ sessionId: string; catId: string }> = [];
+    const unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
+    const serverNow = new Date();
+
+    for (const event of normalized.events) {
+      const catId = findCatIdByRfid(catDetails, event.rfidCard, event.rfidHex);
+      if (!catId) {
+        unmatched.push({
+          eventId: event.eventId,
+          rfidCard: event.rfidCard,
+          rfidHex: event.rfidHex,
+        });
+        continue;
+      }
+
+      const sessionId = buildSessionDocumentId(configToken, event);
+      const plan = buildVisitWritePlan({
+        userId: ownerId,
+        catId,
+        configToken,
+        event,
+        sessionId,
+        serverNow,
+      });
+      const existingSession = await client.getDocument(plan.sessionPath);
+      if (existingSession) {
+        duplicates.push({ sessionId, catId });
+        continue;
+      }
+
+      await client.commit([
+        client.createSetWrite(plan.sessionPath, plan.sessionData, {
+          exists: false,
+        }),
+        ...plan.summaryPaths.map((path) =>
+          client.createIncrementWrite(path, plan.summaryData, {
+            visits: 1,
+            totalDurationSecs: plan.durationSecs,
+          }),
+        ),
+      ]);
+      recorded.push({ sessionId, catId });
+    }
+
+    return Response.json(
+      {
+        ok: true,
+        received: normalized.events.length + normalized.ignored.length,
+        recorded: recorded.length,
+        duplicates: duplicates.length,
+        ignored: normalized.ignored,
+        unmatched,
+        recordedSessions: recorded,
+        duplicateSessions: duplicates,
+      },
+      { headers: NO_STORE_HEADERS },
+    );
+  } catch (error) {
+    const isFirestoreError = error instanceof FirestoreRestError;
+    const status = isFirestoreError ? error.status : 500;
+    const message = getErrorMessage(error);
+
+    console.error("ESP32 sensor sync failed.", {
+      configToken,
+      status,
+      message,
+      detail: isFirestoreError ? error.detail : undefined,
+    });
+
+    return Response.json(
+      {
+        ok: false,
+        error: "Sensor sync failed.",
+        detail: isFirestoreError ? error.detail : message,
+      },
+      {
+        status: status >= 400 && status < 500 ? status : 503,
+        headers: NO_STORE_HEADERS,
+      },
+    );
   }
 }
