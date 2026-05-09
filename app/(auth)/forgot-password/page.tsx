@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
     event.preventDefault();
     setIsLoading(true);
     setError("");
-
+    
     try {
       await sendPasswordResetEmail(auth, email);
       router.push(
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
                 {error}
               </div>
             )}
-
+            
             {/* Email Field */}
             <div>
               <label
