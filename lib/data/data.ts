@@ -11,8 +11,8 @@
 
 import { Cat } from "../interfaces/Cat";
 import { CatStats} from "../interfaces/CatStats";
-import { ActivityItemData } from "../interfaces/activityItemData";
-import { CatDetails } from "../interfaces/catDetails";
+import { ActivityItemData } from "../interfaces/ActivityItemData";
+import { CatDetails } from "../interfaces/CatDetails";
 import { Session } from "../interfaces/Session";
 import { HealthLog } from "../interfaces/HealthLog";
 import { PastReport } from "../interfaces/PastReport";

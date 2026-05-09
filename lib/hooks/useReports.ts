@@ -10,7 +10,7 @@ import {
   type Session,
 } from "../data/data";
 import { generateId } from "../utils/formatters";
-import { ReportConfig } from "../interfaces/ReportConfig";
+import { ReportConfig } from "../interfaces/Reportconfig";
 import { ReportData } from "../interfaces/ReportData";
 
 export type ReportSession = Session & {
