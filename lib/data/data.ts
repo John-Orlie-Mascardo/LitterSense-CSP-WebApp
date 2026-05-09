@@ -9,13 +9,13 @@
  * - Device-level data: air quality, litter level (shared across all cats — one litter box)
  */
 
-import { Cat } from "../interfaces/cat";
-import { CatStats} from "../interfaces/catStats";
+import { Cat } from "../interfaces/Cat";
+import { CatStats} from "../interfaces/CatStats";
 import { ActivityItemData } from "../interfaces/activityItemData";
 import { CatDetails } from "../interfaces/catDetails";
-import { Session } from "../interfaces/session";
-import { HealthLog } from "../interfaces/healthlog";
-import { PastReport } from "../interfaces/pastReport";
+import { Session } from "../interfaces/Session";
+import { HealthLog } from "../interfaces/HealthLog";
+import { PastReport } from "../interfaces/PastReport";
 
 // Mock data for testing and development
 // ⚠️ EMPTY ARRAYS — Users add their own cats manually

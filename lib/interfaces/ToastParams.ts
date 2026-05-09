@@ -4,4 +4,4 @@ export interface ToastParams {
     type?: "success" | "error" | "info" | "warning";
     duration?: number;
     onClose: (id: string) => void;
-  }  
+  }

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
-import { ToastParams } from "@/lib/interfaces/toastprops";
+import { ToastParams } from "@/lib/interfaces/ToastParams";
 
 export function Toast({
   id,

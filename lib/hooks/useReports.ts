@@ -10,8 +10,8 @@ import {
   type Session,
 } from "../data/data";
 import { generateId } from "../utils/formatters";
-import { ReportConfig } from "../interfaces/reportconfig";
-import { ReportData } from "../interfaces/reportData";
+import { ReportConfig } from "../interfaces/ReportConfig";
+import { ReportData } from "../interfaces/ReportData";
 
 export type ReportSession = Session & {
   catName: string;

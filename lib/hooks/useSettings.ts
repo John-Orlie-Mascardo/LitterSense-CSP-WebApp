@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PerCatNotificationPref } from "../interfaces/perCatNotificationPref";
+import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
 import { UserSettings } from "../interfaces/userSettings";
 
 
