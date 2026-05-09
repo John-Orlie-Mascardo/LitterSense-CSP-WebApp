@@ -1,4 +1,4 @@
-import { PerCatNotificationPref } from "./PerCatNotificationPref";
+import { PerCatNotificationPref } from "./perCatNotificationPref_temp";
 
 export interface UserSettings {
     notifications: {

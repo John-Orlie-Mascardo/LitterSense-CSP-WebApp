@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
-import { UserSettings } from "../interfaces/UserSettings";
+import { PerCatNotificationPref } from "../interfaces/perCatNotificationPref_temp";
+import { UserSettings } from "../interfaces/userSettings_temp";
 
 
 const defaultSettings: UserSettings = {
