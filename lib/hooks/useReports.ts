@@ -38,7 +38,7 @@ export interface ReportData {
     avgSessionsPerDay: number;
     avgDuration: string;
     anomaliesDetected: number;
-    overallStatus: "healthy" | "watch" | "alert";
+    overallStatus: "normal" | "abnormal";
     statusMessage: string;
   };
   sessions: ReportSession[];
@@ -253,16 +253,16 @@ export function useReports() {
       0,
     );
 
-    let overallStatus: "healthy" | "watch" | "alert" = "healthy";
+    let overallStatus: "normal" | "abnormal" = "normal";
     let statusMessage = "No concerning patterns detected";
 
     if (anomaliesDetected > 0) {
       if (anomaliesDetected > 2) {
-        overallStatus = "alert";
+        overallStatus = "abnormal";
         statusMessage = "Multiple anomalies detected - recommend vet consultation";
       } else {
-        overallStatus = "watch";
-        statusMessage = "Elevated visit frequency - monitor closely";
+        overallStatus = "abnormal";
+        statusMessage = "Abnormal visit frequency - monitor closely";
       }
     }
 

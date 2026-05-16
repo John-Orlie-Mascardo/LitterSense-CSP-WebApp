@@ -50,7 +50,7 @@ export function ActivityItem({
       <div className="flex items-center gap-2 shrink-0">
         {anomaly && (
           <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-wide">
-            {anomalyNote || "Unusual"}
+            {anomalyNote || "Abnormal"}
           </span>
         )}
         <span className="font-body text-litter-muted text-xs">{time}</span>

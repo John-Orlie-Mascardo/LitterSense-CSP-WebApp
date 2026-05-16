@@ -83,12 +83,6 @@ type FirestoreData = Record<string, unknown>;
 
 const CatContext = createContext<CatContextType | undefined>(undefined);
 
-const statusRank: Record<Cat["status"], number> = {
-  healthy: 0,
-  watch: 1,
-  alert: 2,
-};
-
 const emptyStats: CatStats = {
   visits: 0,
   avgDuration: "--",
@@ -117,9 +111,9 @@ const parseNumber = (value: unknown, fallback = 0) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const parseStatus = (value: unknown): Cat["status"] =>
-  value === "watch" || value === "alert" || value === "healthy"
-    ? value
-    : "healthy";
+  value === "abnormal"
+    ? "abnormal"
+    : "normal";
 
 const parseHealthLogType = (value: unknown): HealthLog["type"] => {
   if (
@@ -132,9 +126,6 @@ const parseHealthLogType = (value: unknown): HealthLog["type"] => {
   }
   return "Observation";
 };
-
-const maxStatus = (a: Cat["status"], b: Cat["status"]) =>
-  statusRank[a] >= statusRank[b] ? a : b;
 
 const formatAvgDuration = (totalDurationSecs: number, visits: number) => {
   if (visits <= 0) return "--";
@@ -311,9 +302,9 @@ const deriveLiveStatus = (
   );
 
   if (stats.visits > 8) {
-    status = maxStatus(status, "alert");
+    status = "abnormal";
   } else if (stats.visits > 6) {
-    status = maxStatus(status, "watch");
+    status = "abnormal";
   }
 
   if (
@@ -324,9 +315,9 @@ const deriveLiveStatus = (
           session.durationSecs >= 600),
     )
   ) {
-    status = maxStatus(status, "alert");
+    status = "abnormal";
   } else if (todaySessions.some((session) => session.anomaly)) {
-    status = maxStatus(status, "watch");
+    status = "abnormal";
   }
 
   return status;

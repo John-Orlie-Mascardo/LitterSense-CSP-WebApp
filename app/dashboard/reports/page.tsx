@@ -434,7 +434,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </div>
         </div>
         <div className={`p-3 rounded-xl ${statusColors.bg} ${statusColors.text} flex items-center gap-2`}>
-          {report.summary.overallStatus === "healthy" ? (
+          {report.summary.overallStatus === "normal" ? (
             <CheckCircle className="w-4 h-4 shrink-0" />
           ) : (
             <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -461,13 +461,8 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </tr>
             </thead>
             <tbody>
-              {report.sessions.map((session, index) => (
-                <tr
-                  key={session.id}
-                  className={`${index >= 10 ? "reports-print-extra-row hidden" : ""} ${
-                    session.anomaly ? "bg-status-watch" : ""
-                  }`}
-                >
+              {report.sessions.slice(0, 10).map((session) => (
+                <tr key={session.id} className={session.anomaly ? "bg-status-abnormal" : ""}>
                   {showCatColumn && (
                     <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
                   )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Plus,
   ScanLine,
@@ -28,10 +28,58 @@ import {
   calculateAge,
   generateId,
 } from "@/lib/utils/formatters";
+import { cropImageToSquare } from "@/lib/utils/imageCrop";
+
+const AVATAR_PREVIEW_SIZE = 128;
+
+interface PhotoOffset {
+  x: number;
+  y: number;
+}
+
+interface PhotoSize {
+  width: number;
+  height: number;
+}
+
+interface PhotoDragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+}
+
+const getPhotoPanLimit = (size: PhotoSize | null, zoom: number) => {
+  if (!size) return { x: 0, y: 0 };
+  const scale =
+    Math.max(
+      AVATAR_PREVIEW_SIZE / size.width,
+      AVATAR_PREVIEW_SIZE / size.height,
+    ) * zoom;
+
+  return {
+    x: Math.max(0, (size.width * scale - AVATAR_PREVIEW_SIZE) / 2),
+    y: Math.max(0, (size.height * scale - AVATAR_PREVIEW_SIZE) / 2),
+  };
+};
+
+const clampPhotoOffset = (
+  offset: PhotoOffset,
+  size: PhotoSize | null,
+  zoom: number,
+) => {
+  const limit = getPhotoPanLimit(size, zoom);
+  return {
+    x: Math.min(limit.x, Math.max(-limit.x, offset.x)),
+    y: Math.min(limit.y, Math.max(-limit.y, offset.y)),
+  };
+};
 
 interface CatFormData {
   name: string;
   breed: string;
+  gender: "" | "male" | "female";
   dob: string;
   weightKg: string;
   rfidTag: string;
@@ -41,6 +89,7 @@ interface CatFormData {
 const initialFormData: CatFormData = {
   name: "",
   breed: "",
+  gender: "",
   dob: "",
   weightKg: "",
   rfidTag: "",
@@ -55,6 +104,10 @@ export default function CatsPage() {
     Partial<Record<keyof CatFormData, string>>
   >({});
   const [isSaving, setIsSaving] = useState(false);
+  const [photoZoom, setPhotoZoom] = useState(1);
+  const [photoOffset, setPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
+  const [photoSize, setPhotoSize] = useState<PhotoSize | null>(null);
+  const photoDragRef = useRef<PhotoDragState | null>(null);
   const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
 
   const addToast = (message: string, type: ToastProps["type"] = "info") => {
@@ -77,6 +130,10 @@ export default function CatsPage() {
       newErrors.breed = "Breed is required";
     }
 
+    if (!formData.gender) {
+      newErrors.gender = "Gender is required";
+    }
+
     if (!formData.dob) {
       newErrors.dob = "Date of birth is required";
     }
@@ -96,18 +153,23 @@ export default function CatsPage() {
     if (!validateForm()) return;
 
     setIsSaving(true);
+    const gender = formData.gender as Exclude<CatFormData["gender"], "">;
+    const avatar = formData.photo
+      ? await cropImageToSquare(formData.photo, photoZoom, photoOffset)
+      : null;
 
     const newCat: Cat = {
       id: generateId(),
       name: formData.name,
-      status: "healthy",
-      avatar: formData.photo,
+      status: "normal",
+      avatar,
       isOnline: false,
     };
 
     const today = new Date().toISOString().split("T")[0];
     const newDetails = {
       breed: formData.breed,
+      gender,
       dob: formData.dob,
       weightKg: formData.weightKg ? parseFloat(formData.weightKg) : 0,
       rfidTag: formData.rfidTag || "—",
@@ -124,6 +186,9 @@ export default function CatsPage() {
     await addCat(newCat, undefined, newDetails);
     setIsModalOpen(false);
     setFormData(initialFormData);
+    setPhotoZoom(1);
+    setPhotoOffset({ x: 0, y: 0 });
+    setPhotoSize(null);
     setIsSaving(false);
     addToast(`${newCat.name} has been added!`, "success");
   };
@@ -134,8 +199,49 @@ export default function CatsPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData((prev) => ({ ...prev, photo: reader.result as string }));
+        setPhotoZoom(1);
+        setPhotoOffset({ x: 0, y: 0 });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const resetPhotoState = () => {
+    setPhotoZoom(1);
+    setPhotoOffset({ x: 0, y: 0 });
+    setPhotoSize(null);
+  };
+
+  const handlePhotoPointerDown = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (!formData.photo) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    photoDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: photoOffset.x,
+      originY: photoOffset.y,
+    };
+  };
+
+  const handlePhotoPointerMove = (event: React.PointerEvent<HTMLImageElement>) => {
+    const drag = photoDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPhotoOffset(
+      clampPhotoOffset(
+        {
+          x: drag.originX + event.clientX - drag.startX,
+          y: drag.originY + event.clientY - drag.startY,
+        },
+        photoSize,
+        photoZoom,
+      ),
+    );
+  };
+
+  const handlePhotoPointerUp = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (photoDragRef.current?.pointerId === event.pointerId) {
+      photoDragRef.current = null;
     }
   };
 
@@ -203,6 +309,7 @@ export default function CatsPage() {
         onClose={() => {
           setIsModalOpen(false);
           setFormData(initialFormData);
+          resetPhotoState();
           setErrors({});
         }}
         title="Add New Cat"
@@ -210,17 +317,62 @@ export default function CatsPage() {
         <div className="space-y-6">
 
           {/* ── Photo Upload ─────────────────────────────── */}
-          <label className="group relative flex flex-col items-center justify-center gap-2 cursor-pointer">
-            <div className={`relative w-full h-36 rounded-2xl overflow-hidden border-2 border-dashed transition-colors ${formData.photo ? "border-litter-primary" : "border-litter-border hover:border-litter-primary"} bg-litter-primary-light/30`}>
-              {formData.photo ? (
-                <>
-                  <img src={formData.photo} alt="Preview" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+          <div className="flex flex-col items-center justify-center gap-3">
+            {formData.photo ? (
+              <>
+                <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-litter-primary bg-litter-primary-light/30">
+                  <img
+                    src={formData.photo}
+                    alt="Avatar preview"
+                    className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
+                    draggable={false}
+                    onLoad={(event) => {
+                      setPhotoSize({
+                        width: event.currentTarget.naturalWidth,
+                        height: event.currentTarget.naturalHeight,
+                      });
+                    }}
+                    onPointerDown={handlePhotoPointerDown}
+                    onPointerMove={handlePhotoPointerMove}
+                    onPointerUp={handlePhotoPointerUp}
+                    onPointerCancel={handlePhotoPointerUp}
+                    style={{
+                      transform: `translate(${photoOffset.x}px, ${photoOffset.y}px) scale(${photoZoom})`,
+                    }}
+                  />
+                  <label
+                    htmlFor="add-cat-photo-input"
+                    className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1"
+                  >
                     <Camera className="w-6 h-6 text-white" />
                     <span className="text-white text-xs font-medium">Change photo</span>
-                  </div>
-                </>
-              ) : (
+                  </label>
+                </div>
+                <div className="w-full max-w-xs">
+                  <label className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="2.5"
+                    step="0.05"
+                    value={photoZoom}
+                    onChange={(event) => {
+                      const nextZoom = Number(event.target.value);
+                      setPhotoZoom(nextZoom);
+                      setPhotoOffset((current) =>
+                        clampPhotoOffset(current, photoSize, nextZoom),
+                      );
+                    }}
+                    className="w-full accent-litter-primary"
+                  />
+                  <p className="text-[11px] text-litter-muted mt-1">Drag the photo to reposition.</p>
+                </div>
+              </>
+            ) : (
+              <label
+                htmlFor="add-cat-photo-input"
+                className="group relative flex w-full h-36 rounded-2xl overflow-hidden border-2 border-dashed border-litter-border hover:border-litter-primary transition-colors bg-litter-primary-light/30 cursor-pointer"
+              >
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                   <div className="w-12 h-12 rounded-full bg-litter-primary/10 flex items-center justify-center group-hover:bg-litter-primary/20 transition-colors">
                     <Upload className="w-5 h-5 text-litter-primary" />
@@ -230,19 +382,24 @@ export default function CatsPage() {
                     <p className="text-xs text-litter-muted mt-0.5">JPG, PNG — tap to browse</p>
                   </div>
                 </div>
-              )}
-            </div>
-            {formData.photo && (
-              <button
-                type="button"
-                onClick={(event) => { event.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); }}
-                className="flex items-center gap-1 text-xs text-litter-muted hover:text-red-500 transition-colors"
-              >
-                <XIcon className="w-3 h-3" /> Remove photo
-              </button>
+              </label>
             )}
-            <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-          </label>
+            {formData.photo && (
+              <div className="flex items-center gap-3 text-xs">
+                <label htmlFor="add-cat-photo-input" className="text-litter-muted hover:text-litter-primary transition-colors cursor-pointer">
+                  Change photo
+                </label>
+                <button
+                  type="button"
+                  onClick={(event) => { event.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); resetPhotoState(); }}
+                  className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors"
+                >
+                  <XIcon className="w-3 h-3" /> Remove photo
+                </button>
+              </div>
+            )}
+            <input id="add-cat-photo-input" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          </div>
 
           {/* ── Basic Info ───────────────────────────────── */}
           <div className="space-y-3">
@@ -277,6 +434,29 @@ export default function CatsPage() {
                 hasError={!!errors.breed}
               />
               {errors.breed && <p className="text-red-500 text-xs mt-1">{errors.breed}</p>}
+            </div>
+
+            {/* Gender */}
+            <div>
+              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                Gender <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.gender}
+                onChange={(event) => {
+                  setFormData((prev) => ({
+                    ...prev,
+                    gender: event.target.value as CatFormData["gender"],
+                  }));
+                  setErrors((prev) => ({ ...prev, gender: undefined }));
+                }}
+                className={`w-full px-3.5 py-3 rounded-xl border ${errors.gender ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${formData.gender ? "text-litter-text" : "text-[var(--color-placeholder)]"}`}
+              >
+                <option value="" disabled>Select gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+              {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
             </div>
           </div>
 
@@ -359,6 +539,7 @@ export default function CatsPage() {
               onClick={() => {
                 setIsModalOpen(false);
                 setFormData(initialFormData);
+                resetPhotoState();
                 setErrors({});
               }}
               className="flex-1 px-4 py-3 rounded-xl border border-litter-border text-theme-secondary font-medium hover:bg-theme-overlay active:scale-[0.98] transition-all"
@@ -397,7 +578,7 @@ interface CatCardProps {
   stats?: CatStats;
 }
 
-const badgeLabel: Record<string, string> = { healthy: "HEALTHY", watch: "WATCH", alert: "ALERT" };
+const badgeLabel: Record<string, string> = { normal: "NORMAL", abnormal: "ABNORMAL" };
 
 const formatLastVisit = (iso?: string) => {
   if (!iso) return "--";
@@ -412,10 +593,8 @@ function CatCard({ cat, catDetails, stats }: CatCardProps) {
   const statusColors = getStatusColor(cat.status);
 
   const dotColor =
-    cat.status === "healthy"
+    cat.status === "normal"
       ? "bg-green-500"
-      : cat.status === "watch"
-      ? "bg-amber-500"
       : "bg-red-500";
 
   return (

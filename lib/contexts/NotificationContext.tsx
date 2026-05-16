@@ -29,8 +29,8 @@ import type { Cat } from "@/lib/data/mockData";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type NotificationType = "health" | "system" | "cat_visit";
-export type NotificationSource = "dashboard_alert";
-export type NotificationStatus = Extract<Cat["status"], "watch" | "alert">;
+export type NotificationSource = "dashboard_abnormal";
+export type NotificationStatus = Extract<Cat["status"], "abnormal">;
 
 export interface AppNotification {
   id: string;
@@ -40,7 +40,7 @@ export interface AppNotification {
   createdAt: Timestamp;
   isRead: boolean;
   source?: NotificationSource;
-  alertKey?: string;
+  abnormalKey?: string;
   catId?: string;
   catName?: string;
   route?: string;
@@ -56,12 +56,12 @@ export type NewNotificationData = Pick<
   Partial<
     Pick<
       AppNotification,
-      "source" | "alertKey" | "catId" | "catName" | "route" | "status" | "visitCount" | "avgDuration"
+      "source" | "abnormalKey" | "catId" | "catName" | "route" | "status" | "visitCount" | "avgDuration"
     >
   >;
 
 export type UpsertNotificationData = NewNotificationData &
-  Required<Pick<AppNotification, "alertKey">>;
+  Required<Pick<AppNotification, "abnormalKey">>;
 
 interface NotificationContextType {
   notifications: AppNotification[];
@@ -86,7 +86,7 @@ const buildNotificationSyncPayload = (data: Partial<AppNotification>) =>
     title: data.title,
     message: data.message,
     source: data.source,
-    alertKey: data.alertKey,
+    abnormalKey: data.abnormalKey,
     catId: data.catId,
     catName: data.catName,
     route: data.route,
@@ -95,7 +95,7 @@ const buildNotificationSyncPayload = (data: Partial<AppNotification>) =>
     avgDuration: data.avgDuration,
   });
 
-const getNotificationDocId = (alertKey: string) => encodeURIComponent(alertKey);
+const getNotificationDocId = (abnormalKey: string) => encodeURIComponent(abnormalKey);
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -171,7 +171,7 @@ export function NotificationProvider({
     async (data: UpsertNotificationData) => {
       if (!user) return;
 
-      const notificationId = getNotificationDocId(data.alertKey);
+      const notificationId = getNotificationDocId(data.abnormalKey);
       const notificationRef = doc(db, "users", user.uid, "notifications", notificationId);
       const existing = notificationsRef.current.find((notification) => notification.id === notificationId);
       const nextPayload = buildNotificationSyncPayload(data);

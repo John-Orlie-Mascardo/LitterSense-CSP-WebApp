@@ -120,7 +120,7 @@ export function RulesManager() {
                 </div>
                 <button
                   onClick={() => handleDelete(rule.id)}
-                  className="p-2 text-litter-muted hover:text-litter-alert hover:bg-litter-card rounded-lg transition-colors shrink-0"
+                  className="p-2 text-litter-muted hover:text-litter-danger hover:bg-litter-card rounded-lg transition-colors shrink-0"
                   title="Delete rule"
                 >
                   <Trash2 className="w-4 h-4" />

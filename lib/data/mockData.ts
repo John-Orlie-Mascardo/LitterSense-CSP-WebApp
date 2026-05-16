@@ -12,7 +12,7 @@
 export interface Cat {
   id: string;
   name: string;
-  status: "healthy" | "watch" | "alert";
+  status: "normal" | "abnormal";
   avatar: string | null;
   isOnline: boolean;
 }
@@ -20,7 +20,7 @@ export interface Cat {
 export interface CatStats {
   visits: number;
   avgDuration: string;
-  airQuality: "Normal" | "Elevated" | "Poor";
+  airQuality: "Normal" | "Abnormal";
   litterLevel: number;
   lastVisit: string;
 }
@@ -36,6 +36,7 @@ export interface ActivityItemData {
 
 export interface CatDetails {
   breed: string;
+  gender?: "male" | "female";
   dob: string;
   weightKg: number;
   rfidTag: string;
@@ -92,7 +93,7 @@ export const mockStats: Record<string, CatStats> = {};
 
 /** Device-level stats — shared across all cats (one physical litter box). Not per-cat. */
 export const deviceStats = {
-  airQuality: "Normal" as "Normal" | "Elevated" | "Poor",
+  airQuality: "Normal" as "Normal" | "Abnormal",
   litterLevel: 68,
 };
 
