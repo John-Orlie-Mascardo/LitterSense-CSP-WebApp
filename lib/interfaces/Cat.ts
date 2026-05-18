@@ -1,7 +1,7 @@
 export interface Cat {
-    id: string;
-    name: string;
-    status: "healthy" | "watch" | "alert";
-    avatar: string | null;
-    isOnline: boolean;
-  }
+  id: string;
+  name: string;
+  status: 'healthy' | 'watch' | 'alert';
+  avatar: string | null;
+  isOnline: boolean;
+}
