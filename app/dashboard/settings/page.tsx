@@ -32,7 +32,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
@@ -83,7 +83,7 @@ export default function SettingsPage() {
   } = useDeviceProvisioning();
   const { theme, setTheme } = useTheme();
 
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -141,7 +141,7 @@ export default function SettingsPage() {
     confirm: "",
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };

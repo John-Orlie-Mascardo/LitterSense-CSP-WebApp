@@ -19,10 +19,12 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCats } from "@/lib/contexts/CatContext";
-import type { Cat, CatDetails, CatStats } from "@/lib/data/mockData";
+import type { Cat } from "@/lib/interfaces/Cat";
+import type { CatDetails } from "@/lib/interfaces/CatDetails";
+import type { CatStats } from "@/lib/interfaces/CatStats";
 import {
   getStatusColor,
   calculateAge,
@@ -108,9 +110,9 @@ export default function CatsPage() {
   const [photoOffset, setPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
   const [photoSize, setPhotoSize] = useState<PhotoSize | null>(null);
   const photoDragRef = useRef<PhotoDragState | null>(null);
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
