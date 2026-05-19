@@ -33,8 +33,8 @@ import {
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { mockAdminUsers, type AdminUser } from "@/lib/data/mockData";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import { mockAdminUsers, type AdminUser } from "@/lib/data/data";
 import { generateId } from "@/lib/utils/formatters";
 import { RulesManager } from "@/components/admin/RulesManager";
 import { deleteUserData } from "@/lib/utils/deleteUserData";
@@ -98,7 +98,7 @@ export default function AdminDashboardPage() {
 
   // Local state
   const [users, setUsers] = useState<AdminUser[]>(mockAdminUsers);
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -111,7 +111,7 @@ export default function AdminDashboardPage() {
     return () => clearTimeout(t);
   }, []);
 
-  function addToast(message: string, type: ToastProps["type"] = "info") {
+  function addToast(message: string, type: ToastParams["type"] = "info") {
     setToasts((prev) => [...prev, { id: generateId(), message, type }]);
   }
 
@@ -338,14 +338,14 @@ export default function AdminDashboardPage() {
             icon={Trash2}
             value={agg.pendingDeletes}
             label="Pending Deletions"
-            status={agg.pendingDeletes > 0 ? "alert" : "normal"}
+            status={agg.pendingDeletes > 0 ? "abnormal" : "normal"}
             statusLabel={agg.pendingDeletes > 0 ? "Needs review" : "All clear"}
           />
           <StatCard
             icon={UserCheck}
             value={agg.activeUsers}
             label="Active Users"
-            status="healthy"
+            status="normal"
             statusLabel="last 7 days"
           />
         </div>
@@ -387,7 +387,7 @@ export default function AdminDashboardPage() {
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 h-[200px] flex flex-col items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 h-50 flex flex-col items-center justify-center pointer-events-none">
                 <span className="font-display font-bold text-3xl text-litter-text leading-none">
                   {agg.totalCats}
                 </span>
@@ -479,7 +479,7 @@ export default function AdminDashboardPage() {
               </p>
             </div>
             {agg.pendingDeletes > 0 && (
-              <span className="shrink-0 px-2.5 py-1 bg-status-alert text-status-alert text-xs font-semibold rounded-full">
+              <span className="shrink-0 px-2.5 py-1 bg-status-danger text-status-danger text-xs font-semibold rounded-full">
                 {agg.pendingDeletes} pending
               </span>
             )}
@@ -513,7 +513,7 @@ export default function AdminDashboardPage() {
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
                           req.status === "pending"
-                            ? "bg-status-alert text-status-alert"
+                            ? "bg-status-danger text-status-danger"
                             : req.status === "approved"
                             ? "bg-litter-primary-light text-litter-primary"
                             : "bg-litter-bg text-litter-muted border border-litter-border"
@@ -615,7 +615,7 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-170 text-sm">
               <thead>
                 <tr className="bg-litter-bg border-b border-litter-border">
                   <th className="text-left px-6 py-3">
@@ -721,7 +721,7 @@ export default function AdminDashboardPage() {
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${
                             u.status === "active"
-                              ? "bg-status-healthy text-status-healthy"
+                              ? "bg-status-normal text-status-normal"
                               : "bg-litter-bg text-litter-muted border border-litter-border"
                           }`}
                         >

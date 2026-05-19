@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, query } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/configs/firebase";
 import { Trash2, Plus, FileText } from "lucide-react";
 
 interface Rule {
@@ -36,7 +36,7 @@ export function RulesManager() {
   async function handleAddRule(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
-    
+
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "rules"), {
@@ -73,7 +73,7 @@ export function RulesManager() {
         </h2>
         <p className="text-xs text-litter-muted mt-0.5">Manage the rules collection</p>
       </div>
-      
+
       <div className="p-6">
         <form onSubmit={handleAddRule} className="mb-6 bg-litter-bg p-4 rounded-xl border border-litter-border">
           <h3 className="text-sm font-semibold mb-3">Add New Rule</h3>
@@ -120,7 +120,7 @@ export function RulesManager() {
                 </div>
                 <button
                   onClick={() => handleDelete(rule.id)}
-                  className="p-2 text-litter-muted hover:text-litter-alert hover:bg-litter-card rounded-lg transition-colors shrink-0"
+                  className="p-2 text-litter-muted hover:text-litter-danger hover:bg-litter-card rounded-lg transition-colors shrink-0"
                   title="Delete rule"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState } from "react";
-import { mockDeleteRequests, type DeleteRequest } from "@/lib/data/mockData";
+import { mockDeleteRequests, type DeleteRequest } from "@/lib/data/data";
 import { generateId } from "@/lib/utils/formatters";
 
 interface DeleteRequestContextType {

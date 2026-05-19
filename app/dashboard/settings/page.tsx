@@ -32,7 +32,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
@@ -43,7 +43,7 @@ import {
 } from "@/lib/utils/deviceProvisioning";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import {
   updateProfile,
   updatePassword,
@@ -83,7 +83,7 @@ export default function SettingsPage() {
   } = useDeviceProvisioning();
   const { theme, setTheme } = useTheme();
 
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -141,7 +141,7 @@ export default function SettingsPage() {
     confirm: "",
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -451,9 +451,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-1">
                   <span className="text-sm text-theme-muted">{selectedRetention}</span>
                   <ChevronDown
-                    className={`w-4 h-4 text-theme-muted transition-transform duration-200 ${
-                      showRetentionDropdown ? "rotate-180" : ""
-                    }`}
+                    className={`w-4 h-4 text-theme-muted transition-transform duration-200 ${showRetentionDropdown ? "rotate-180" : ""
+                      }`}
                   />
                 </div>
               </button>
@@ -469,11 +468,10 @@ export default function SettingsPage() {
                         setShowRetentionDropdown(false);
                         addToast(`Data retention set to ${option}`, "success");
                       }}
-                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-theme-overlay ${
-                        selectedRetention === option
+                      className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-theme-overlay ${selectedRetention === option
                           ? "text-litter-primary font-semibold bg-litter-primary-light"
                           : "text-litter-text"
-                      }`}
+                        }`}
                     >
                       {option}
                       {selectedRetention === option && (
@@ -653,8 +651,8 @@ export default function SettingsPage() {
         <button
           className="fixed inset-0 z-10"
           onClick={() => setShowRetentionDropdown(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "Space" || e.key === "Escape") {
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === "Space" || event.key === "Escape") {
               setShowRetentionDropdown(false);
             }
           }}
@@ -691,7 +689,7 @@ export default function SettingsPage() {
               id="displayName"
               type="text"
               value={editProfileForm.displayName}
-              onChange={(e) => setEditProfileForm((prev) => ({ ...prev, displayName: e.target.value }))}
+              onChange={(event) => setEditProfileForm((prev) => ({ ...prev, displayName: event.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
@@ -711,14 +709,14 @@ export default function SettingsPage() {
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Current Password</label>
             <input id="currentPassword" type="password" value={passwordForm.current}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, current: e.target.value }))}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, current: event.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">New Password</label>
             <input id="newPassword" type="password" value={passwordForm.new}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, new: e.target.value }))}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, new: event.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
             {passwordForm.new && (() => {
@@ -743,7 +741,7 @@ export default function SettingsPage() {
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Confirm New Password</label>
             <input id="confirmPassword" type="password" value={passwordForm.confirm}
-              onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirm: e.target.value }))}
+              onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirm: event.target.value }))}
               className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
             />
           </div>
@@ -796,7 +794,7 @@ export default function SettingsPage() {
               id="deviceName"
               type="text"
               value={deviceConfig.deviceName}
-              onChange={(e) => setDeviceConfig((prev) => ({ ...prev, deviceName: e.target.value }))}
+              onChange={(event) => setDeviceConfig((prev) => ({ ...prev, deviceName: event.target.value }))}
               className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
               placeholder="LitterSense Unit #1"
               disabled={isDeviceProvisioningSaving}
@@ -811,7 +809,7 @@ export default function SettingsPage() {
               id="wifiSsid"
               type="text"
               value={deviceConfig.wifiSsid}
-              onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiSsid: e.target.value }))}
+              onChange={(event) => setDeviceConfig((prev) => ({ ...prev, wifiSsid: event.target.value }))}
               className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
               placeholder="Enter the owner Wi-Fi name"
               disabled={isDeviceProvisioningSaving}
@@ -827,7 +825,7 @@ export default function SettingsPage() {
                 id="wifiPassword"
                 type={showWifiPassword ? "text" : "password"}
                 value={deviceConfig.wifiPassword}
-                onChange={(e) => setDeviceConfig((prev) => ({ ...prev, wifiPassword: e.target.value }))}
+                onChange={(event) => setDeviceConfig((prev) => ({ ...prev, wifiPassword: event.target.value }))}
                 className="w-full rounded-xl border border-litter-border px-4 py-3 pr-12 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
                 placeholder="Enter the owner Wi-Fi password"
                 disabled={isDeviceProvisioningSaving}
@@ -996,7 +994,7 @@ export default function SettingsPage() {
             </label>
             <select
               value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
+              onChange={(event) => setDeleteReason(event.target.value)}
               className="input-base w-full px-4 py-3 rounded-xl border border-litter-border text-sm focus:outline-none focus:border-litter-primary focus:ring-2 focus:ring-litter-primary/10 transition-all"
             >
               <option value="">Select a reason…</option>

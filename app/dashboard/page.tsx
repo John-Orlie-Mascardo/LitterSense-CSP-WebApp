@@ -3,8 +3,8 @@
  *
  * Three states:
  * 1. Empty — no cats registered, shows onboarding prompt
- * 2. Normal — cats registered, all healthy, no alert banner
- * 3. Anomaly — at least one cat flagged, alert banner visible
+ * 2. Normal - cats registered, no abnormal health banner
+ * 3. Anomaly - at least one cat flagged, abnormal health banner visible
  *
  * The cat selector switches per-cat data (visits, duration).
  * Visits come from Firebase catStats, updated by live RFID scans.
@@ -26,9 +26,9 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { formatDuration } from "@/lib/utils/formatters";
 
-const DISMISSED_ALERTS_STORAGE_KEY = "dashboard-dismissed-alerts";
+const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
-const getAlertSignature = (cat: { id: string; status: string }) => `${cat.id}:${cat.status}`;
+const getAbnormalSignature = (cat: { id: string; status: string }) => `${cat.id}:${cat.status}`;
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -37,16 +37,16 @@ const getLocalDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getAlertNotificationKey = (cat: { id: string; status: string }, dateKey: string) =>
-  `dashboard-alert:${dateKey}:${cat.id}:${cat.status}`;
+const getAbnormalNotificationKey = (cat: { id: string; status: string }, dateKey: string) =>
+  `dashboard-abnormal:${dateKey}:${cat.id}:${cat.status}`;
 
-const buildAlertNotificationMessage = (visitCount: number, avgDuration: string) => {
+const buildAbnormalNotificationMessage = (visitCount: number, avgDuration: string) => {
   const visitLabel = `${visitCount} visit${visitCount === 1 ? "" : "s"} logged`;
   const durationLabel = avgDuration && avgDuration !== "--"
     ? `avg duration ${avgDuration}`
     : "avg duration unavailable";
 
-  return `Unusual litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
+  return `Abnormal litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
 };
 
 
@@ -68,16 +68,7 @@ const formatDate = () => {
 };
 
 const getAirQualityStatus = (quality: string) => {
-  switch (quality) {
-    case "Normal":
-      return "healthy";
-    case "Elevated":
-      return "watch";
-    case "Poor":
-      return "alert";
-    default:
-      return "normal" as const;
-  }
+  return quality === "Abnormal" ? "abnormal" : "normal";
 };
 
 const isGasDetected = (label: string, raw: number | null | undefined) => {
@@ -90,50 +81,45 @@ const getLiveAirQuality = (
   mq136: string | undefined,
   mq135Raw: number | null | undefined,
   mq136Raw: number | null | undefined,
-): "Normal" | "Elevated" | "Poor" => {
+): "Normal" | "Abnormal" => {
   if (!mq135 || !mq136) return "Normal";
   if (isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)) {
-    return "Poor";
+    return "Abnormal";
   }
   return "Normal";
 };
 
 const getVisitsStatus = (visits: number) => {
-  if (visits > 8) return "alert";
-  if (visits > 6) return "watch";
-  return "healthy";
+  if (visits > 6) return "abnormal";
+  return "normal";
 };
 
 const getVisitsLabel = (visits: number) => {
   if (visits > 8) return "Abnormal";
-  if (visits > 6) return "Unusual";
+  if (visits > 6) return "Abnormal";
   return "Normal";
 };
 
 const getDurationLabel = (duration: string) => {
   const mins = Number.parseInt(duration);
   if (mins >= 5) return "Abnormal";
-  if (mins >= 3) return "Unusual";
+  if (mins >= 3) return "Abnormal";
   return "Normal";
 };
 
 const getDurationStatus = (duration: string) => {
   const mins = Number.parseInt(duration);
-  if (mins >= 5) return "alert";
-  if (mins >= 3) return "watch";
-  return "healthy";
+  if (mins >= 3) return "abnormal";
+  return "normal";
 };
 
 const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
   let baseLabel: string;
   switch (status) {
-    case "healthy":
+    case "normal":
       baseLabel = "Normal";
       break;
-    case "watch":
-      baseLabel = "Unusual";
-      break;
-    case "alert":
+    case "abnormal":
       baseLabel = "Abnormal";
       break;
     default:
@@ -143,16 +129,7 @@ const getStatusLabel = (status: string | undefined, includeIcon: boolean = false
 };
 
 const getAirQualityStatusLabel = (airQuality: string) => {
-  switch (airQuality) {
-    case "Normal":
-      return "Normal";
-    case "Elevated":
-      return "Unusual";
-    case "Poor":
-      return "Abnormal";
-    default:
-      return "Normal";
-  }
+  return airQuality === "Abnormal" ? "Abnormal" : "Normal";
 };
 
 const getSensorErrorLabel = (error: string | null) => {
@@ -181,13 +158,13 @@ const getRfidStatus = (
   if (sensorsError) {
     return {
       value: "Offline",
-      status: "watch" as const,
+      status: "abnormal" as const,
       label: getSensorErrorLabel(sensorsError),
     };
   }
   if (sensorsLoading) return { value: "Syncing", status: "normal" as const, label: "Polling" };
-  if (!sensorData?.online) return { value: "Offline", status: "watch" as const, label: "No data" };
-  return { value: "Online", status: "healthy" as const, label: "Live" };
+  if (!sensorData?.online) return { value: "Offline", status: "abnormal" as const, label: "No data" };
+  return { value: "Online", status: "normal" as const, label: "Live" };
 };
 
 export default function DashboardPage() {
@@ -196,8 +173,8 @@ export default function DashboardPage() {
   const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
   const { cats, getCatById, getStatsByCatId, sessions } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
-  const [dismissedAlertKeys, setDismissedAlertKeys] = useState<string[]>([]);
-  const [isDismissedAlertsReady, setIsDismissedAlertsReady] = useState(false);
+  const [dismissedAbnormalKeys, setDismissedAbnormalKeys] = useState<string[]>([]);
+  const [isDismissedAbnormalReady, setIsDismissedAbnormalReady] = useState(false);
   const {
     data: sensorData,
     isLoading: sensorsLoading,
@@ -217,105 +194,103 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
 
-  const alertCats = useMemo(
-    () => cats.filter((cat) => cat.status !== "healthy"),
+  const abnormalCats = useMemo(
+    () => cats.filter((cat) => cat.status === "abnormal"),
     [cats],
   );
-  const hasAnomaly = alertCats.length > 0;
-  const alertCat = useMemo(
-    () => alertCats.find((cat) => !dismissedAlertKeys.includes(getAlertSignature(cat))),
-    [alertCats, dismissedAlertKeys],
+  const hasAnomaly = abnormalCats.length > 0;
+  const abnormalCat = useMemo(
+    () => abnormalCats.find((cat) => !dismissedAbnormalKeys.includes(getAbnormalSignature(cat))),
+    [abnormalCats, dismissedAbnormalKeys],
   );
-  const alertNotificationPayloads = useMemo(() => {
+  const abnormalNotificationPayloads = useMemo(() => {
     const dateKey = getLocalDateKey();
 
-    return alertCats.map((cat) => {
-      const alertStats = getStatsByCatId(cat.id);
-      const visitCount = alertStats?.visits ?? 0;
-      const avgDuration = alertStats?.avgDuration ?? "--";
-      const notificationStatus = cat.status === "healthy" ? "watch" : cat.status;
-
+    return abnormalCats.map((cat) => {
+      const abnormalStats = getStatsByCatId(cat.id);
+      const visitCount = abnormalStats?.visits ?? 0;
+      const avgDuration = abnormalStats?.avgDuration ?? "--";
       return {
         type: "health" as const,
-        title: `${cat.name} - Unusual Behavior`,
-        message: buildAlertNotificationMessage(visitCount, avgDuration),
-        source: "dashboard_alert" as const,
-        alertKey: getAlertNotificationKey(cat, dateKey),
+        title: `${cat.name} - Abnormal Behavior`,
+        message: buildAbnormalNotificationMessage(visitCount, avgDuration),
+        source: "dashboard_abnormal" as const,
+        abnormalKey: getAbnormalNotificationKey(cat, dateKey),
         catId: cat.id,
         catName: cat.name,
         route: `/dashboard/cats/${cat.id}`,
-        status: notificationStatus,
+        status: "abnormal" as const,
         visitCount,
         avgDuration,
       };
     });
-  }, [alertCats, getStatsByCatId]);
+  }, [abnormalCats, getStatsByCatId]);
 
   useEffect(() => {
     try {
-      const rawValue = window.localStorage.getItem(DISMISSED_ALERTS_STORAGE_KEY);
+      const rawValue = window.localStorage.getItem(DISMISSED_ABNORMAL_STORAGE_KEY);
       if (!rawValue) {
-        setDismissedAlertKeys([]);
+        setDismissedAbnormalKeys([]);
         return;
       }
 
       const parsed = JSON.parse(rawValue);
-      setDismissedAlertKeys(
+      setDismissedAbnormalKeys(
         Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [],
       );
     } catch {
-      setDismissedAlertKeys([]);
+      setDismissedAbnormalKeys([]);
     } finally {
-      setIsDismissedAlertsReady(true);
+      setIsDismissedAbnormalReady(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!isDismissedAlertsReady) return;
+    if (!isDismissedAbnormalReady) return;
 
-    const activeAlertKeys = new Set(alertCats.map((cat) => getAlertSignature(cat)));
-    setDismissedAlertKeys((prev) => {
-      const next = prev.filter((key) => activeAlertKeys.has(key));
+    const activeAbnormalKeys = new Set(abnormalCats.map((cat) => getAbnormalSignature(cat)));
+    setDismissedAbnormalKeys((prev) => {
+      const next = prev.filter((key) => activeAbnormalKeys.has(key));
       return next.length === prev.length ? prev : next;
     });
-  }, [alertCats, isDismissedAlertsReady]);
+  }, [abnormalCats, isDismissedAbnormalReady]);
 
   useEffect(() => {
-    if (!isDismissedAlertsReady) return;
+    if (!isDismissedAbnormalReady) return;
 
     try {
       window.localStorage.setItem(
-        DISMISSED_ALERTS_STORAGE_KEY,
-        JSON.stringify(dismissedAlertKeys),
+        DISMISSED_ABNORMAL_STORAGE_KEY,
+        JSON.stringify(dismissedAbnormalKeys),
       );
     } catch {
-      // Ignore storage failures; alert dismissal still works for the current render.
+      // Ignore storage failures; abnormal banner dismissal still works for the current render.
     }
-  }, [dismissedAlertKeys, isDismissedAlertsReady]);
+  }, [dismissedAbnormalKeys, isDismissedAbnormalReady]);
 
   useEffect(() => {
-    if (notificationsLoading || alertNotificationPayloads.length === 0) return;
+    if (notificationsLoading || abnormalNotificationPayloads.length === 0) return;
 
-    const syncAlertNotifications = async () => {
-      for (const notification of alertNotificationPayloads) {
+    const syncAbnormalNotifications = async () => {
+      for (const notification of abnormalNotificationPayloads) {
         await upsertNotification(notification);
       }
     };
 
-    void syncAlertNotifications();
-  }, [alertNotificationPayloads, notificationsLoading, upsertNotification]);
+    void syncAbnormalNotifications();
+  }, [abnormalNotificationPayloads, notificationsLoading, upsertNotification]);
 
-  const handleViewAlertDetails = () => {
-    if (!alertCat) return;
-    router.push(`/dashboard/cats/${alertCat.id}`);
+  const handleViewAbnormalDetails = () => {
+    if (!abnormalCat) return;
+    router.push(`/dashboard/cats/${abnormalCat.id}`);
   };
 
-  const handleDismissAlert = () => {
-    if (!alertCat) return;
+  const handleDismissAbnormal = () => {
+    if (!abnormalCat) return;
 
-    const alertKey = getAlertSignature(alertCat);
-    setDismissedAlertKeys((prev) => (
-      prev.includes(alertKey) ? prev : [...prev, alertKey]
+    const abnormalKey = getAbnormalSignature(abnormalCat);
+    setDismissedAbnormalKeys((prev) => (
+      prev.includes(abnormalKey) ? prev : [...prev, abnormalKey]
     ));
   };
 
@@ -401,7 +376,7 @@ export default function DashboardPage() {
         ) : (
           /* ── NORMAL / ANOMALY STATE ── */
           <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
-            {/* ── LEFT COLUMN: Greeting + Cat Selector + Alert ── */}
+            {/* ── LEFT COLUMN: Greeting + Cat Selector + Abnormal Banner ── */}
             <div className="lg:sticky lg:top-24 lg:pt-6">
               {/* Greeting Section */}
               <section className="mb-6 pt-6">
@@ -432,8 +407,8 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              {/* Health Alert Banner */}
-              {isDismissedAlertsReady && alertCat && (
+              {/* Abnormal Health Banner */}
+              {isDismissedAbnormalReady && abnormalCat && (
                 <div className="overflow-hidden mb-6">
                   <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-r-2xl rounded-l-sm p-4">
                     <div className="flex items-start gap-3 mb-3">
@@ -442,23 +417,23 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-amber-700 font-bold text-sm">
-                          {alertCat.name} - Unusual Behavior
+                          {abnormalCat.name} - Abnormal Behavior
                         </p>
                         <p className="text-litter-muted text-xs mt-1">
-                          Unusual litter box behavior detected today. Consider
+                          Abnormal litter box behavior detected today. Consider
                           logging a vet visit if symptoms persist.
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={handleViewAlertDetails}
+                        onClick={handleViewAbnormalDetails}
                         className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
                       >
                         View Details
                       </button>
                       <button
-                        onClick={handleDismissAlert}
+                        onClick={handleDismissAbnormal}
                         className="px-4 py-2.5 bg-white/80 hover:bg-white text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
                       >
                         Dismiss
@@ -493,11 +468,9 @@ export default function DashboardPage() {
                 </div>
                 <span
                   className={`text-xs px-3 py-1.5 rounded-full font-semibold ${
-                    selectedCat?.status === "healthy"
+                    selectedCat?.status === "normal"
                       ? "bg-green-100 text-green-700"
-                      : selectedCat?.status === "watch"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-red-100 text-red-700"
+                      : "bg-red-100 text-red-700"
                   }`}
                 >
                   {getStatusLabel(selectedCat?.status, true)}
@@ -516,18 +489,12 @@ export default function DashboardPage() {
                   {/* Mobile-only status badge */}
                   <span
                     className={`lg:hidden text-xs px-2 py-1 rounded-full font-medium ${
-                      selectedCat?.status === "healthy"
+                      selectedCat?.status === "normal"
                         ? "bg-green-100 text-green-700"
-                        : selectedCat?.status === "watch"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
+                        : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {selectedCat?.status === "healthy"
-                      ? "Normal"
-                      : selectedCat?.status === "watch"
-                        ? "Unusual"
-                        : "Abnormal"}
+                    {getStatusLabel(selectedCat?.status)}
                   </span>
                 </div>
 
@@ -550,7 +517,7 @@ export default function DashboardPage() {
                     icon={Wind}
                     value={airQuality}
                     label="Air Quality"
-                    status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
+                    status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
                     statusLabel={airQualityStatusLabel}
                   />
                   <StatCard
@@ -629,3 +596,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

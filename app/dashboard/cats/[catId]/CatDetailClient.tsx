@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -34,11 +34,11 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import type { Session, HealthLog } from "@/lib/data/mockData";
+import type { CatDetails, Session, HealthLog } from "@/lib/data/mockData";
 import {
   getStatusColor,
   getStatusLabel,
@@ -49,6 +49,53 @@ import {
   getHealthLogTypeColor,
   generateId,
 } from "@/lib/utils/formatters";
+import { cropImageToSquare } from "@/lib/utils/imageCrop";
+
+const AVATAR_PREVIEW_SIZE = 128;
+
+interface PhotoOffset {
+  x: number;
+  y: number;
+}
+
+interface PhotoSize {
+  width: number;
+  height: number;
+}
+
+interface PhotoDragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+}
+
+const getPhotoPanLimit = (size: PhotoSize | null, zoom: number) => {
+  if (!size) return { x: 0, y: 0 };
+  const scale =
+    Math.max(
+      AVATAR_PREVIEW_SIZE / size.width,
+      AVATAR_PREVIEW_SIZE / size.height,
+    ) * zoom;
+
+  return {
+    x: Math.max(0, (size.width * scale - AVATAR_PREVIEW_SIZE) / 2),
+    y: Math.max(0, (size.height * scale - AVATAR_PREVIEW_SIZE) / 2),
+  };
+};
+
+const clampPhotoOffset = (
+  offset: PhotoOffset,
+  size: PhotoSize | null,
+  zoom: number,
+) => {
+  const limit = getPhotoPanLimit(size, zoom);
+  return {
+    x: Math.min(limit.x, Math.max(-limit.x, offset.x)),
+    y: Math.min(limit.y, Math.max(-limit.y, offset.y)),
+  };
+};
 
 const tabs = [
   { id: "overview", label: "Overview" },
@@ -72,14 +119,12 @@ const getLiveAirQuality = (
 ) => {
   if (!mq135 || !mq136) return "Normal";
   return isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)
-    ? "Poor"
+    ? "Abnormal"
     : "Normal";
 };
 
 const getAirQualityStatus = (airQuality: string) => {
-  if (airQuality === "Poor") return "alert";
-  if (airQuality === "Elevated") return "watch";
-  return "healthy";
+  return airQuality === "Abnormal" ? "abnormal" : "normal";
 };
 
 const getTrendBaseline = (
@@ -129,11 +174,17 @@ const getTrendBaseline = (
 interface EditFormData {
   name: string;
   breed: string;
+  gender: "" | NonNullable<CatDetails["gender"]>;
   dob: string;
   weightKg: string;
   rfidTag: string;
   photo: string | null;
 }
+
+const formatGender = (gender?: CatDetails["gender"]) => {
+  if (!gender) return "Unknown gender";
+  return gender.charAt(0).toUpperCase() + gender.slice(1);
+};
 
 export default function CatDetailClient() {
   const params = useParams();
@@ -165,22 +216,27 @@ export default function CatDetailClient() {
 
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<CatDetailTabId>("overview");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editPhotoZoom, setEditPhotoZoom] = useState(1);
+  const [editPhotoOffset, setEditPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
+  const [editPhotoSize, setEditPhotoSize] = useState<PhotoSize | null>(null);
+  const editPhotoDragRef = useRef<PhotoDragState | null>(null);
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditFormData, string>>>({});
   const [editForm, setEditForm] = useState<EditFormData>({
     name: cat?.name ?? "",
     breed: details?.breed ?? "",
+    gender: details?.gender ?? "",
     dob: details?.dob ?? "",
     weightKg: details?.weightKg ? String(details.weightKg) : "",
     rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
     photo: cat?.avatar ?? null,
   });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
@@ -197,11 +253,15 @@ export default function CatDetailClient() {
     setEditForm({
       name: cat?.name ?? "",
       breed: details?.breed ?? "",
+      gender: details?.gender ?? "",
       dob: details?.dob ?? "",
       weightKg: details?.weightKg ? String(details.weightKg) : "",
       rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
       photo: cat?.avatar ?? null,
     });
+    setEditPhotoZoom(1);
+    setEditPhotoOffset({ x: 0, y: 0 });
+    setEditPhotoSize(null);
     setEditErrors({});
     setIsEditOpen(true);
   };
@@ -210,7 +270,11 @@ export default function CatDetailClient() {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setEditForm((p) => ({ ...p, photo: reader.result as string }));
+      reader.onloadend = () => {
+        setEditForm((p) => ({ ...p, photo: reader.result as string }));
+        setEditPhotoZoom(1);
+        setEditPhotoOffset({ x: 0, y: 0 });
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -219,13 +283,19 @@ export default function CatDetailClient() {
     const errs: Partial<Record<keyof EditFormData, string>> = {};
     if (!editForm.name.trim()) errs.name = "Name is required";
     if (!editForm.breed.trim()) errs.breed = "Breed is required";
+    if (!editForm.gender) errs.gender = "Gender is required";
     if (!editForm.dob) errs.dob = "Date of birth is required";
     if (Object.keys(errs).length > 0) { setEditErrors(errs); return; }
 
     setIsSaving(true);
-    await updateCat(catId, { name: editForm.name.trim(), avatar: editForm.photo });
+    const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
+    const avatar = editForm.photo
+      ? await cropImageToSquare(editForm.photo, editPhotoZoom, editPhotoOffset)
+      : null;
+    await updateCat(catId, { name: editForm.name.trim(), avatar });
     await updateDetails(catId, {
       breed: editForm.breed,
+      gender,
       dob: editForm.dob,
       weightKg: editForm.weightKg ? parseFloat(editForm.weightKg) : 0,
       rfidTag: editForm.rfidTag || "—",
@@ -233,6 +303,45 @@ export default function CatDetailClient() {
     setIsSaving(false);
     setIsEditOpen(false);
     addToast("Cat profile updated!", "success");
+  };
+
+  const resetEditPhotoState = () => {
+    setEditPhotoZoom(1);
+    setEditPhotoOffset({ x: 0, y: 0 });
+    setEditPhotoSize(null);
+  };
+
+  const handleEditPhotoPointerDown = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (!editForm.photo) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    editPhotoDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: editPhotoOffset.x,
+      originY: editPhotoOffset.y,
+    };
+  };
+
+  const handleEditPhotoPointerMove = (event: React.PointerEvent<HTMLImageElement>) => {
+    const drag = editPhotoDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setEditPhotoOffset(
+      clampPhotoOffset(
+        {
+          x: drag.originX + event.clientX - drag.startX,
+          y: drag.originY + event.clientY - drag.startY,
+        },
+        editPhotoSize,
+        editPhotoZoom,
+      ),
+    );
+  };
+
+  const handleEditPhotoPointerUp = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (editPhotoDragRef.current?.pointerId === event.pointerId) {
+      editPhotoDragRef.current = null;
+    }
   };
 
   const handleDelete = async () => {
@@ -303,6 +412,7 @@ export default function CatDetailClient() {
 
             <p className="text-theme-muted mb-3">
               {details?.breed || "Unknown breed"}
+              {` · ${formatGender(details?.gender)}`}
               {details?.dob ? ` · ${calculateAge(details.dob)}` : ""}
               {details?.weightKg ? ` · ${details.weightKg} kg` : ""}
             </p>
@@ -323,33 +433,83 @@ export default function CatDetailClient() {
           <div className="space-y-6">
 
             {/* Photo */}
-            <label className="group relative flex flex-col items-center justify-center gap-2 cursor-pointer">
-              <div className={`relative w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed transition-colors ${editForm.photo ? "border-litter-primary" : "border-litter-border hover:border-litter-primary"} bg-litter-primary-light/30`}>
-                {editForm.photo ? (
-                  <>
-                    <img src={editForm.photo} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+            <div className="flex flex-col items-center justify-center gap-3">
+              {editForm.photo ? (
+                <>
+                  <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-litter-primary bg-litter-primary-light/30">
+                    <img
+                      src={editForm.photo}
+                      alt="Avatar preview"
+                      className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
+                      draggable={false}
+                      onLoad={(event) => {
+                        setEditPhotoSize({
+                          width: event.currentTarget.naturalWidth,
+                          height: event.currentTarget.naturalHeight,
+                        });
+                      }}
+                      onPointerDown={handleEditPhotoPointerDown}
+                      onPointerMove={handleEditPhotoPointerMove}
+                      onPointerUp={handleEditPhotoPointerUp}
+                      onPointerCancel={handleEditPhotoPointerUp}
+                      style={{
+                        transform: `translate(${editPhotoOffset.x}px, ${editPhotoOffset.y}px) scale(${editPhotoZoom})`,
+                      }}
+                    />
+                    <label
+                      htmlFor="edit-cat-photo-input"
+                      className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1"
+                    >
                       <Camera className="w-6 h-6 text-white" />
                       <span className="text-white text-xs font-medium">Change photo</span>
-                    </div>
-                  </>
-                ) : (
+                    </label>
+                  </div>
+                  <div className="w-full max-w-xs">
+                    <label className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="2.5"
+                      step="0.05"
+                      value={editPhotoZoom}
+                      onChange={(event) => {
+                        const nextZoom = Number(event.target.value);
+                        setEditPhotoZoom(nextZoom);
+                        setEditPhotoOffset((current) =>
+                          clampPhotoOffset(current, editPhotoSize, nextZoom),
+                        );
+                      }}
+                      className="w-full accent-litter-primary"
+                    />
+                    <p className="text-[11px] text-litter-muted mt-1">Drag the photo to reposition.</p>
+                  </div>
+                </>
+              ) : (
+                <label
+                  htmlFor="edit-cat-photo-input"
+                  className="group relative flex w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed border-litter-border hover:border-litter-primary transition-colors bg-litter-primary-light/30 cursor-pointer"
+                >
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
                     <div className="w-10 h-10 rounded-full bg-litter-primary/10 flex items-center justify-center group-hover:bg-litter-primary/20 transition-colors">
                       <Upload className="w-5 h-5 text-litter-primary" />
                     </div>
                     <p className="text-sm font-medium text-litter-primary">Upload photo</p>
                   </div>
-                )}
-              </div>
-              {editForm.photo && (
-                <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); }}
-                  className="flex items-center gap-1 text-xs text-litter-muted hover:text-red-500 transition-colors">
-                  <XIcon className="w-3 h-3" /> Remove photo
-                </button>
+                </label>
               )}
-              <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-            </label>
+              {editForm.photo && (
+                <div className="flex items-center gap-3 text-xs">
+                  <label htmlFor="edit-cat-photo-input" className="text-litter-muted hover:text-litter-primary transition-colors cursor-pointer">
+                    Change photo
+                  </label>
+                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); resetEditPhotoState(); }}
+                    className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors">
+                    <XIcon className="w-3 h-3" /> Remove photo
+                  </button>
+                </div>
+              )}
+              <input id="edit-cat-photo-input" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            </div>
 
             {/* Basic Info */}
             <div className="space-y-3">
@@ -377,6 +537,28 @@ export default function CatDetailClient() {
                 <BreedPicker value={editForm.breed} hasError={!!editErrors.breed}
                   onChange={(v) => { setEditForm((p) => ({ ...p, breed: v })); setEditErrors((p) => ({ ...p, breed: undefined })); }} />
                 {editErrors.breed && <p className="text-red-500 text-xs mt-1">{editErrors.breed}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editForm.gender}
+                  onChange={(e) => {
+                    setEditForm((p) => ({
+                      ...p,
+                      gender: e.target.value as EditFormData["gender"],
+                    }));
+                    setEditErrors((p) => ({ ...p, gender: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-[var(--color-placeholder)]"}`}
+                >
+                  <option value="" disabled>Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+                {editErrors.gender && <p className="text-red-500 text-xs mt-1">{editErrors.gender}</p>}
               </div>
             </div>
 
@@ -614,13 +796,13 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
             icon={Wind}
             value={airQuality}
             label="Air Quality"
-            status={sensorsError ? "watch" : getAirQualityStatus(airQuality)}
+            status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
           />
           <StatCard
             icon={Tag}
             value={rfidValue}
             label="RFID Reader"
-            status={sensorData?.online && !sensorsError ? "healthy" : "watch"}
+            status={sensorData?.online && !sensorsError ? "normal" : "abnormal"}
           />
         </div>
       </div>
@@ -701,7 +883,7 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
                   </p>
                 </div>
                 <span className="px-2 py-1 bg-amber-200 text-amber-800 text-xs rounded-full font-medium">
-                  Watch
+                  Abnormal
                 </span>
               </div>
             ))}
@@ -906,7 +1088,7 @@ function TrendsTab({ trendData, baseline }: TrendsTabProps) {
 interface HealthLogTabProps {
   catId: string;
   logs: HealthLog[];
-  addToast: (message: string, type: ToastProps["type"]) => void;
+  addToast: (message: string, type: ToastParams["type"]) => void;
   addHealthLog: (
     catId: string,
     type: HealthLog["type"],

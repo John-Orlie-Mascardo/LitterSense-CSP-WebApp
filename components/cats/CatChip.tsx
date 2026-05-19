@@ -8,7 +8,7 @@
 
 "use client";
 
-import { Cat } from "@/lib/data/mockData";
+import { Cat } from "@/lib/data/data";
 
 interface CatChipProps {
   cat: Cat;
@@ -17,9 +17,8 @@ interface CatChipProps {
 }
 
 const statusColors = {
-  healthy: "bg-green-500",
-  watch: "bg-amber-500",
-  alert: "bg-red-500",
+  normal: "bg-green-500",
+  abnormal: "bg-red-500",
 };
 
 export function CatChip({ cat, isActive, onClick }: CatChipProps) {
