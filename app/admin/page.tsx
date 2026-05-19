@@ -36,6 +36,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { mockAdminUsers, type AdminUser } from "@/lib/data/data";
 import { generateId } from "@/lib/utils/formatters";
+import { RulesManager } from "@/components/admin/RulesManager";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -315,14 +316,14 @@ export default function AdminDashboardPage() {
             icon={Trash2}
             value={agg.pendingDeletes}
             label="Pending Deletions"
-            status={agg.pendingDeletes > 0 ? "alert" : "normal"}
+            status={agg.pendingDeletes > 0 ? "abnormal" : "normal"}
             statusLabel={agg.pendingDeletes > 0 ? "Needs review" : "All clear"}
           />
           <StatCard
             icon={UserCheck}
             value={agg.activeUsers}
             label="Active Users"
-            status="healthy"
+            status="normal"
             statusLabel="last 7 days"
           />
         </div>
@@ -456,7 +457,7 @@ export default function AdminDashboardPage() {
               </p>
             </div>
             {agg.pendingDeletes > 0 && (
-              <span className="shrink-0 px-2.5 py-1 bg-status-alert text-status-alert text-xs font-semibold rounded-full">
+              <span className="shrink-0 px-2.5 py-1 bg-status-danger text-status-danger text-xs font-semibold rounded-full">
                 {agg.pendingDeletes} pending
               </span>
             )}
@@ -490,7 +491,7 @@ export default function AdminDashboardPage() {
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
                           req.status === "pending"
-                            ? "bg-status-alert text-status-alert"
+                            ? "bg-status-danger text-status-danger"
                             : req.status === "approved"
                             ? "bg-litter-primary-light text-litter-primary"
                             : "bg-litter-bg text-litter-muted border border-litter-border"
@@ -536,7 +537,7 @@ export default function AdminDashboardPage() {
                       </button>
                       <button
                         onClick={() => handleReject(req.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-card border border-litter-border text-litter-text text-xs font-semibold rounded-lg hover:border-litter-alert hover:text-litter-alert transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-card border border-litter-border text-litter-text text-xs font-semibold rounded-lg hover:border-litter-danger hover:text-litter-danger transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                         Reject
@@ -552,6 +553,9 @@ export default function AdminDashboardPage() {
             </ul>
           )}
         </div>
+
+        {/* ── System Rules ──────────────────────────────────────────────── */}
+        <RulesManager />
 
         {/* ── Users table ──────────────────────────────────────────────── */}
         <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
@@ -684,7 +688,7 @@ export default function AdminDashboardPage() {
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${
                             u.status === "active"
-                              ? "bg-status-healthy text-status-healthy"
+                              ? "bg-status-normal text-status-normal"
                               : "bg-litter-bg text-litter-muted border border-litter-border"
                           }`}
                         >

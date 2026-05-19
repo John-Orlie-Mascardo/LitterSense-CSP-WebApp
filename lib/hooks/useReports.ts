@@ -10,8 +10,8 @@ import {
   type Session,
 } from "../data/data";
 import { generateId } from "../utils/formatters";
-import { ReportConfig } from "../interfaces/reportconfig_temp";
-import { ReportData } from "../interfaces/reportData_temp";
+import { ReportConfig } from "@/lib/interfaces/ReportConfig";
+import { ReportData } from "@/lib/interfaces/ReportData";
 
 export type ReportSession = Session & {
   catName: string;
@@ -228,16 +228,16 @@ export function useReports() {
       0,
     );
 
-    let overallStatus: "healthy" | "watch" | "alert" = "healthy";
+    let overallStatus: "normal" | "abnormal" = "normal";
     let statusMessage = "No concerning patterns detected";
 
     if (anomaliesDetected > 0) {
       if (anomaliesDetected > 2) {
-        overallStatus = "alert";
+        overallStatus = "abnormal";
         statusMessage = "Multiple anomalies detected - recommend vet consultation";
       } else {
-        overallStatus = "watch";
-        statusMessage = "Elevated visit frequency - monitor closely";
+        overallStatus = "abnormal";
+        statusMessage = "Abnormal visit frequency - monitor closely";
       }
     }
 

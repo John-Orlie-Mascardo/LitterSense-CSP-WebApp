@@ -9,13 +9,13 @@
  * - Device-level data: air quality, litter level (shared across all cats — one litter box)
  */
 
-import { Cat } from "../interfaces/cat_temp";
-import { CatStats} from "../interfaces/catStats_temp";
-import { ActivityItemData } from "../interfaces/activityItemData_temp";
-import { CatDetails } from "../interfaces/catDetails_temp";
-import { Session } from "../interfaces/session_temp";
-import { HealthLog } from "../interfaces/healthlog_temp";
-import { PastReport } from "../interfaces/pastReport_temp";
+import { Cat } from "@/lib/interfaces/Cat";
+import { CatStats } from "@/lib/interfaces/CatStats";
+import { ActivityItemData } from "@/lib/interfaces/ActivityItemData";
+import { CatDetails } from "@/lib/interfaces/CatDetails";
+import { Session } from "@/lib/interfaces/Session";
+import { HealthLog } from "@/lib/interfaces/HealthLog";
+import { PastReport } from "@/lib/interfaces/PastReport";
 
 // Mock data for testing and development
 // ⚠️ EMPTY ARRAYS — Users add their own cats manually
@@ -30,7 +30,7 @@ export const mockStats: Record<string, CatStats> = {};
 
 /** Device-level stats — shared across all cats (one physical litter box). Not per-cat. */
 export const deviceStats = {
-  airQuality: "Normal" as "Normal" | "Elevated" | "Poor",
+  airQuality: "Normal" as "Normal" | "Abnormal",
   litterLevel: 68,
 };
 

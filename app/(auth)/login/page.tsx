@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/configs/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
@@ -48,24 +48,24 @@ export default function LoginPage() {
     }
   }, [user, authLoading, isAdmin, router]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault();
     setIsLoading(true);
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push(isAdmin ? "/admin" : "/dashboard");
-    } catch (err) {
+      router.push(email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
+    } catch (error) {
       let errorMessage = "Failed to sign in.";
-      if (err instanceof FirebaseError) {
-        if (err.code === "auth/invalid-credential" || err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
+      if (error instanceof FirebaseError) {
+        if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
           errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
-        } else if (err.code === "auth/too-many-requests") {
+        } else if (error.code === "auth/too-many-requests") {
           errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
-        } else if (err.code === "auth/invalid-email") {
+        } else if (error.code === "auth/invalid-email") {
           errorMessage = "Please enter a valid email address.";
         } else {
-          errorMessage = err.message || "Failed to sign in.";
+          errorMessage = error.message || "Failed to sign in.";
         }
       }
       setError(errorMessage);
@@ -90,9 +90,9 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push(isAdmin ? "/admin" : "/dashboard");
-    } catch (err) {
-      const message = err instanceof FirebaseError ? err.message : "Failed to sign in with Google.";
+      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
+    } catch (error) {
+      const message = error instanceof FirebaseError ? error.message : "Failed to sign in with Google.";
       setError(message);
     } finally {
       setIsLoading(false);
@@ -209,7 +209,7 @@ export default function LoginPage() {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
@@ -231,7 +231,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   id="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
                   className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required
@@ -304,7 +304,7 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign In */}
-          <button 
+          <button
             type="button"
             onClick={handleGoogleSignIn}
             className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"

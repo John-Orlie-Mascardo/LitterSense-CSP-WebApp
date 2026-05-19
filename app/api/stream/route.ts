@@ -1,4 +1,4 @@
-const DEFAULT_ESP32_BASE_URL = "http://192.168.68.116";
+const DEFAULT_ESP32_BASE_URL = "http://192.168.189.40";
 
 const ESP32_STREAM_URL =
   process.env.ESP32_STREAM_URL ??

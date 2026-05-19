@@ -15,7 +15,7 @@ import {
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 const OWNER_DEVICE_CONFIG_DOC_ID = "default";

@@ -4,10 +4,14 @@ import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { CatProvider } from "@/lib/contexts/CatContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LitterSense - Feline Health Monitoring",
+  title: {
+    default: "Login | LitterSense",
+    template: "%s | LitterSense",
+  },
   description: "IoT-enabled feline health monitoring for Filipino cat owners. Early detection, healthier cats.",
   manifest: "/manifest.json",
   icons: {
@@ -17,7 +21,6 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "LitterSense",
   },
 };
 

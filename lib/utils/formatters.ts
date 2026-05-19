@@ -39,28 +39,21 @@ export function formatTimeAgo(dateStr: string, timeStr: string): string {
   return `${diffDays} days ago`;
 }
 
-export function getStatusColor(status: "healthy" | "watch" | "alert"): {
+export function getStatusColor(status: "normal" | "abnormal"): {
   bg: string;
   text: string;
   border: string;
   indicator: string;
 } {
   switch (status) {
-    case "healthy":
+    case "normal":
       return {
         bg: "bg-green-100",
         text: "text-green-700",
         border: "border-green-500",
         indicator: "bg-green-500",
       };
-    case "watch":
-      return {
-        bg: "bg-amber-100",
-        text: "text-amber-700",
-        border: "border-amber-500",
-        indicator: "bg-amber-500",
-      };
-    case "alert":
+    case "abnormal":
       return {
         bg: "bg-red-100",
         text: "text-red-700",
@@ -77,14 +70,12 @@ export function getStatusColor(status: "healthy" | "watch" | "alert"): {
   }
 }
 
-export function getStatusLabel(status: "healthy" | "watch" | "alert"): string {
+export function getStatusLabel(status: "normal" | "abnormal"): string {
   switch (status) {
-    case "healthy":
-      return "Healthy";
-    case "watch":
-      return "Watch";
-    case "alert":
-      return "Alert — See vet";
+    case "normal":
+      return "Normal";
+    case "abnormal":
+      return "Abnormal";
     default:
       return "Unknown";
   }
@@ -96,10 +87,8 @@ export function getDeltaLabel(value: number): {
 } {
   if (value < 10) {
     return { color: "bg-green-500", label: "Normal" };
-  } else if (value < 20) {
-    return { color: "bg-amber-500", label: "Elevated" };
   } else {
-    return { color: "bg-red-500", label: "High" };
+    return { color: "bg-red-500", label: "Abnormal" };
   }
 }
 
