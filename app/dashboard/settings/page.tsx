@@ -105,16 +105,21 @@ export default function SettingsPage() {
   const { getUserRequest, submitRequest } = useDeleteRequest();
   const userRequest = user ? getUserRequest(user.uid) : undefined;
 
-  const handleSubmitDeletion = () => {
+  const handleSubmitDeletion = async () => {
     if (!user) return;
-    submitRequest(
-      user.uid,
-      user.displayName || user.email?.split("@")[0] || "User",
-      user.email || "",
-      deleteReason || "No reason provided"
-    );
-    setDeleteReason("");
-    addToast("Deletion request submitted. An admin will review it soon.", "info");
+    try {
+      await submitRequest(
+        user.uid,
+        user.displayName || user.email?.split("@")[0] || "User",
+        user.email || "",
+        deleteReason || "No reason provided"
+      );
+      setDeleteReason("");
+      addToast("Deletion request submitted. An admin will review it soon.", "info");
+    } catch (error) {
+      console.error("Failed to submit deletion request:", error);
+      addToast("Failed to submit request. Please try again.", "error");
+    }
   };
 
   // Edit profile form
