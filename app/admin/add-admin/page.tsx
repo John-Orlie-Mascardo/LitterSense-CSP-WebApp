@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type FormEvent, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { UserPlus, Trash2, Mail, ShieldAlert, Loader2, Key } from "lucide-react";
 import { collection, doc, setDoc, getDocs, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
@@ -61,7 +61,7 @@ export default function AddAdminPage() {
     fetchAdmins();
   }, []);
 
-  const handleAddAdmin = async (e: FormEvent<HTMLFormElement>) => {
+  const handleAddAdmin = async (e: SubmitEvent) => {
     e.preventDefault();
     const emailLower = email.trim().toLowerCase();
 
