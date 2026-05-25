@@ -12,6 +12,7 @@
 
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
@@ -448,9 +449,12 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden">
                     {selectedCat?.avatar ? (
-                      <img
+                      <Image
                         src={selectedCat.avatar}
                         alt={selectedCat.name}
+                        width={44}
+                        height={44}
+                        unoptimized
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -551,9 +555,12 @@ export default function DashboardPage() {
                       >
                         <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0 overflow-hidden">
                           {cat?.avatar ? (
-                            <img
+                            <Image
                               src={cat.avatar}
                               alt={cat.name}
+                              width={40}
+                              height={40}
+                              unoptimized
                               className="w-full h-full object-cover"
                             />
                           ) : (
