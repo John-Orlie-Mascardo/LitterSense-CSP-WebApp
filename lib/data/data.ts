@@ -344,7 +344,7 @@ export function getTrendData(catId: string) {
 
   if (!baseline) return null;
 
-  return days.map((day, index) => {
+  return days.map((day) => {
     // Add some random variation around the baseline
     const visitVariation = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
     const durationVariation = Math.floor(Math.random() * 60) - 30; // +/- 30 seconds

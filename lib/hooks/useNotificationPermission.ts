@@ -4,53 +4,75 @@ import { useState, useEffect, useCallback } from "react";
 
 type PermissionStatus = "idle" | "granted" | "denied" | "dismissed";
 
+interface PermissionState {
+  status: PermissionStatus;
+  showBanner: boolean;
+  shouldRegisterServiceWorker: boolean;
+}
+
 const STORAGE_KEY = "littersense_notif_permission";
 const DISMISSED_KEY = "littersense_notif_dismissed_at";
-const REPROMPT_DELAY_MS = 24 * 60 * 60 * 1000; // re-prompt after 24 hours if dismissed
+const REPROMPT_DELAY_MS = 24 * 60 * 60 * 1000;
 
-export function useNotificationPermission() {
-  const [status, setStatus] = useState<PermissionStatus>("idle");
-  const [showBanner, setShowBanner] = useState(false);
+function getInitialPermissionState(): PermissionState {
+  if (globalThis.window === undefined || !("Notification" in globalThis.window)) {
+    return {
+      status: "idle",
+      showBanner: false,
+      shouldRegisterServiceWorker: false,
+    };
+  }
 
-  // On mount — check stored state and browser permission
-  useEffect(() => {
-    if (globalThis.window === undefined) return;
+  const stored = localStorage.getItem(STORAGE_KEY) as PermissionStatus | null;
+  const browserPerm = Notification.permission;
 
-    // If browser doesn't support notifications at all, bail silently
-    if (!("Notification" in globalThis.window)) return;
+  if (browserPerm === "granted") {
+    return {
+      status: "granted",
+      showBanner: false,
+      shouldRegisterServiceWorker: true,
+    };
+  }
 
-    const stored = localStorage.getItem(STORAGE_KEY) as PermissionStatus | null;
-    const browserPerm = Notification.permission;
+  if (browserPerm === "denied") {
+    return {
+      status: "denied",
+      showBanner: false,
+      shouldRegisterServiceWorker: false,
+    };
+  }
 
-    // Browser already granted — register SW, no banner needed
-    if (browserPerm === "granted") {
-      setStatus("granted");
-      registerServiceWorker();
-      return;
-    }
-
-    // Browser hard-denied — nothing we can do, show settings hint handled elsewhere
-    if (browserPerm === "denied") {
-      setStatus("denied");
-      return;
-    }
-
-    // If user previously dismissed — only re-prompt after delay
-    if (stored === "dismissed") {
-      const dismissedAt = localStorage.getItem(DISMISSED_KEY);
-      if (dismissedAt) {
-        const elapsed = Date.now() - Number.parseInt(dismissedAt, 10);
-        if (elapsed < REPROMPT_DELAY_MS) return; // too soon, don't show
+  if (stored === "dismissed") {
+    const dismissedAt = localStorage.getItem(DISMISSED_KEY);
+    if (dismissedAt) {
+      const elapsed = Date.now() - Number.parseInt(dismissedAt, 10);
+      if (elapsed < REPROMPT_DELAY_MS) {
+        return {
+          status: "idle",
+          showBanner: false,
+          shouldRegisterServiceWorker: false,
+        };
       }
     }
+  }
 
-    // If not yet decided — show the banner
-    if (!stored || stored === "dismissed") {
-      setShowBanner(true);
+  return {
+    status: "idle",
+    showBanner: !stored || stored === "dismissed",
+    shouldRegisterServiceWorker: false,
+  };
+}
+
+export function useNotificationPermission() {
+  const [permissionState, setPermissionState] = useState(getInitialPermissionState);
+  const { status, showBanner, shouldRegisterServiceWorker } = permissionState;
+
+  useEffect(() => {
+    if (shouldRegisterServiceWorker) {
+      void registerServiceWorker();
     }
-  }, []);
+  }, [shouldRegisterServiceWorker]);
 
-  // Trigger banner on anomaly event (call this from anywhere in the app)
   const triggerOnAnomaly = useCallback(() => {
     if (globalThis.window === undefined) return;
     if (!("Notification" in globalThis.window)) return;
@@ -65,32 +87,43 @@ export function useNotificationPermission() {
         if (elapsed < REPROMPT_DELAY_MS) return;
       }
     }
-    setShowBanner(true);
+
+    setPermissionState((current) => ({
+      ...current,
+      showBanner: true,
+    }));
   }, []);
 
-  // User clicks "Enable Notifications"
   const requestPermission = useCallback(async () => {
     if (!("Notification" in globalThis.window)) return;
 
     const result = await Notification.requestPermission();
 
     if (result === "granted") {
-      setStatus("granted");
-      setShowBanner(false);
+      setPermissionState({
+        status: "granted",
+        showBanner: false,
+        shouldRegisterServiceWorker: true,
+      });
       localStorage.setItem(STORAGE_KEY, "granted");
       localStorage.removeItem(DISMISSED_KEY);
-      registerServiceWorker();
+      await registerServiceWorker();
     } else if (result === "denied") {
-      setStatus("denied");
-      setShowBanner(false);
+      setPermissionState({
+        status: "denied",
+        showBanner: false,
+        shouldRegisterServiceWorker: false,
+      });
       localStorage.setItem(STORAGE_KEY, "denied");
     }
   }, []);
 
-  // User clicks "Maybe Later" (dismissed)
   const dismissBanner = useCallback(() => {
-    setStatus("dismissed");
-    setShowBanner(false);
+    setPermissionState({
+      status: "dismissed",
+      showBanner: false,
+      shouldRegisterServiceWorker: false,
+    });
     localStorage.setItem(STORAGE_KEY, "dismissed");
     localStorage.setItem(DISMISSED_KEY, Date.now().toString());
   }, []);
@@ -104,8 +137,6 @@ export function useNotificationPermission() {
   };
 }
 
-// ─── Service Worker Registration ──────────────────────────────────────────────
-
 async function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   try {
@@ -114,4 +145,4 @@ async function registerServiceWorker() {
   } catch (err) {
     console.error("[LitterSense] Service worker registration failed:", err);
   }
-}   
+}

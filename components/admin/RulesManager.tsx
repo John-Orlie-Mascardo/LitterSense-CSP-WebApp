@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, query } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, orderBy, query, type Timestamp } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { Trash2, Plus, FileText } from "lucide-react";
 
@@ -9,7 +9,7 @@ interface Rule {
   id: string;
   title: string;
   content: string;
-  createdAt: any;
+  createdAt?: Timestamp;
 }
 
 export function RulesManager() {

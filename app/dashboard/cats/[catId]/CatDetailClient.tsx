@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -107,6 +108,9 @@ const tabs = [
 ];
 
 type CatDetailTabId = (typeof tabs)[number]["id"];
+
+const isCatDetailTabId = (tabId: string | null): tabId is CatDetailTabId =>
+  tabs.some((tab) => tab.id === tabId);
 
 const isGasDetected = (label: string, raw: number | null | undefined) => {
   const normalized = label.toLowerCase();
@@ -217,7 +221,9 @@ export default function CatDetailClient() {
   const trendBaseline = getTrendBaseline(details ?? null, trendData);
 
   const requestedTab = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState<CatDetailTabId>("overview");
+  const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
+    ? requestedTab
+    : "overview";
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
@@ -243,12 +249,23 @@ export default function CatDetailClient() {
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  useEffect(() => {
-    if (!requestedTab) return;
-    if (tabs.some((tab) => tab.id === requestedTab)) {
-      setActiveTab(requestedTab as CatDetailTabId);
+  const handleTabChange = (tabId: string) => {
+    const nextTab = isCatDetailTabId(tabId) ? tabId : "overview";
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (nextTab === "overview") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", nextTab);
     }
-  }, [requestedTab]);
+
+    const nextQuery = nextParams.toString();
+    const nextPath = nextQuery
+      ? `/dashboard/cats/${catId}?${nextQuery}`
+      : `/dashboard/cats/${catId}`;
+
+    router.replace(nextPath, { scroll: false });
+  };
 
   const openEdit = () => {
     // Refresh form with latest saved values
@@ -299,7 +316,7 @@ export default function CatDetailClient() {
       breed: editForm.breed,
       gender,
       dob: editForm.dob,
-      weightKg: editForm.weightKg ? parseFloat(editForm.weightKg) : 0,
+      weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
       rfidTag: editForm.rfidTag || "—",
     });
     setIsSaving(false);
@@ -327,7 +344,7 @@ export default function CatDetailClient() {
 
   const handleEditPhotoPointerMove = (event: React.PointerEvent<HTMLImageElement>) => {
     const drag = editPhotoDragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag?.pointerId !== event.pointerId) return;
     setEditPhotoOffset(
       clampPhotoOffset(
         {
@@ -400,7 +417,14 @@ export default function CatDetailClient() {
             <div className="relative w-24 h-24 mb-4">
               <div className="w-full h-full rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-3xl overflow-hidden">
                 {cat.avatar ? (
-                  <img src={cat.avatar} alt={cat.name} className="w-full h-full rounded-full object-cover" />
+                  <Image
+                    src={cat.avatar}
+                    alt={cat.name}
+                    width={96}
+                    height={96}
+                    unoptimized
+                    className="w-full h-full rounded-full object-cover"
+                  />
                 ) : (
                   cat.name.charAt(0).toUpperCase()
                 )}
@@ -439,9 +463,12 @@ export default function CatDetailClient() {
               {editForm.photo ? (
                 <>
                   <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-litter-primary bg-litter-primary-light/30">
-                    <img
+                    <Image
                       src={editForm.photo}
                       alt="Avatar preview"
+                      width={128}
+                      height={128}
+                      unoptimized
                       className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
                       draggable={false}
                       onLoad={(event) => {
@@ -467,8 +494,9 @@ export default function CatDetailClient() {
                     </label>
                   </div>
                   <div className="w-full max-w-xs">
-                    <label className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
+                    <label htmlFor="edit-cat-photo-zoom" className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
                     <input
+                      id="edit-cat-photo-zoom"
                       type="range"
                       min="1"
                       max="2.5"
@@ -489,6 +517,7 @@ export default function CatDetailClient() {
               ) : (
                 <label
                   htmlFor="edit-cat-photo-input"
+                  aria-label="Upload cat photo"
                   className="group relative flex w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed border-litter-border hover:border-litter-primary transition-colors bg-litter-primary-light/30 cursor-pointer"
                 >
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
@@ -518,34 +547,35 @@ export default function CatDetailClient() {
               <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
 
               <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <label htmlFor="edit-cat-name-input" className="block text-sm font-medium text-theme-secondary mb-1.5">
                   Cat Name <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <PawPrint className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
-                  <input type="text" value={editForm.name}
+                  <input id="edit-cat-name-input" type="text" value={editForm.name}
                     onChange={(e) => { setEditForm((p) => ({ ...p, name: e.target.value })); setEditErrors((p) => ({ ...p, name: undefined })); }}
                     placeholder="e.g. Whiskers"
-                    className={`w-full pl-10 pr-4 py-3 rounded-xl border ${editErrors.name ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border ${editErrors.name ? "border-red-500" : "border-litter-border"} bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                   />
                 </div>
                 {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <p className="block text-sm font-medium text-theme-secondary mb-1.5">
                   Breed <span className="text-red-500">*</span>
-                </label>
+                </p>
                 <BreedPicker value={editForm.breed} hasError={!!editErrors.breed}
                   onChange={(v) => { setEditForm((p) => ({ ...p, breed: v })); setEditErrors((p) => ({ ...p, breed: undefined })); }} />
                 {editErrors.breed && <p className="text-red-500 text-xs mt-1">{editErrors.breed}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <label htmlFor="edit-cat-gender-select" className="block text-sm font-medium text-theme-secondary mb-1.5">
                   Gender <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="edit-cat-gender-select"
                   value={editForm.gender}
                   onChange={(e) => {
                     setEditForm((p) => ({
@@ -554,7 +584,7 @@ export default function CatDetailClient() {
                     }));
                     setEditErrors((p) => ({ ...p, gender: undefined }));
                   }}
-                  className={`w-full px-3.5 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-[var(--color-placeholder)]"}`}
+                  className={`w-full px-3.5 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-litter-input text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-litter-placeholder"}`}
                 >
                   <option value="" disabled>Select gender</option>
                   <option value="male">Male</option>
@@ -569,25 +599,25 @@ export default function CatDetailClient() {
               <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
 
               <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <p className="block text-sm font-medium text-theme-secondary mb-1.5">
                   <span className="flex items-center gap-1.5">
                     <CalendarDays className="w-4 h-4 text-litter-muted" />
                     Date of Birth <span className="text-red-500">*</span>
                   </span>
-                </label>
+                </p>
                 <MonthYearPicker value={editForm.dob} hasError={!!editErrors.dob}
                   onChange={(v) => { setEditForm((p) => ({ ...p, dob: v })); setEditErrors((p) => ({ ...p, dob: undefined })); }} />
                 {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
+                <label htmlFor="edit-cat-weight-input" className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
                 <div className="relative">
                   <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
-                  <input type="number" step="0.1" min="0" value={editForm.weightKg}
+                  <input id="edit-cat-weight-input" type="number" step="0.1" min="0" value={editForm.weightKg}
                     onChange={(e) => setEditForm((p) => ({ ...p, weightKg: e.target.value }))}
                     placeholder="4.2"
-                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -610,7 +640,7 @@ export default function CatDetailClient() {
                   <input type="text" value={editForm.rfidTag}
                     onChange={(e) => setEditForm((p) => ({ ...p, rfidTag: e.target.value }))}
                     placeholder="Scan or enter RFID tag"
-                    className="w-full px-4 py-3 pr-12 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 pr-12 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
                   />
                   <button type="button" title="Auto-fill from device"
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all">
@@ -666,14 +696,13 @@ export default function CatDetailClient() {
 
         {/* Tabs */}
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden mb-6">
-          <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+          <TabBar tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
           <div className="p-4 sm:p-6">
             <div>
               {activeTab === "overview" && (
                 <OverviewTab
                   key="overview"
-                  catId={catId}
                   stats={stats}
                   details={details ?? null}
                   sessions={sessions}
@@ -724,30 +753,29 @@ export default function CatDetailClient() {
 
 // Overview Tab
 interface OverviewTabProps {
-  catId: string;
-  stats:
+  readonly stats:
     | {
-        visits: number;
-        avgDuration: string;
+        readonly visits: number;
+        readonly avgDuration: string;
       }
     | undefined;
-  details: {
-    healthInsight: string;
-    baseline: {
-      avgVisitsPerDay: number;
-      avgDurationSecs: number;
-      mq135DeltaPercent: number;
-      mq136DeltaPercent: number;
-      lastUpdated: string;
+  readonly details: {
+    readonly healthInsight: string;
+    readonly baseline: {
+      readonly avgVisitsPerDay: number;
+      readonly avgDurationSecs: number;
+      readonly mq135DeltaPercent: number;
+      readonly mq136DeltaPercent: number;
+      readonly lastUpdated: string;
     };
   } | null;
-  sessions: Session[];
-  sensorData: ReturnType<typeof useDeviceSensors>["data"];
-  sensorsLoading: boolean;
-  sensorsError: string | null;
+  readonly sessions: readonly Session[];
+  readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
+  readonly sensorsLoading: boolean;
+  readonly sensorsError: string | null;
 }
 
-function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: OverviewTabProps) {
+function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: Readonly<OverviewTabProps>) {
   const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
   const airQuality = getLiveAirQuality(
     sensorData?.mq135,
@@ -755,13 +783,14 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
     sensorData?.mq135Raw,
     sensorData?.mq136Raw,
   );
-  const rfidValue = sensorsError
-    ? "Offline"
-    : sensorsLoading
-      ? "Syncing"
-      : sensorData?.online
-        ? "Online"
-        : "Offline";
+  let rfidValue = "Offline";
+  if (!sensorsError) {
+    if (sensorsLoading) {
+      rfidValue = "Syncing";
+    } else if (sensorData?.online) {
+      rfidValue = "Online";
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -898,10 +927,10 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
 
 // History Tab
 interface HistoryTabProps {
-  sessions: Session[];
+  readonly sessions: readonly Session[];
 }
 
-function HistoryTab({ sessions }: HistoryTabProps) {
+function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
   const filteredSessions =
     filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
@@ -949,9 +978,14 @@ function HistoryTab({ sessions }: HistoryTabProps) {
   );
 }
 
-function SessionRow({ session }: { session: Session }) {
+function SessionRow({ session }: Readonly<{ session: Session }>) {
   const deltaLabel = getDeltaLabel(session.mq135Delta);
   const isSummary = session.sessionStatus === "DAILY_SUMMARY";
+  const summaryVisits = session.summaryVisits ?? 1;
+  const summaryVisitLabel = summaryVisits === 1 ? "visit" : "visits";
+  const timeLabel = isSummary
+    ? `Daily summary: ${summaryVisits} ${summaryVisitLabel}`
+    : session.time;
 
   return (
     <div
@@ -964,11 +998,7 @@ function SessionRow({ session }: { session: Session }) {
       <div>
         <p className="font-medium text-litter-text">{formatDate(session.date)}</p>
         <p className="text-sm text-theme-muted">
-          {isSummary
-            ? `Daily summary: ${session.summaryVisits ?? 1} visit${
-                (session.summaryVisits ?? 1) === 1 ? "" : "s"
-              }`
-            : session.time}
+          {timeLabel}
         </p>
       </div>
       <div className="text-center">
@@ -1004,20 +1034,20 @@ function SessionRow({ session }: { session: Session }) {
 
 // Trends Tab
 interface TrendsTabProps {
-  trendData: Array<{
-    day: string;
-    visits: number;
-    avgDuration: number;
-    mq135Delta: number;
+  readonly trendData: ReadonlyArray<{
+    readonly day: string;
+    readonly visits: number;
+    readonly avgDuration: number;
+    readonly mq135Delta: number;
   }> | null;
-  baseline: {
-    avgVisitsPerDay: number;
-    avgDurationSecs: number;
-    mq135DeltaPercent: number;
+  readonly baseline: {
+    readonly avgVisitsPerDay: number;
+    readonly avgDurationSecs: number;
+    readonly mq135DeltaPercent: number;
   } | null;
 }
 
-function TrendsTab({ trendData, baseline }: TrendsTabProps) {
+function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
   if (!trendData || !baseline) {
     return (
       <EmptyState
@@ -1088,15 +1118,15 @@ function TrendsTab({ trendData, baseline }: TrendsTabProps) {
 
 // Health Log Tab
 interface HealthLogTabProps {
-  catId: string;
-  logs: HealthLog[];
-  addToast: (message: string, type: ToastParams["type"]) => void;
-  addHealthLog: (
+  readonly catId: string;
+  readonly logs: readonly HealthLog[];
+  readonly addToast: (message: string, type: ToastParams["type"]) => void;
+  readonly addHealthLog: (
     catId: string,
     type: HealthLog["type"],
     note: string,
   ) => Promise<void>;
-  removeHealthLog: (id: string) => Promise<void>;
+  readonly removeHealthLog: (id: string) => Promise<void>;
 }
 
 function HealthLogTab({
@@ -1105,7 +1135,7 @@ function HealthLogTab({
   addToast,
   addHealthLog,
   removeHealthLog,
-}: HealthLogTabProps) {
+}: Readonly<HealthLogTabProps>) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -1171,10 +1201,11 @@ function HealthLogTab({
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+            <label htmlFor="health-log-type-select" className="block text-sm font-medium text-theme-secondary mb-1.5">
               Note Type
             </label>
             <select
+              id="health-log-type-select"
               value={newLog.type}
               onChange={(e) =>
                 setNewLog((prev) => ({
@@ -1192,10 +1223,11 @@ function HealthLogTab({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+            <label htmlFor="health-log-note-textarea" className="block text-sm font-medium text-theme-secondary mb-1.5">
               What happened?
             </label>
             <textarea
+              id="health-log-note-textarea"
               value={newLog.note}
               onChange={(e) =>
                 setNewLog((prev) => ({ ...prev, note: e.target.value }))
@@ -1234,7 +1266,7 @@ function HealthLogTab({
   );
 }
 
-function LogCard({ log, onDelete }: { log: HealthLog; onDelete: () => void }) {
+function LogCard({ log, onDelete }: Readonly<{ log: HealthLog; onDelete: () => void }>) {
   const typeColors = getHealthLogTypeColor(log.type);
 
   return (

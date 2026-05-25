@@ -187,6 +187,11 @@ function daysInMonth(month: string, year: string): number {
   return new Date(Number(year), Number(month), 0).getDate();
 }
 
+function getValidDay(day: string, month: string, year: string) {
+  if (!day) return "";
+  return Number(day) <= daysInMonth(month, year) ? day : "";
+}
+
 export interface MonthYearPickerProps {
   value: string; // "YYYY-MM" or "YYYY-MM-DD" or ""
   onChange: (v: string) => void;
@@ -195,20 +200,9 @@ export interface MonthYearPickerProps {
 
 export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerProps) {
   const parts = value ? value.split("-") : [];
-  const initYear  = parts[0] ?? "";
-  const initMonth = parts[1] ?? "";
-  const initDay   = parts[2] ?? "";
-
-  const [year,  setYear]  = useState(initYear);
-  const [month, setMonth] = useState(initMonth);
-  const [day,   setDay]   = useState(initDay);
-
-  useEffect(() => {
-    const p = value ? value.split("-") : [];
-    setYear(p[0] ?? "");
-    setMonth(p[1] ?? "");
-    setDay(p[2] ?? "");
-  }, [value]);
+  const year = parts[0] ?? "";
+  const month = parts[1] ?? "";
+  const day = getValidDay(parts[2] ?? "", month, year);
 
   const emit = (y: string, m: string, d: string) => {
     if (y && m) onChange(d ? `${y}-${m}-${d}` : `${y}-${m}`);
@@ -229,7 +223,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
     <div className="space-y-2">
       <div className="flex gap-2">
         <div className="relative flex-[2]">
-          <select value={month} onChange={(e) => { setMonth(e.target.value); emit(year, e.target.value, day); }}
+          <select value={month} onChange={(e) => { emit(year, e.target.value, getValidDay(day, e.target.value, year)); }}
             className={selectClass(!!month, hasError && !month)}>
             <option value="" disabled>Month *</option>
             {MONTHS.map((m, i) => {
@@ -240,7 +234,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
           <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted" />
         </div>
         <div className="relative flex-[2]">
-          <select value={year} onChange={(e) => { setYear(e.target.value); emit(e.target.value, month, day); }}
+          <select value={year} onChange={(e) => { emit(e.target.value, month, getValidDay(day, month, e.target.value)); }}
             className={selectClass(!!year, hasError && !year)}>
             <option value="" disabled>Year *</option>
             {DOB_YEARS.map((y) => (
@@ -251,7 +245,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
         </div>
       </div>
       <div className="relative w-full">
-        <select value={day} onChange={(e) => { setDay(e.target.value); emit(year, month, e.target.value); }}
+        <select value={day} onChange={(e) => { emit(year, month, e.target.value); }}
           className={selectClass(!!day, false)}>
           <option value="">Day (optional)</option>
           {dayOptions.map((d) => (

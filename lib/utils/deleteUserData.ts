@@ -4,7 +4,7 @@ import {
   collection,
   getDocs,
 } from "firebase/firestore";
-import { ref, listAll, deleteObject } from "firebase/storage";
+import { ref, listAll, deleteObject, type StorageReference } from "firebase/storage";
 import { db, storage } from "@/lib/configs/firebase";
 
 /**
@@ -104,7 +104,7 @@ async function deleteUserStorageData(userId: string): Promise<void> {
 /**
  * Recursively deletes all files in a Cloud Storage directory.
  */
-async function deleteDirectoryRecursive(dirRef: any): Promise<void> {
+async function deleteDirectoryRecursive(dirRef: StorageReference): Promise<void> {
   const fileList = await listAll(dirRef);
 
   for (const fileRef of fileList.items) {
