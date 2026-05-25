@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
-import { UserSettings } from "../interfaces/UserSettings";
+import type { UserSettings } from "../interfaces/UserSettings";
+
+export type { UserSettings };
 
 
 const defaultSettings: UserSettings = {

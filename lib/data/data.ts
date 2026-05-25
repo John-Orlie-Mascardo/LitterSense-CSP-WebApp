@@ -358,4 +358,4 @@ export function getTrendData(catId: string) {
     };
   });
 }
-export type { HealthLog, Session, PastReport};
+export type { Cat, CatDetails, CatStats, HealthLog, Session, PastReport };

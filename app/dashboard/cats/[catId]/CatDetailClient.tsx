@@ -38,7 +38,9 @@ import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import type { CatDetails, Session, HealthLog } from "@/lib/data/mockData";
+import type { CatDetails } from "@/lib/interfaces/CatDetails";
+import type { HealthLog } from "@/lib/interfaces/HealthLog";
+import type { Session } from "@/lib/interfaces/Session";
 import {
   getStatusColor,
   getStatusLabel,

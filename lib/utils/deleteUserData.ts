@@ -5,7 +5,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { ref, listAll, deleteObject } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db, storage } from "@/lib/configs/firebase";
 
 /**
  * Performs a hard delete of a user's account and all associated data.

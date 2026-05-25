@@ -11,7 +11,7 @@ import {
 } from "../data/data";
 import { generateId } from "../utils/formatters";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
-import { ReportData } from "@/lib/interfaces/ReportData";
+import type { ReportData } from "@/lib/interfaces/ReportData";
 
 export type ReportSession = Session & {
   catName: string;
@@ -20,6 +20,8 @@ export type ReportSession = Session & {
 export type ReportHealthLog = HealthLog & {
   catName: string;
 };
+
+export type { ReportData };
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
