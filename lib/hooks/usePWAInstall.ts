@@ -16,7 +16,9 @@ export function usePWAInstall() {
 
     // Register SW eagerly so beforeinstallprompt fires regardless of notification permission
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js");
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.error("[LitterSense] SW registration failed:", err);
+      });
     }
 
     // Already running as installed PWA — no install UI needed
@@ -31,13 +33,15 @@ export function usePWAInstall() {
     window.addEventListener("beforeinstallprompt", handler);
 
     // Hide install UI once app is installed
-    window.addEventListener("appinstalled", () => {
+    const installedHandler = () => {
       setIsInstallable(false);
       setPromptEvent(null);
-    });
+    };
+    window.addEventListener("appinstalled", installedHandler);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
     };
   }, []);
 
