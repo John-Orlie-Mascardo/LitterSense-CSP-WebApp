@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
-import { UserSettings } from "../interfaces/UserSettings";
+import type { UserSettings } from "../interfaces/UserSettings";
+
+export type { UserSettings };
 
 
 const defaultSettings: UserSettings = {
@@ -46,6 +48,20 @@ const defaultSettings: UserSettings = {
 
 const STORAGE_KEY = "littersense_settings";
 
+const mergeSettings = (parsed: Partial<UserSettings>): UserSettings => ({
+  ...defaultSettings,
+  ...parsed,
+  notifications: {
+    ...defaultSettings.notifications,
+    ...(parsed.notifications && typeof parsed.notifications === "object" ? parsed.notifications : {}),
+    quietHours: {
+      ...defaultSettings.notifications.quietHours,
+      ...(parsed.notifications?.quietHours ?? undefined),
+    },
+    perCat: parsed.notifications?.perCat ?? defaultSettings.notifications.perCat,
+  },
+});
+
 export function useSettings() {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -53,28 +69,18 @@ export function useSettings() {
   useEffect(() => {
     if (globalThis.window !== undefined) {
       const stored = localStorage.getItem(STORAGE_KEY);
+      let nextSettings = defaultSettings;
       if (stored) {
         try {
-          const parsed = JSON.parse(stored);
-          // Deep merge to preserve new fields added to defaultSettings
-          setSettings((prev) => ({
-            ...prev,
-            ...parsed,
-            notifications: {
-              ...prev.notifications,
-              ...(parsed.notifications && typeof parsed.notifications === "object" ? parsed.notifications : {}),
-              quietHours: {
-                ...prev.notifications.quietHours,
-                ...(parsed.notifications?.quietHours ?? undefined),
-              },
-              perCat: parsed.notifications?.perCat ?? prev.notifications.perCat,
-            },
-          }));
+          nextSettings = mergeSettings(JSON.parse(stored));
         } catch (e) {
           console.error("Failed to parse settings:", e);
         }
       }
-      setIsLoaded(true);
+      queueMicrotask(() => {
+        setSettings(nextSettings);
+        setIsLoaded(true);
+      });
     }
   }, []);
 

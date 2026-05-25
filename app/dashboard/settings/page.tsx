@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -105,16 +106,21 @@ export default function SettingsPage() {
   const { getUserRequest, submitRequest } = useDeleteRequest();
   const userRequest = user ? getUserRequest(user.uid) : undefined;
 
-  const handleSubmitDeletion = () => {
+  const handleSubmitDeletion = async () => {
     if (!user) return;
-    submitRequest(
-      user.uid,
-      user.displayName || user.email?.split("@")[0] || "User",
-      user.email || "",
-      deleteReason || "No reason provided"
-    );
-    setDeleteReason("");
-    addToast("Deletion request submitted. An admin will review it soon.", "info");
+    try {
+      await submitRequest(
+        user.uid,
+        user.displayName || user.email?.split("@")[0] || "User",
+        user.email || "",
+        deleteReason || "No reason provided"
+      );
+      setDeleteReason("");
+      addToast("Deletion request submitted. An admin will review it soon.", "info");
+    } catch (error) {
+      console.error("Failed to submit deletion request:", error);
+      addToast("Failed to submit request. Please try again.", "error");
+    }
   };
 
   // Edit profile form
@@ -343,7 +349,15 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0 overflow-hidden">
               {user?.photoURL ? (
-                <img src={user.photoURL} alt="Profile" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                <Image
+                  src={user.photoURL}
+                  alt="Profile"
+                  width={64}
+                  height={64}
+                  referrerPolicy="no-referrer"
+                  unoptimized
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 (user?.displayName || settings.account.displayName).charAt(0).toUpperCase()
               )}
@@ -670,7 +684,15 @@ export default function SettingsPage() {
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
                 {editProfileForm.photo ? (
-                  <img src={editProfileForm.photo} alt="Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  <Image
+                    src={editProfileForm.photo}
+                    alt="Preview"
+                    width={96}
+                    height={96}
+                    referrerPolicy="no-referrer"
+                    unoptimized
+                    className="w-full h-full object-cover"
+                  />
                 ) : (
                   <span className="text-3xl font-display font-bold text-litter-primary">
                     {(editProfileForm.displayName || "U").charAt(0).toUpperCase()}

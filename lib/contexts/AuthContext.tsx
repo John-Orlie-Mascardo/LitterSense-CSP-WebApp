@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/configs/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/configs/firebase";
 
 // TEMP (DEV ONLY): hardcoded to true so all logged-in accounts can access the
 // admin page during UI/UX review. Remove this line and the DEV_ADMIN_OVERRIDE
@@ -46,10 +47,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (currentUser) {
         if (DEV_ADMIN_OVERRIDE || (currentUser.email && ADMIN_EMAILS.includes(currentUser.email))) {
           setIsAdmin(true);
+        } else if (currentUser.email) {
+          try {
+            const adminDocRef = doc(db, "admins", currentUser.email);
+            const adminDocSnap = await getDoc(adminDocRef);
+            setIsAdmin(adminDocSnap.exists());
+          } catch (error) {
+            console.error("Error checking admin status:", error);
+            setIsAdmin(false);
+          }
         } else {
-          // Real path: check custom claims set by the backend
-          const tokenResult = await currentUser.getIdTokenResult();
-          setIsAdmin(tokenResult.claims?.role === "admin");
+          setIsAdmin(false);
         }
       } else {
         setIsAdmin(false);

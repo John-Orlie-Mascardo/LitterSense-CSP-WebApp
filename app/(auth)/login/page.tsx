@@ -184,7 +184,7 @@ export default function LoginPage() {
               Welcome back
             </h1>
             <p className="text-[#6B7280]">
-              Monitor your cat's health from anywhere.
+              Monitor your cat&apos;s health from anywhere.
             </p>
           </div>
 
@@ -332,7 +332,7 @@ export default function LoginPage() {
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#6B7280] mt-6">
-            Don't have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link
               href="/signup"
               className="font-semibold text-litter-primary hover:underline"

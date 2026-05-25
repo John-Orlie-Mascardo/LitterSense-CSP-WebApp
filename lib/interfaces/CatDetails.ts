@@ -1,5 +1,6 @@
 export interface CatDetails {
   breed: string;
+  gender?: "male" | "female";
   dob: string;
   weightKg: number;
   rfidTag: string;

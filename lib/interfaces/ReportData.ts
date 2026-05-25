@@ -12,7 +12,7 @@ export interface ReportData {
     avgSessionsPerDay: number;
     avgDuration: string;
     anomaliesDetected: number;
-    overallStatus: 'healthy' | 'watch' | 'alert';
+    overallStatus: 'normal' | 'abnormal';
     statusMessage: string;
   };
   sessions: ReportSession[];

@@ -193,7 +193,7 @@ export function TopBar() {
                         </div>
                         <div className="flex flex-col items-center gap-1">
                           <span className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>No notifications</span>
-                          <span className="text-xs opacity-50 text-center px-6" style={{ color: "var(--color-text)" }}>You're all caught up! We'll let you know when something needs attention.</span>
+                          <span className="text-xs opacity-50 text-center px-6" style={{ color: "var(--color-text)" }}>You&apos;re all caught up! We&apos;ll let you know when something needs attention.</span>
                         </div>
                       </div>
                     ) : (

@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from "react";
 import {
   collection,
@@ -63,6 +64,12 @@ export type NewNotificationData = Pick<
 export type UpsertNotificationData = NewNotificationData &
   Required<Pick<AppNotification, "abnormalKey">>;
 
+interface NotificationSyncState {
+  userId: string | null;
+  notifications: AppNotification[];
+  isLoading: boolean;
+}
+
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
@@ -111,8 +118,18 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const { user, loading: authLoading } = useAuth();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const userId = user?.uid ?? null;
+  const [syncState, setSyncState] = useState<NotificationSyncState>({
+    userId: null,
+    notifications: [],
+    isLoading: true,
+  });
+  const notifications = useMemo(
+    () => (syncState.userId === userId ? syncState.notifications : []),
+    [syncState.notifications, syncState.userId, userId],
+  );
+  const isLoading =
+    authLoading || (userId ? syncState.userId !== userId || syncState.isLoading : false);
   const notificationsRef = useRef<AppNotification[]>([]);
 
   useEffect(() => {
@@ -120,19 +137,10 @@ export function NotificationProvider({
   }, [notifications]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !userId) return;
 
-    if (!user) {
-      setNotifications([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-
-    const uid = user.uid;
     const notifQuery = query(
-      collection(db, "users", uid, "notifications"),
+      collection(db, "users", userId, "notifications"),
       orderBy("createdAt", "desc")
     );
 
@@ -143,17 +151,24 @@ export function NotificationProvider({
         snapshot.forEach((d) =>
           loaded.push({ id: d.id, ...d.data() } as AppNotification)
         );
-        setNotifications(loaded);
-        setIsLoading(false);
+        setSyncState({
+          userId,
+          notifications: loaded,
+          isLoading: false,
+        });
       },
       (error) => {
         console.error("Failed to sync notifications:", error);
-        setIsLoading(false);
+        setSyncState((current) => ({
+          userId,
+          notifications: current.userId === userId ? current.notifications : [],
+          isLoading: false,
+        }));
       }
     );
 
     return () => unsub();
-  }, [user?.uid, authLoading]);
+  }, [userId, authLoading]);
 
   const addNotification = useCallback(
     async (data: NewNotificationData) => {

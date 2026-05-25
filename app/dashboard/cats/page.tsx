@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import {
   Plus,
   ScanLine,
@@ -323,9 +324,12 @@ export default function CatsPage() {
             {formData.photo ? (
               <>
                 <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-litter-primary bg-litter-primary-light/30">
-                  <img
+                  <Image
                     src={formData.photo}
                     alt="Avatar preview"
+                    width={128}
+                    height={128}
+                    unoptimized
                     className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
                     draggable={false}
                     onLoad={(event) => {
@@ -608,7 +612,14 @@ function CatCard({ cat, catDetails, stats }: CatCardProps) {
             {/* Avatar */}
             <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-xl shrink-0">
               {cat.avatar ? (
-                <img src={cat.avatar} alt={cat.name} className="w-full h-full rounded-full object-cover" />
+                <Image
+                  src={cat.avatar}
+                  alt={cat.name}
+                  width={56}
+                  height={56}
+                  unoptimized
+                  className="w-full h-full rounded-full object-cover"
+                />
               ) : (
                 cat.name.charAt(0).toUpperCase()
               )}

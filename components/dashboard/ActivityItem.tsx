@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { getCatById } from "@/lib/data/mockData";
 
 interface ActivityItemProps {
@@ -26,9 +27,12 @@ export function ActivityItem({
       {/* Cat Avatar */}
       <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
         {cat?.avatar ? (
-          <img
+          <Image
             src={cat.avatar}
             alt={cat?.name}
+            width={40}
+            height={40}
+            unoptimized
             className="w-full h-full rounded-full object-cover"
           />
         ) : (

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Home } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /* ─── Paw-print SVG path (reusable) ─── */
 const PawPath = () => (
@@ -41,6 +41,10 @@ const particles = Array.from({ length: 20 }, (_, i) => ({
   delay: Math.random() * 6,
   duration: Math.random() * 4 + 3,
 }));
+
+const subscribeToClient = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 /* ─── Curious Cat SVG Illustration ─── */
 function CuriousCat() {
@@ -187,8 +191,11 @@ function CuriousCat() {
 
 export default function NotFound() {
   /* Hydration-safe mounting for particles */
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    subscribeToClient,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
 
   return (
     <div className="min-h-screen bg-litter-bg flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
