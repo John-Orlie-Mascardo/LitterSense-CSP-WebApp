@@ -122,12 +122,12 @@ export async function GET() {
     process.env.VERCEL === "1",
   );
 
-  const getStoredSnapshot = async () => {
+  const getStoredSnapshot = async (options?: { forceOffline?: boolean }) => {
     try {
       const client = getFirestoreRestClient();
       const snapshotDoc = await client.getDocument(DEVICE_SENSOR_SNAPSHOT_PATH);
       if (!snapshotDoc) return null;
-      return toDeviceSensorsResponse(snapshotDoc.data);
+      return toDeviceSensorsResponse(snapshotDoc.data, options);
     } catch {
       return null;
     }
@@ -228,7 +228,7 @@ export async function GET() {
       error instanceof Error &&
       (error.name === "AbortError" || message.toLowerCase().includes("aborted"));
 
-    const storedSnapshot = await getStoredSnapshot();
+    const storedSnapshot = await getStoredSnapshot({ forceOffline: true });
     if (storedSnapshot) {
       return Response.json(storedSnapshot, {
         headers: {
