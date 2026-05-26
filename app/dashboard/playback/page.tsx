@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -20,6 +20,10 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
 const ESP32_STREAM_URL = "/api/stream";
+const FASTAPI_URL = "http://localhost:8000";
+const SHOW_RECORDINGS_UI = false;
+
+type LiveStreamState = "unknown" | "connected" | "error";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -101,7 +105,11 @@ const MOCK_RECORDINGS: RecordingEvent[] = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function LiveView() {
+function LiveView({
+  onStreamStateChange,
+}: {
+  readonly onStreamStateChange: (state: LiveStreamState) => void;
+}) {
   const [error, setError] = useState(false);
 
   return (
@@ -112,7 +120,10 @@ function LiveView() {
           <p className="text-theme-muted text-sm">Cannot reach camera</p>
           <p className="text-theme-secondary text-xs">{ESP32_STREAM_URL}</p>
           <button
-            onClick={() => setError(false)}
+            onClick={() => {
+              setError(false);
+              onStreamStateChange("unknown");
+            }}
             className="mt-2 px-3 py-1 rounded-full bg-litter-primary text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
           >
             Retry
@@ -120,13 +131,19 @@ function LiveView() {
         </div>
       ) : (
         <>
-          {/* MJPEG streams never fire onLoad — render directly, onError handles failures */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={ESP32_STREAM_URL}
             alt="ESP32-CAM live stream"
             className="w-full h-full object-cover"
-            onError={() => setError(true)}
+            onLoad={() => {
+              setError(false);
+              onStreamStateChange("connected");
+            }}
+            onError={() => {
+              setError(true);
+              onStreamStateChange("error");
+            }}
           />
           <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -140,7 +157,7 @@ function LiveView() {
 
 function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null }) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const progress = 30; // mock progress
+  const progress = 30;
 
   if (!recording) {
     return (
@@ -155,24 +172,17 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
 
   return (
     <div className="relative w-full aspect-video bg-[#1A2E2B] rounded-2xl overflow-hidden shadow-lg">
-      {/* Mock video thumbnail */}
       <div
         className="absolute inset-0 opacity-30"
         style={{ background: `linear-gradient(135deg, ${recording.thumbnailColor}, #1A2E2B)` }}
       />
-
-      {/* Timestamp badge (replaces LIVE badge) */}
       <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
         <Clock className="w-3 h-3 text-white" />
         <span className="text-white text-xs font-medium">{recording.timestamp}</span>
       </div>
-
-      {/* HD badge */}
       <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
         <span className="text-white text-xs font-semibold tracking-wide">HD</span>
       </div>
-
-      {/* Play/Pause button */}
       <button
         onClick={() => setIsPlaying((p) => !p)}
         className="absolute inset-0 flex items-center justify-center group"
@@ -185,10 +195,7 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
           )}
         </div>
       </button>
-
-      {/* Bottom controls bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-        {/* Progress bar */}
         <div className="w-full h-1 bg-litter-card/30 rounded-full mb-2 cursor-pointer">
           <div
             className="h-full bg-litter-primary rounded-full relative"
@@ -197,22 +204,13 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-litter-card rounded-full shadow-md" />
           </div>
         </div>
-
         <div className="flex items-center justify-between">
           <span className="text-white text-xs">{recording.duration}</span>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {}}
-              className="text-white/80 hover:text-white transition-colors"
-              title="Settings"
-            >
+            <button onClick={() => {}} className="text-white/80 hover:text-white transition-colors" title="Settings">
               <Settings className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => {}}
-              className="text-white/80 hover:text-white transition-colors"
-              title="Fullscreen"
-            >
+            <button onClick={() => {}} className="text-white/80 hover:text-white transition-colors" title="Fullscreen">
               <Maximize2 className="w-4 h-4" />
             </button>
           </div>
@@ -243,7 +241,6 @@ function RecordingRow({
       }`}
       onClick={onSelect}
     >
-      {/* Thumbnail icon */}
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
         style={{ backgroundColor: recording.thumbnailColor }}
@@ -254,8 +251,6 @@ function RecordingRow({
           <Layers className="w-5 h-5 text-litter-primary" />
         )}
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm font-medium truncate ${isSelected ? "text-litter-primary" : "text-litter-text"}`}>
           {recording.title}
@@ -272,13 +267,8 @@ function RecordingRow({
           )}
         </div>
       </div>
-
-      {/* Delete */}
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
         className="p-1.5 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
         title="Delete recording"
       >
@@ -293,25 +283,55 @@ function RecordingRow({
 export default function PlaybackPage() {
   const [activeTab, setActiveTab] = useState<"live" | "recordings">("live");
   const [recordings, setRecordings] = useState<RecordingEvent[]>(MOCK_RECORDINGS);
-  const [selectedRecording, setSelectedRecording] = useState<RecordingEvent | null>(
-    MOCK_RECORDINGS[0]
-  );
+  const [selectedRecording, setSelectedRecording] = useState<RecordingEvent | null>(MOCK_RECORDINGS[0]);
   const [selectedCat, setSelectedCat] = useState("All Cats");
   const [selectedDate, setSelectedDate] = useState<"all" | "today" | "yesterday">("all");
   const [showAllRecordings, setShowAllRecordings] = useState(false);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [dvrStatus, setDvrStatus] = useState("idle");
+  const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("unknown");
 
-  const handleConnect = () => {
+  // Poll DVR status every 3 seconds while connected
+  useEffect(() => {
+    if (!deviceConnected) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${FASTAPI_URL}/dvr/status`);
+        if (!res.ok) {
+          throw new Error("DVR status unavailable");
+        }
+        const { status } = await res.json();
+        setDvrStatus(status);
+      } catch {
+        setDvrStatus("error");
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [deviceConnected]);
+
+  const handleConnect = async () => {
     setIsConnecting(true);
-    setTimeout(() => {
+    setLiveStreamState("unknown");
+    try {
+      await fetch(`${FASTAPI_URL}/dvr/start`, { method: "POST" });
       setDeviceConnected(true);
+    } catch {
+      // FastAPI unreachable — still show UI for stream testing
+      setDeviceConnected(true);
+    } finally {
       setIsConnecting(false);
-    }, 1800);
+    }
   };
 
-  const handleDisconnect = () => {
-    setDeviceConnected(false);
+  const handleDisconnect = async () => {
+    try {
+      await fetch(`${FASTAPI_URL}/dvr/stop`, { method: "POST" });
+    } finally {
+      setDeviceConnected(false);
+      setDvrStatus("idle");
+      setLiveStreamState("unknown");
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -331,6 +351,23 @@ export default function PlaybackPage() {
   const visibleRecordings = showAllRecordings
     ? filteredRecordings
     : filteredRecordings.slice(0, 3);
+  const activeView = SHOW_RECORDINGS_UI ? activeTab : "live";
+  const dvrHasError = dvrStatus === "error" || dvrStatus.startsWith("error");
+  const showConnectedStatus = liveStreamState === "connected";
+  const showErrorStatus = liveStreamState === "error" || dvrHasError;
+
+  const statusLabel =
+    showConnectedStatus       ? "Connected" :
+    dvrStatus === "recording" ? "Recording" :
+    dvrStatus === "waiting"   ? "Waiting" :
+    showErrorStatus           ? "Error" :
+    "Connecting";
+
+  const statusColor =
+    showConnectedStatus       ? "bg-green-500" :
+    dvrStatus === "recording" ? "bg-red-500" :
+    showErrorStatus           ? "bg-yellow-500" :
+    "bg-green-500";
 
   return (
     <div className="min-h-screen bg-litter-bg pb-24">
@@ -343,61 +380,61 @@ export default function PlaybackPage() {
             Playback
           </h1>
           <p className="text-[#6B7280] text-sm">
-            Review your LitterSense camera recordings
+            {SHOW_RECORDINGS_UI
+              ? "Review your LitterSense camera recordings"
+              : "Watch your LitterSense camera live feed"}
           </p>
-
-          {/* Tab toggle */}
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => setActiveTab("live")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                activeTab === "live"
-                  ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-              }`}
-            >
+          {SHOW_RECORDINGS_UI ? (
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => setActiveTab("live")}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  activeTab === "live"
+                    ? "bg-litter-primary text-white border-litter-primary"
+                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                Live
+              </button>
+              <button
+                onClick={() => setActiveTab("recordings")}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  activeTab === "recordings"
+                    ? "bg-litter-primary text-white border-litter-primary"
+                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+                }`}
+              >
+                <Video className="w-3.5 h-3.5" />
+                Recordings
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-1.5 text-sm font-medium text-litter-primary">
               <Radio className="w-3.5 h-3.5" />
               Live
-            </button>
-            <button
-              onClick={() => setActiveTab("recordings")}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                activeTab === "recordings"
-                  ? "bg-litter-primary text-white border-litter-primary"
-                  : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-              }`}
-            >
-              <Video className="w-3.5 h-3.5" />
-              Recordings
-            </button>
-          </div>
+            </div>
+          )}
         </section>
 
         {/* ── Device Gate ─────────────────────────────────────── */}
         {!deviceConnected ? (
           <div className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center">
-            {/* decorative radial glow */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 flex items-center justify-center"
-            >
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-64 w-64 rounded-full bg-litter-primary/10 blur-3xl" />
             </div>
-
             <div className="relative z-10 flex flex-col items-center gap-4">
-              {/* icon ring */}
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-litter-primary/20 bg-litter-primary/10 shadow-inner">
                 <Radio className="h-9 w-9 text-litter-primary" />
               </div>
-
               <div>
                 <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
                 <p className="mt-1 text-sm text-theme-muted max-w-[260px] mx-auto">
-                  Pair your LitterSense unit to watch the live feed and browse recording history.
+                  {SHOW_RECORDINGS_UI
+                    ? "Pair your LitterSense unit to watch the live feed and browse recording history."
+                    : "Pair your LitterSense unit to watch the live feed."}
                 </p>
               </div>
-
-              {/* steps */}
               <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
                 {[
                   { step: "1", label: "Power on your LitterSense device" },
@@ -412,7 +449,6 @@ export default function PlaybackPage() {
                   </div>
                 ))}
               </div>
-
               <button
                 onClick={handleConnect}
                 disabled={isConnecting}
@@ -440,15 +476,15 @@ export default function PlaybackPage() {
           <div>
             {/* Video player */}
             <div className="mb-4">
-              {activeTab === "live" ? (
-                <LiveView />
+              {activeView === "live" ? (
+                <LiveView onStreamStateChange={setLiveStreamState} />
               ) : (
                 <VideoPlayer recording={selectedRecording} />
               )}
             </div>
 
             {/* Device Info Row (recordings only) */}
-            {activeTab === "recordings" && selectedRecording && (
+            {activeView === "recordings" && selectedRecording && (
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
@@ -478,11 +514,11 @@ export default function PlaybackPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="relative flex h-4 w-4 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-50" />
-                    <span className="relative inline-flex h-4 w-4 rounded-full bg-green-500" />
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusColor} opacity-50`} />
+                    <span className={`relative inline-flex h-4 w-4 rounded-full ${statusColor}`} />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-litter-text leading-tight">Connected</p>
+                    <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
                     <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense Unit #67</p>
                   </div>
                 </div>
@@ -496,12 +532,12 @@ export default function PlaybackPage() {
             </div>
 
             {/* ── Filters Card ── */}
+            {SHOW_RECORDINGS_UI && (
+              <>
             <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
               <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
                 Filters
               </p>
-
-              {/* Date row */}
               <div className="flex items-center gap-2 mb-3">
                 <Calendar className="w-3.5 h-3.5 text-theme-muted shrink-0" />
                 <div className="flex gap-1.5 flex-wrap">
@@ -520,8 +556,6 @@ export default function PlaybackPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Cat row */}
               <div className="flex items-center gap-2">
                 <Filter className="w-3.5 h-3.5 text-theme-muted shrink-0" />
                 <div className="flex gap-1.5 flex-wrap">
@@ -555,7 +589,6 @@ export default function PlaybackPage() {
                   </button>
                 )}
               </div>
-
               {filteredRecordings.length === 0 ? (
                 <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-10 text-center">
                   <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
@@ -579,7 +612,9 @@ export default function PlaybackPage() {
                   ))}
                 </div>
               )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>

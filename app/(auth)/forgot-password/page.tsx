@@ -12,8 +12,9 @@ import { useState, useEffect } from "react";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/configs/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 export default function ForgotPasswordPage() {
@@ -29,8 +30,8 @@ export default function ForgotPasswordPage() {
     }
   }, [user, authLoading, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.SubmitEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     setError("");
     
@@ -39,15 +40,16 @@ export default function ForgotPasswordPage() {
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );
-    } catch (err: any) {
-      setError(err.message || "Failed to send reset email.");
+    } catch (error) {
+      const message = error instanceof FirebaseError ? error.message : "Failed to send reset email.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#E8F5F1] to-white flex items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-linear-to-b from-[#E8F5F1] to-white flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         {/* Card */}
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border/50 px-6 py-8">
@@ -104,7 +106,7 @@ export default function ForgotPasswordPage() {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="example@email.com"
                   className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
                   required

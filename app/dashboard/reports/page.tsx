@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FileText,
   Download,
@@ -19,14 +19,14 @@ import {
   Lightbulb,
   MoreVertical,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import { mockCats, getTrendData, type PastReport } from "@/lib/data/mockData";
-import { useReports } from "@/lib/hooks/useReports";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import { useCats } from "@/lib/contexts/CatContext";
+import type { PastReport } from "@/lib/data/mockData";
+import { useReports, type ReportData } from "@/lib/hooks/useReports";
 import {
   formatDuration,
   formatDate,
@@ -35,14 +35,21 @@ import {
   getHealthLogTypeColor,
 } from "@/lib/utils/formatters";
 
-const dateRanges = [
+type DateRangeValue = "7" | "30" | "90";
+
+const dateRanges: { value: DateRangeValue; label: string }[] = [
   { value: "7", label: "Last 7 Days" },
   { value: "30", label: "Last 30 Days" },
   { value: "90", label: "Last 90 Days" },
 ];
 
+const csvCell = (value: string | number | boolean) => {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
 export default function ReportsPage() {
-  const router = useRouter();
+  const { cats, isLoading: catsLoading } = useCats();
   const {
     isGenerating,
     progress,
@@ -53,20 +60,39 @@ export default function ReportsPage() {
   } = useReports();
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
-  const [selectedRange, setSelectedRange] = useState<string>("7");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const [selectedRange, setSelectedRange] = useState<DateRangeValue>("7");
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const hasCats = cats.length > 0;
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  useEffect(() => {
+    const requestedCatId = new URLSearchParams(globalThis.location.search).get("catId");
+    if (requestedCatId) {
+      queueMicrotask(() => setSelectedCat(requestedCatId));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedCat !== "all" && cats.length > 0 && !cats.some((cat) => cat.id === selectedCat)) {
+      queueMicrotask(() => setSelectedCat("all"));
+    }
+  }, [cats, selectedCat]);
+
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
   const handleGenerate = async () => {
+    if (!hasCats) {
+      addToast("Add a cat before generating a report", "info");
+      return;
+    }
+
     await generateReport({
       catId: selectedCat,
-      dateRange: selectedRange as "7" | "30" | "90" | "custom",
+      dateRange: selectedRange,
     });
     setTimeout(() => {
       reportRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -75,19 +101,26 @@ export default function ReportsPage() {
 
   const handleExportPDF = () => {
     if (!currentReport) return;
-    addToast(
-      `Report saved as ${currentReport.catName.replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
-      "success"
-    );
+    addToast("Opening print dialog. Choose Save as PDF to export.", "info");
+    window.print();
   };
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-    const headers = "Date,Time,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
+    const headers = "Cat,Date,Time,Visits,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
     const rows = currentReport.sessions
       .map(
         (s) =>
-          `${s.date},${s.time},${s.durationSecs},${s.mq135Delta},${s.mq136Delta},${s.anomaly ? "Yes" : "No"}`
+          [
+            csvCell(s.catName),
+            csvCell(s.date),
+            csvCell(s.time || "--"),
+            csvCell(s.summaryVisits ?? 1),
+            csvCell(s.durationSecs),
+            csvCell(s.mq135Delta),
+            csvCell(s.mq136Delta),
+            csvCell(s.anomaly ? "Yes" : "No"),
+          ].join(",")
       )
       .join("\n");
     const blob = new Blob([headers + rows], { type: "text/csv" });
@@ -124,17 +157,22 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div
+      className="reports-print-page min-h-screen bg-litter-bg pb-24"
+      data-print-ready={currentReport ? "true" : "false"}
+    >
       <TopBar />
-      <ToastContainer
-        toasts={toasts}
-        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
-      />
+      <div className="reports-screen-only">
+        <ToastContainer
+          toasts={toasts}
+          onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
+        />
+      </div>
 
-      <main className="pt-20 px-4 max-w-lg mx-auto">
+      <main className="reports-print-shell pt-20 px-4 max-w-lg mx-auto">
 
         {/* ── Page Header ── */}
-        <div className="flex items-start justify-between pt-4 mb-5">
+        <div className="reports-screen-only flex items-start justify-between pt-4 mb-5">
           <div>
             <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
             <p className="text-sm text-theme-muted mt-0.5">
@@ -147,7 +185,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Generate New Report Card ── */}
-        <div className="bg-litter-card rounded-2xl p-5 shadow-sm border border-litter-border mb-6">
+        <div className="reports-screen-only bg-litter-card rounded-2xl p-5 shadow-sm border border-litter-border mb-6">
           {/* Card title */}
           <div className="flex items-center gap-2 mb-4">
             <PlusCircle className="w-5 h-5 text-litter-text" strokeWidth={2} />
@@ -164,10 +202,11 @@ export default function ReportsPage() {
                 id="select-cat"
                 value={selectedCat}
                 onChange={(e) => setSelectedCat(e.target.value)}
+                disabled={catsLoading || isGenerating || !hasCats}
                 className="w-full px-4 py-3 rounded-xl border border-litter-border bg-litter-card text-litter-text appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
               >
                 <option value="all">All Cats</option>
-                {mockCats.map((cat) => (
+                {cats.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
@@ -175,6 +214,11 @@ export default function ReportsPage() {
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-theme-muted pointer-events-none" />
             </div>
+            {!catsLoading && !hasCats && (
+              <p className="text-xs text-theme-muted mt-2">
+                Add a cat first so reports can use your saved sessions and health logs.
+              </p>
+            )}
           </div>
 
           {/* Date Range */}
@@ -186,7 +230,8 @@ export default function ReportsPage() {
               <select
                 id="select-range"
                 value={selectedRange}
-                onChange={(e) => setSelectedRange(e.target.value)}
+                onChange={(e) => setSelectedRange(e.target.value as DateRangeValue)}
+                disabled={isGenerating}
                 className="w-full px-4 py-3 rounded-xl border border-litter-border bg-litter-card text-litter-text appearance-none focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] text-sm"
               >
                 {dateRanges.map((range) => (
@@ -202,7 +247,7 @@ export default function ReportsPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating}
+            disabled={isGenerating || catsLoading || !hasCats}
             className="w-full py-3.5 rounded-xl bg-litter-primary text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -231,12 +276,12 @@ export default function ReportsPage() {
 
         {/* ── Generated Report Preview ── */}
         {currentReport && (
-          <div ref={reportRef} className="mb-6">
-            <h2 className="text-base font-bold text-litter-text mb-3">Generated Report</h2>
+          <div ref={reportRef} className="reports-print-area mb-6">
+            <h2 className="reports-screen-only text-base font-bold text-litter-text mb-3">Generated Report</h2>
             <ReportPreview report={currentReport} />
 
             {/* Export Controls */}
-            <div className="bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
+            <div className="reports-screen-only bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={handleExportPDF}
                 className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-lg font-medium text-sm hover:bg-[#165a4e] transition-colors"
@@ -263,7 +308,7 @@ export default function ReportsPage() {
         )}
 
         {/* ── Previous Reports ── */}
-        <div className="mb-6">
+        <div className="reports-screen-only mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-litter-text">Previous Reports</h2>
             <button className="text-sm font-semibold text-litter-primary hover:underline">
@@ -294,7 +339,7 @@ export default function ReportsPage() {
         </div>
 
         {/* ── Pro Tip Banner ── */}
-        <div className="bg-litter-primary-light border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
+        <div className="reports-screen-only bg-litter-primary-light border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
           <Lightbulb className="w-5 h-5 text-litter-primary shrink-0 mt-0.5" />
           <p className="text-sm text-litter-text leading-relaxed">
             <span className="font-semibold">Pro Tip:</span> You can directly email these reports to
@@ -323,47 +368,19 @@ export default function ReportsPage() {
 // ─── Report Preview ───────────────────────────────────────────────────────────
 
 interface ReportPreviewProps {
-  readonly report: {
-    readonly catId: string;
-    readonly catName: string;
-    readonly period: string;
-    readonly generatedOn: string;
-    readonly ownerName: string;
-    readonly summary: {
-      readonly totalSessions: number;
-      readonly avgSessionsPerDay: number;
-      readonly avgDuration: string;
-      readonly anomaliesDetected: number;
-      readonly overallStatus: "healthy" | "watch" | "alert";
-      readonly statusMessage: string;
-    };
-    readonly sessions: ReadonlyArray<{
-      readonly id: string;
-      readonly date: string;
-      readonly time: string;
-      readonly durationSecs: number;
-      readonly mq135Delta: number;
-      readonly mq136Delta: number;
-      readonly anomaly: boolean;
-    }>;
-    readonly healthLogs: ReadonlyArray<{
-      readonly id: string;
-      readonly date: string;
-      readonly type: string;
-      readonly note: string;
-    }>;
-  };
+  readonly report: ReportData;
 }
 
 function ReportPreview({ report }: ReportPreviewProps) {
   const statusColors = getStatusColor(report.summary.overallStatus);
-  const trendData = getTrendData(report.catId === "all" ? "1" : report.catId);
+  const trendData = report.trendData;
+  const showCatColumn = report.catId === "all";
 
   return (
-    <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
+    <div className="reports-print-document bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
 
       {/* Report header */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-litter-primary flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
@@ -396,7 +413,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Summary */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Summary</p>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-theme-overlay rounded-xl p-3">
@@ -417,7 +434,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </div>
         </div>
         <div className={`p-3 rounded-xl ${statusColors.bg} ${statusColors.text} flex items-center gap-2`}>
-          {report.summary.overallStatus === "healthy" ? (
+          {report.summary.overallStatus === "normal" ? (
             <CheckCircle className="w-4 h-4 shrink-0" />
           ) : (
             <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -427,14 +444,16 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Session Log */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section reports-print-section--table p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Session Log</p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-theme-muted border-b border-litter-border">
+                {showCatColumn && <th className="pb-2 font-medium">Cat</th>}
                 <th className="pb-2 font-medium">Date</th>
                 <th className="pb-2 font-medium">Time</th>
+                <th className="pb-2 font-medium">Visits</th>
                 <th className="pb-2 font-medium">Duration</th>
                 <th className="pb-2 font-medium">MQ-135 Δ</th>
                 <th className="pb-2 font-medium">MQ-136 Δ</th>
@@ -443,14 +462,22 @@ function ReportPreview({ report }: ReportPreviewProps) {
             </thead>
             <tbody>
               {report.sessions.slice(0, 10).map((session) => (
-                <tr key={session.id} className={session.anomaly ? "bg-status-watch" : ""}>
+                <tr key={session.id} className={session.anomaly ? "bg-status-abnormal" : ""}>
+                  {showCatColumn && (
+                    <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
+                  )}
                   <td className="py-1.5 text-litter-text">{session.date}</td>
-                  <td className="py-1.5 text-litter-text">{session.time}</td>
+                  <td className="py-1.5 text-litter-text">{session.time || "--"}</td>
+                  <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
                   <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
                   <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
                   <td className="py-1.5 text-litter-text">{session.mq136Delta}%</td>
                   <td className="py-1.5">
-                    {session.anomaly && (
+                    {session.summaryVisits ? (
+                      <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
+                        Summary
+                      </span>
+                    ) : session.anomaly && (
                       <span className="px-1.5 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
                         Flagged
                       </span>
@@ -462,7 +489,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </table>
         </div>
         {report.sessions.length > 10 && (
-          <p className="text-xs text-theme-muted mt-2">
+          <p className="reports-screen-only text-xs text-theme-muted mt-2">
             Full log included in export ({report.sessions.length - 10} more entries)
           </p>
         )}
@@ -470,7 +497,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
 
       {/* Trend Charts */}
       {trendData && (
-        <div className="p-5 border-b border-litter-border">
+        <div className="reports-print-section p-5 border-b border-litter-border">
           <p className="font-semibold text-litter-text text-sm mb-3">Trends</p>
           <div className="grid grid-cols-1 gap-3">
             <div className="bg-theme-overlay rounded-xl p-4">
@@ -512,7 +539,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       )}
 
       {/* Vet Notes */}
-      <div className="p-5 border-b border-litter-border">
+      <div className="reports-print-section p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Vet Notes</p>
         {report.healthLogs.length === 0 ? (
           <p className="text-sm text-theme-muted">No vet notes for this period</p>
@@ -526,6 +553,9 @@ function ReportPreview({ report }: ReportPreviewProps) {
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}>
                       {log.type}
                     </span>
+                    {showCatColumn && (
+                      <span className="text-xs text-theme-muted">{log.catName}</span>
+                    )}
                     <span className="text-xs text-theme-muted">{formatDate(log.date)}</span>
                   </div>
                   <p className="text-sm text-litter-text">{log.note}</p>
@@ -537,7 +567,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
       </div>
 
       {/* Recommendations */}
-      <div className="p-5">
+      <div className="reports-print-section p-5">
         <p className="font-semibold text-litter-text text-sm mb-2">Recommendations</p>
         <p className="text-sm text-theme-muted leading-relaxed">
           {report.summary.anomaliesDetected === 0

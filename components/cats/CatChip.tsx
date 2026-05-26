@@ -8,7 +8,8 @@
 
 "use client";
 
-import { Cat } from "@/lib/data/mockData";
+import Image from "next/image";
+import { Cat } from "@/lib/data/data";
 
 interface CatChipProps {
   cat: Cat;
@@ -17,9 +18,8 @@ interface CatChipProps {
 }
 
 const statusColors = {
-  healthy: "bg-green-500",
-  watch: "bg-amber-500",
-  alert: "bg-red-500",
+  normal: "bg-green-500",
+  abnormal: "bg-red-500",
 };
 
 export function CatChip({ cat, isActive, onClick }: CatChipProps) {
@@ -40,9 +40,12 @@ export function CatChip({ cat, isActive, onClick }: CatChipProps) {
           }`}
         >
           {cat.avatar ? (
-            <img
+            <Image
               src={cat.avatar}
               alt={cat.name}
+              width={32}
+              height={32}
+              unoptimized
               className="w-full h-full rounded-full object-cover"
             />
           ) : (

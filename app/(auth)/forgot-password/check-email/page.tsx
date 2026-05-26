@@ -8,12 +8,12 @@
 
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { ArrowLeft, MailCheck, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function CheckEmailPage() {
+function CheckEmailContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "your email";
   const [isResending, setIsResending] = useState(false);
@@ -124,5 +124,19 @@ export default function CheckEmailPage() {
         </span>
       </div>
     </div>
+  );
+}
+
+export default function CheckEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-litter-card flex items-center justify-center px-6">
+          <p className="text-sm text-[#6B7280]">Loading...</p>
+        </div>
+      }
+    >
+      <CheckEmailContent />
+    </Suspense>
   );
 }

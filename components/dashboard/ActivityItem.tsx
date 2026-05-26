@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { getCatById } from "@/lib/data/mockData";
 
 interface ActivityItemProps {
@@ -26,9 +27,12 @@ export function ActivityItem({
       {/* Cat Avatar */}
       <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
         {cat?.avatar ? (
-          <img
+          <Image
             src={cat.avatar}
             alt={cat?.name}
+            width={40}
+            height={40}
+            unoptimized
             className="w-full h-full rounded-full object-cover"
           />
         ) : (
@@ -50,7 +54,7 @@ export function ActivityItem({
       <div className="flex items-center gap-2 shrink-0">
         {anomaly && (
           <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-wide">
-            {anomalyNote || "Unusual"}
+            {anomalyNote || "Abnormal"}
           </span>
         )}
         <span className="font-body text-litter-muted text-xs">{time}</span>

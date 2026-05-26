@@ -1,4 +1,4 @@
-const fs = require('node.fs');
+const fs = require("node:fs");
 
 // These are patterns produced by the previous broken replace script
 // that introduced duplicated dark: prefixes. We clean them here.

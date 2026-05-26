@@ -3,32 +3,52 @@
  *
  * Three states:
  * 1. Empty — no cats registered, shows onboarding prompt
- * 2. Normal — cats registered, all healthy, no alert banner
- * 3. Anomaly — at least one cat flagged, alert banner visible
+ * 2. Normal - cats registered, no abnormal health banner
+ * 3. Anomaly - at least one cat flagged, abnormal health banner visible
  *
  * The cat selector switches per-cat data (visits, duration).
- * Air quality and litter level come from deviceStats (device-level, not per-cat).
+ * Visits come from Firebase catStats, updated by live RFID scans.
  */
 
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { useNotifications } from "@/lib/contexts/NotificationContext";
+import { useCats } from "@/lib/contexts/CatContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { CatChip } from "@/components/cats/CatChip";
-import { ActivityItem } from "@/components/dashboard/ActivityItem";
-import {
-  mockCats,
-  mockStats,
-  mockActivity,
-  deviceStats,
-  getCatById,
-} from "@/lib/data/mockData";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { NotificationPermissionBanner } from "@/components/ui/NotificationPermissionBanner";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import { formatDuration } from "@/lib/utils/formatters";
+
+const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
+
+const getAbnormalSignature = (cat: { id: string; status: string }) => `${cat.id}:${cat.status}`;
+
+const getLocalDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getAbnormalNotificationKey = (cat: { id: string; status: string }, dateKey: string) =>
+  `dashboard-abnormal:${dateKey}:${cat.id}:${cat.status}`;
+
+const buildAbnormalNotificationMessage = (visitCount: number, avgDuration: string) => {
+  const visitLabel = `${visitCount} visit${visitCount === 1 ? "" : "s"} logged`;
+  const durationLabel = avgDuration && avgDuration !== "--"
+    ? `avg duration ${avgDuration}`
+    : "avg duration unavailable";
+
+  return `Abnormal litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
+};
 
 
 const getGreeting = () => {
@@ -49,118 +69,231 @@ const formatDate = () => {
 };
 
 const getAirQualityStatus = (quality: string) => {
-  switch (quality) {
-    case "Normal":
-      return "healthy";
-    case "Elevated":
-      return "watch";
-    case "Poor":
-      return "alert";
-    default:
-      return "normal" as const;
-  }
+  return quality === "Abnormal" ? "abnormal" : "normal";
 };
 
-const getLitterLevelStatus = (level: number) => {
-  if (level >= 80) return "alert";
-  if (level >= 60) return "watch";
-  return "healthy";
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+): "Normal" | "Abnormal" => {
+  if (!mq135 || !mq136) return "Normal";
+  if (isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)) {
+    return "Abnormal";
+  }
+  return "Normal";
 };
 
 const getVisitsStatus = (visits: number) => {
-  if (visits > 6) return "watch";
-  if (visits > 8) return "alert";
-  return "healthy";
+  if (visits > 6) return "abnormal";
+  return "normal";
 };
 
 const getVisitsLabel = (visits: number) => {
-  if (visits > 6) return "Unusual";
-  return "Healthy";
+  if (visits > 8) return "Abnormal";
+  if (visits > 6) return "Abnormal";
+  return "Normal";
 };
 
 const getDurationLabel = (duration: string) => {
   const mins = Number.parseInt(duration);
-  if (mins >= 5) return "High";
-  if (mins >= 3) return "Unusual";
-  return "Healthy";
+  if (mins >= 5) return "Abnormal";
+  if (mins >= 3) return "Abnormal";
+  return "Normal";
 };
 
 const getDurationStatus = (duration: string) => {
   const mins = Number.parseInt(duration);
-  if (mins >= 5) return "alert";
-  if (mins >= 3) return "watch";
-  return "healthy";
-};
-
-const getStatusClass = (status: string) => {
-  switch (status) {
-    case "healthy":
-      return "bg-green-100 text-green-700";
-    case "watch":
-      return "bg-amber-100 text-amber-700";
-    case "alert":
-      return "bg-red-100 text-red-700";
-    default:
-      return "bg-green-100 text-green-700";
-  }
+  if (mins >= 3) return "abnormal";
+  return "normal";
 };
 
 const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
   let baseLabel: string;
   switch (status) {
-    case "healthy":
-      baseLabel = "Healthy";
+    case "normal":
+      baseLabel = "Normal";
       break;
-    case "watch":
-      baseLabel = "Watch";
-      break;
-    case "alert":
-      baseLabel = "Alert";
+    case "abnormal":
+      baseLabel = "Abnormal";
       break;
     default:
-      baseLabel = "Healthy";
+      baseLabel = "Normal";
   }
   return includeIcon ? `● ${baseLabel}` : baseLabel;
 };
 
 const getAirQualityStatusLabel = (airQuality: string) => {
-  switch (airQuality) {
-    case "Normal":
-      return "Healthy";
-    case "Elevated":
-      return "Unusual";
-    case "Poor":
-      return "Alert";
-    default:
-      return "Healthy";
+  return airQuality === "Abnormal" ? "Abnormal" : "Normal";
+};
+
+const getSensorErrorLabel = (error: string | null) => {
+  if (!error) return "Check IP";
+
+  const normalized = error.toLowerCase();
+  if (normalized.includes("timed out")) return "Timeout";
+  if (normalized.includes("returned 404")) return "Missing route";
+  if (
+    normalized.includes("unavailable") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("bad port")
+  ) {
+    return "Server down";
   }
+
+  return "Check IP";
+};
+
+const getRfidStatus = (
+  sensorData: ReturnType<typeof useDeviceSensors>["data"],
+  sensorsLoading: boolean,
+  sensorsError: string | null,
+) => {
+  if (sensorsError) {
+    return {
+      value: "Offline",
+      status: "abnormal" as const,
+      label: getSensorErrorLabel(sensorsError),
+    };
+  }
+  if (sensorsLoading) return { value: "Syncing", status: "normal" as const, label: "Polling" };
+  if (!sensorData?.online) return { value: "Offline", status: "abnormal" as const, label: "No data" };
+  return { value: "Online", status: "normal" as const, label: "Live" };
 };
 
 export default function DashboardPage() {
-  const [selectedCatId, setSelectedCatId] = useState(mockCats[0]?.id || "");
-  const [showAlertBanner, setShowAlertBanner] = useState(true);
+  const router = useRouter();
   const { user } = useAuth();
+  const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
+  const { cats, getCatById, getStatsByCatId, sessions } = useCats();
+  const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
+  const [dismissedAbnormalKeys, setDismissedAbnormalKeys] = useState<string[]>([]);
+  const [isDismissedAbnormalReady, setIsDismissedAbnormalReady] = useState(false);
+  const {
+    data: sensorData,
+    isLoading: sensorsLoading,
+    error: sensorsError,
+  } = useDeviceSensors();
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
-    status: notifStatus,
-    showBanner,
-    requestPermission,
-    dismissBanner,
     triggerOnAnomaly,
   } = useNotificationPermission();
 
-  const selectedCat = useMemo(() => getCatById(selectedCatId), [selectedCatId]);
-  const stats = useMemo(() => mockStats[selectedCatId], [selectedCatId]);
+  const activeCatId = useMemo(() => {
+    if (cats.some((cat) => cat.id === selectedCatId)) return selectedCatId;
+    return cats[0]?.id || "";
+  }, [cats, selectedCatId]);
 
-  const hasAnomaly = useMemo(
-    () => mockCats.some((cat) => cat.status !== "healthy"),
-    [],
+  const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
+  const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
+
+  const abnormalCats = useMemo(
+    () => cats.filter((cat) => cat.status === "abnormal"),
+    [cats],
   );
-  const alertCat = useMemo(
-    () => mockCats.find((cat) => cat.status !== "healthy"),
-    [],
+  const hasAnomaly = abnormalCats.length > 0;
+  const abnormalCat = useMemo(
+    () => abnormalCats.find((cat) => !dismissedAbnormalKeys.includes(getAbnormalSignature(cat))),
+    [abnormalCats, dismissedAbnormalKeys],
   );
+  const abnormalNotificationPayloads = useMemo(() => {
+    const dateKey = getLocalDateKey();
+
+    return abnormalCats.map((cat) => {
+      const abnormalStats = getStatsByCatId(cat.id);
+      const visitCount = abnormalStats?.visits ?? 0;
+      const avgDuration = abnormalStats?.avgDuration ?? "--";
+      return {
+        type: "health" as const,
+        title: `${cat.name} - Abnormal Behavior`,
+        message: buildAbnormalNotificationMessage(visitCount, avgDuration),
+        source: "dashboard_abnormal" as const,
+        abnormalKey: getAbnormalNotificationKey(cat, dateKey),
+        catId: cat.id,
+        catName: cat.name,
+        route: `/dashboard/cats/${cat.id}`,
+        status: "abnormal" as const,
+        visitCount,
+        avgDuration,
+      };
+    });
+  }, [abnormalCats, getStatsByCatId]);
+
+  useEffect(() => {
+    try {
+      const rawValue = window.localStorage.getItem(DISMISSED_ABNORMAL_STORAGE_KEY);
+      if (!rawValue) {
+        setDismissedAbnormalKeys([]);
+        return;
+      }
+
+      const parsed = JSON.parse(rawValue);
+      setDismissedAbnormalKeys(
+        Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [],
+      );
+    } catch {
+      setDismissedAbnormalKeys([]);
+    } finally {
+      setIsDismissedAbnormalReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isDismissedAbnormalReady) return;
+
+    const activeAbnormalKeys = new Set(abnormalCats.map((cat) => getAbnormalSignature(cat)));
+    setDismissedAbnormalKeys((prev) => {
+      const next = prev.filter((key) => activeAbnormalKeys.has(key));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [abnormalCats, isDismissedAbnormalReady]);
+
+  useEffect(() => {
+    if (!isDismissedAbnormalReady) return;
+
+    try {
+      window.localStorage.setItem(
+        DISMISSED_ABNORMAL_STORAGE_KEY,
+        JSON.stringify(dismissedAbnormalKeys),
+      );
+    } catch {
+      // Ignore storage failures; abnormal banner dismissal still works for the current render.
+    }
+  }, [dismissedAbnormalKeys, isDismissedAbnormalReady]);
+
+  useEffect(() => {
+    if (notificationsLoading || abnormalNotificationPayloads.length === 0) return;
+
+    const syncAbnormalNotifications = async () => {
+      for (const notification of abnormalNotificationPayloads) {
+        await upsertNotification(notification);
+      }
+    };
+
+    void syncAbnormalNotifications();
+  }, [abnormalNotificationPayloads, notificationsLoading, upsertNotification]);
+
+  const handleViewAbnormalDetails = () => {
+    if (!abnormalCat) return;
+    router.push(`/dashboard/cats/${abnormalCat.id}`);
+  };
+
+  const handleDismissAbnormal = () => {
+    if (!abnormalCat) return;
+
+    const abnormalKey = getAbnormalSignature(abnormalCat);
+    setDismissedAbnormalKeys((prev) => (
+      prev.includes(abnormalKey) ? prev : [...prev, abnormalKey]
+    ));
+  };
 
   // ── Trigger permission prompt when anomaly is detected ──
   useEffect(() => {
@@ -169,13 +302,24 @@ export default function DashboardPage() {
     }
   }, [hasAnomaly, triggerOnAnomaly]);
 
-  const selectedCatStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatStatusLabel = getStatusLabel(selectedCat?.status || "healthy", true);
-  const selectedCatMobileStatusClass = getStatusClass(selectedCat?.status || "healthy");
-  const selectedCatMobileStatusLabel = getStatusLabel(selectedCat?.status || "healthy");
-  const airQualityStatusLabel = getAirQualityStatusLabel(stats?.airQuality || "Normal");
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  const airQualityStatusLabel = sensorsError
+    ? "Offline"
+    : sensorsLoading
+      ? "Syncing"
+      : getAirQualityStatusLabel(airQuality);
+  const rfidStatus = getRfidStatus(sensorData, sensorsLoading, sensorsError);
+  const recentVisits = sessions
+    .map((session) => ({ session, cat: getCatById(session.catId) }))
+    .filter(({ cat }) => Boolean(cat))
+    .slice(0, 5);
 
-  const isEmpty = mockCats.length === 0;
+  const isEmpty = cats.length === 0;
 
   const greeting = getGreeting();
   const todayDate = formatDate();
@@ -233,7 +377,7 @@ export default function DashboardPage() {
         ) : (
           /* ── NORMAL / ANOMALY STATE ── */
           <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
-            {/* ── LEFT COLUMN: Greeting + Cat Selector + Alert ── */}
+            {/* ── LEFT COLUMN: Greeting + Cat Selector + Abnormal Banner ── */}
             <div className="lg:sticky lg:top-24 lg:pt-6">
               {/* Greeting Section */}
               <section className="mb-6 pt-6">
@@ -253,19 +397,19 @@ export default function DashboardPage() {
               {/* Cat Selector */}
               <section className="mb-6">
                 <div className="flex flex-wrap gap-2">
-                  {mockCats.map((cat) => (
+                  {cats.map((cat) => (
                     <CatChip
                       key={cat.id}
                       cat={cat}
-                      isActive={selectedCatId === cat.id}
+                      isActive={activeCatId === cat.id}
                       onClick={() => setSelectedCatId(cat.id)}
                     />
                   ))}
                 </div>
               </section>
 
-              {/* Health Alert Banner */}
-              {showAlertBanner && hasAnomaly && alertCat && (
+              {/* Abnormal Health Banner */}
+              {isDismissedAbnormalReady && abnormalCat && (
                 <div className="overflow-hidden mb-6">
                   <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-r-2xl rounded-l-sm p-4">
                     <div className="flex items-start gap-3 mb-3">
@@ -274,20 +418,28 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-amber-700 font-bold text-sm">
-                          {alertCat.name} - Unusual Behavior
+                          {abnormalCat.name} - Abnormal Behavior
                         </p>
                         <p className="text-litter-muted text-xs mt-1">
-                          Unusual litter box behavior detected today. Consider
+                          Abnormal litter box behavior detected today. Consider
                           logging a vet visit if symptoms persist.
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setShowAlertBanner(false)}
-                      className="w-full py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
-                    >
-                      View Details
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleViewAbnormalDetails}
+                        className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={handleDismissAbnormal}
+                        className="px-4 py-2.5 bg-white/80 hover:bg-white text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -295,8 +447,19 @@ export default function DashboardPage() {
               {/* Selected cat status summary — desktop only */}
               <div className="hidden lg:flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg">
-                    {selectedCat?.name.charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden">
+                    {selectedCat?.avatar ? (
+                      <Image
+                        src={selectedCat.avatar}
+                        alt={selectedCat.name}
+                        width={44}
+                        height={44}
+                        unoptimized
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      selectedCat?.name.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold text-litter-text">
@@ -309,18 +472,12 @@ export default function DashboardPage() {
                 </div>
                 <span
                   className={`text-xs px-3 py-1.5 rounded-full font-semibold ${
-                    selectedCat?.status === "healthy"
+                    selectedCat?.status === "normal"
                       ? "bg-green-100 text-green-700"
-                      : selectedCat?.status === "watch"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-red-100 text-red-700"
+                      : "bg-red-100 text-red-700"
                   }`}
                 >
-                  {selectedCat?.status === "healthy"
-                    ? "● Healthy"
-                    : selectedCat?.status === "watch"
-                      ? "● Watch"
-                      : "● Alert"}
+                  {getStatusLabel(selectedCat?.status, true)}
                 </span>
               </div>
             </div>
@@ -336,18 +493,12 @@ export default function DashboardPage() {
                   {/* Mobile-only status badge */}
                   <span
                     className={`lg:hidden text-xs px-2 py-1 rounded-full font-medium ${
-                      selectedCat?.status === "healthy"
+                      selectedCat?.status === "normal"
                         ? "bg-green-100 text-green-700"
-                        : selectedCat?.status === "watch"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-red-100 text-red-700"
+                        : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {selectedCat?.status === "healthy"
-                      ? "Healthy"
-                      : selectedCat?.status === "watch"
-                        ? "Watch"
-                        : "Alert"}
+                    {getStatusLabel(selectedCat?.status)}
                   </span>
                 </div>
 
@@ -368,24 +519,20 @@ export default function DashboardPage() {
                   />
                   <StatCard
                     icon={Wind}
-                    value={deviceStats.airQuality}
+                    value={airQuality}
                     label="Air Quality"
-                    status={getAirQualityStatus(deviceStats.airQuality)}
-                    statusLabel={
-                      deviceStats.airQuality === "Normal"
-                        ? "Healthy"
-                        : deviceStats.airQuality === "Elevated"
-                          ? "Unusual"
-                          : "Alert"
-                    }
+                    status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
+                    statusLabel={airQualityStatusLabel}
                   />
                   <StatCard
                     icon={BarChart2}
-                    value={`${deviceStats.litterLevel}%`}
-                    label="Litter Level"
-                    status={getLitterLevelStatus(deviceStats.litterLevel)}
+                    value={rfidStatus.value}
+                    label="RFID Reader"
+                    status={rfidStatus.status}
+                    statusLabel={rfidStatus.label}
                   />
                 </div>
+
               </section>
 
               {/* Recent Activity Feed */}
@@ -394,24 +541,58 @@ export default function DashboardPage() {
                   <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
                     Recent Activity
                   </h2>
-                  <button className="text-litter-primary text-sm font-medium hover:underline">
-                    See all
-                  </button>
+                  <span className="text-litter-primary text-xs font-semibold">
+                    Realtime
+                  </span>
                 </div>
 
-                <div className="space-y-3">
-                  {mockActivity.map((activity, index) => (
-                    <ActivityItem
-                      key={index}
-                      catId={activity.catId}
-                      action={activity.action}
-                      time={activity.time}
-                      duration={activity.duration}
-                      anomaly={activity.anomaly}
-                      anomalyNote={activity.anomalyNote}
-                    />
-                  ))}
-                </div>
+                {recentVisits.length > 0 ? (
+                  <div className="space-y-3">
+                    {recentVisits.map(({ cat, session }) => (
+                      <div
+                        key={session.id}
+                        className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0 overflow-hidden">
+                          {cat?.avatar ? (
+                            <Image
+                              src={cat.avatar}
+                              alt={cat.name}
+                              width={40}
+                              height={40}
+                              unoptimized
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            cat?.name.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body text-litter-text font-semibold text-sm leading-snug">
+                            {cat?.name} RFID visit recorded
+                          </p>
+                          <p className="font-body text-litter-muted text-xs mt-0.5">
+                            {session.anomaly
+                              ? session.anomalyType ?? "Anomaly flagged"
+                              : `${formatDuration(session.durationSecs)} visit`}
+                          </p>
+                        </div>
+                        <span className="font-body text-litter-muted text-xs">
+                          {session.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-litter-card rounded-xl border border-litter-border text-center">
+                    <p className="text-sm font-semibold text-litter-text">
+                      Waiting for RFID visits
+                    </p>
+                    <p className="text-xs text-litter-muted mt-1">
+                      Tap the key fob near the antenna to record the first visit.
+                    </p>
+                  </div>
+                )}
               </section>
             </div>
           </div>
@@ -422,3 +603,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

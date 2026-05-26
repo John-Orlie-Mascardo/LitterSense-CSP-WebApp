@@ -1,10 +1,18 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
+import { CatProvider } from "@/lib/contexts/CatContext";
+import { NotificationProvider } from "@/lib/contexts/NotificationContext";
+import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
+import { PWAInstallProvider } from "@/lib/contexts/PWAInstallContext";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LitterSense - Feline Health Monitoring",
+  title: {
+    default: "Login | LitterSense",
+    template: "%s | LitterSense",
+  },
   description: "IoT-enabled feline health monitoring for Filipino cat owners. Early detection, healthier cats.",
   manifest: "/manifest.json",
   icons: {
@@ -14,7 +22,6 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "LitterSense",
   },
 };
 
@@ -35,7 +42,15 @@ export default function RootLayout({
       <body className="font-body antialiased bg-litter-bg text-litter-text transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            {children}
+            <DeleteRequestProvider>
+              <CatProvider>
+                <NotificationProvider>
+                  <PWAInstallProvider>
+                    {children}
+                  </PWAInstallProvider>
+                </NotificationProvider>
+              </CatProvider>
+            </DeleteRequestProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -27,8 +27,8 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   // Close on escape key
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
 
     if (isOpen) {
@@ -64,7 +64,7 @@ export function ConfirmDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           aria-modal="true"
           role="alertdialog"
         >
@@ -73,7 +73,7 @@ export function ConfirmDialog({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
             className="bg-litter-card rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
           >
             {/* Header */}

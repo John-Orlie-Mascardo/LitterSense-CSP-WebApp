@@ -1,6 +1,6 @@
 "use client";
 
-import { LineChart, Line, ResponsiveContainer, Area, AreaChart, Tooltip, ReferenceLine } from "recharts";
+import { Line, ResponsiveContainer, Area, AreaChart, Tooltip, ReferenceLine } from "recharts";
 
 interface SparklineChartProps {
   data: { value: number; label: string }[];
@@ -10,6 +10,24 @@ interface SparklineChartProps {
   height?: number;
 }
 
+interface SparklineTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: SparklineTooltipProps) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-litter-card p-2 rounded-lg shadow-lg border border-litter-border text-xs">
+        <p className="font-medium text-theme-secondary">{label}</p>
+        <p className="text-litter-primary font-semibold">{payload[0].value}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
 export function SparklineChart({
   data,
   baseline,
@@ -17,18 +35,6 @@ export function SparklineChart({
   showArea = true,
   height = 80,
 }: SparklineChartProps) {
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-litter-card p-2 rounded-lg shadow-lg border border-litter-border text-xs">
-          <p className="font-medium text-theme-secondary">{label}</p>
-          <p className="text-litter-primary font-semibold">{payload[0].value}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%">

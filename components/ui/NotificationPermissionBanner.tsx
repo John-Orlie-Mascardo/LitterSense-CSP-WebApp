@@ -41,7 +41,7 @@ export function NotificationPermissionBanner({
                 Enable push notifications
               </p>
               <p className="text-white/80 text-xs leading-snug">
-                Get alerted when your cat shows unusual behavior, even when the app is closed.
+                Get alerted when your cat shows abnormal behavior, even when the app is closed.
               </p>
 
               {/* Action buttons */}

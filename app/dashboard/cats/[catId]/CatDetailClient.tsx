@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
+import Image from "next/image";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Pencil,
   Clock,
   Timer,
   Wind,
-  Droplets,
+  Tag,
   Info,
   Plus,
   Trash2,
   FileText,
   Filter,
   AlertTriangle,
-  Tag,
   Lightbulb,
+  Camera,
+  Upload,
+  X as XIcon,
+  PawPrint,
+  Scale,
+  CalendarDays,
+  Wifi,
+  ScanLine,
+  Loader2,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -26,18 +35,13 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { ToastContainer, type ToastProps } from "@/components/ui/Toast";
-import {
-  getCatById,
-  getCatDetailsById,
-  getSessionsByCatId,
-  getHealthLogsByCatId,
-  getTrendData,
-  mockStats,
-  deviceStats,
-  type Session,
-  type HealthLog,
-} from "@/lib/data/mockData";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
+import { useCats } from "@/lib/contexts/CatContext";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import type { CatDetails } from "@/lib/interfaces/CatDetails";
+import type { HealthLog } from "@/lib/interfaces/HealthLog";
+import type { Session } from "@/lib/interfaces/Session";
 import {
   getStatusColor,
   getStatusLabel,
@@ -48,6 +52,53 @@ import {
   getHealthLogTypeColor,
   generateId,
 } from "@/lib/utils/formatters";
+import { cropImageToSquare } from "@/lib/utils/imageCrop";
+
+const AVATAR_PREVIEW_SIZE = 128;
+
+interface PhotoOffset {
+  x: number;
+  y: number;
+}
+
+interface PhotoSize {
+  width: number;
+  height: number;
+}
+
+interface PhotoDragState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+}
+
+const getPhotoPanLimit = (size: PhotoSize | null, zoom: number) => {
+  if (!size) return { x: 0, y: 0 };
+  const scale =
+    Math.max(
+      AVATAR_PREVIEW_SIZE / size.width,
+      AVATAR_PREVIEW_SIZE / size.height,
+    ) * zoom;
+
+  return {
+    x: Math.max(0, (size.width * scale - AVATAR_PREVIEW_SIZE) / 2),
+    y: Math.max(0, (size.height * scale - AVATAR_PREVIEW_SIZE) / 2),
+  };
+};
+
+const clampPhotoOffset = (
+  offset: PhotoOffset,
+  size: PhotoSize | null,
+  zoom: number,
+) => {
+  const limit = getPhotoPanLimit(size, zoom);
+  return {
+    x: Math.min(limit.x, Math.max(-limit.x, offset.x)),
+    y: Math.min(limit.y, Math.max(-limit.y, offset.y)),
+  };
+};
 
 const tabs = [
   { id: "overview", label: "Overview" },
@@ -56,35 +107,273 @@ const tabs = [
   { id: "health", label: "Health Log" },
 ];
 
+type CatDetailTabId = (typeof tabs)[number]["id"];
+
+const isCatDetailTabId = (tabId: string | null): tabId is CatDetailTabId =>
+  tabs.some((tab) => tab.id === tabId);
+
+const isGasDetected = (label: string, raw: number | null | undefined) => {
+  const normalized = label.toLowerCase();
+  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
+};
+
+const getLiveAirQuality = (
+  mq135: string | undefined,
+  mq136: string | undefined,
+  mq135Raw: number | null | undefined,
+  mq136Raw: number | null | undefined,
+) => {
+  if (!mq135 || !mq136) return "Normal";
+  return isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)
+    ? "Abnormal"
+    : "Normal";
+};
+
+const getAirQualityStatus = (airQuality: string) => {
+  return airQuality === "Abnormal" ? "abnormal" : "normal";
+};
+
+const getTrendBaseline = (
+  details:
+    | {
+        baseline: {
+          avgVisitsPerDay: number;
+          avgDurationSecs: number;
+          mq135DeltaPercent: number;
+        };
+      }
+    | null,
+  trendData:
+    | Array<{
+        visits: number;
+        avgDuration: number;
+        mq135Delta: number;
+      }>
+    | null,
+) => {
+  if (details?.baseline) return details.baseline;
+
+  const activeDays = trendData?.filter((day) => day.visits > 0) ?? [];
+  if (activeDays.length === 0) {
+    return {
+      avgVisitsPerDay: 1,
+      avgDurationSecs: 120,
+      mq135DeltaPercent: 0,
+    };
+  }
+
+  return {
+    avgVisitsPerDay: Math.round(
+      activeDays.reduce((sum, day) => sum + day.visits, 0) / activeDays.length,
+    ),
+    avgDurationSecs: Math.round(
+      activeDays.reduce((sum, day) => sum + day.avgDuration, 0) /
+        activeDays.length,
+    ),
+    mq135DeltaPercent: Math.round(
+      activeDays.reduce((sum, day) => sum + day.mq135Delta, 0) /
+        activeDays.length,
+    ),
+  };
+};
+
+interface EditFormData {
+  name: string;
+  breed: string;
+  gender: "" | NonNullable<CatDetails["gender"]>;
+  dob: string;
+  weightKg: string;
+  rfidTag: string;
+  photo: string | null;
+}
+
+const formatGender = (gender?: CatDetails["gender"]) => {
+  if (!gender) return "Unknown gender";
+  return gender.charAt(0).toUpperCase() + gender.slice(1);
+};
+
 export default function CatDetailClient() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const catId = params.catId as string;
+  const {
+    getCatById,
+    getDetailsByCatId,
+    getStatsByCatId,
+    getSessionsByCatId,
+    getHealthLogsByCatId,
+    getTrendData,
+    updateCat,
+    updateDetails,
+    removeCat,
+    addHealthLog,
+    removeHealthLog,
+  } = useCats();
+  const { data: sensorData, isLoading: sensorsLoading, error: sensorsError } = useDeviceSensors();
 
   const cat = getCatById(catId);
-  const details = getCatDetailsById(catId);
-  const stats = mockStats[catId];
+  const details = getDetailsByCatId(catId);
+  const stats = getStatsByCatId(catId);
+  const sessions = getSessionsByCatId(catId);
+  const healthLogs = getHealthLogsByCatId(catId);
   const trendData = getTrendData(catId);
+  const trendBaseline = getTrendBaseline(details ?? null, trendData);
 
-  const [activeTab, setActiveTab] = useState("overview");
-  const [toasts, setToasts] = useState<Omit<ToastProps, "onClose">[]>([]);
+  const requestedTab = searchParams.get("tab");
+  const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
+    ? requestedTab
+    : "overview";
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
+  const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editPhotoZoom, setEditPhotoZoom] = useState(1);
+  const [editPhotoOffset, setEditPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
+  const [editPhotoSize, setEditPhotoSize] = useState<PhotoSize | null>(null);
+  const editPhotoDragRef = useRef<PhotoDragState | null>(null);
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditFormData, string>>>({});
+  const [editForm, setEditForm] = useState<EditFormData>({
+    name: cat?.name ?? "",
+    breed: details?.breed ?? "",
+    gender: details?.gender ?? "",
+    dob: details?.dob ?? "",
+    weightKg: details?.weightKg ? String(details.weightKg) : "",
+    rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
+    photo: cat?.avatar ?? null,
+  });
 
-  const addToast = (message: string, type: ToastProps["type"] = "info") => {
+  const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  if (!cat || !details) {
+  const handleTabChange = (tabId: string) => {
+    const nextTab = isCatDetailTabId(tabId) ? tabId : "overview";
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (nextTab === "overview") {
+      nextParams.delete("tab");
+    } else {
+      nextParams.set("tab", nextTab);
+    }
+
+    const nextQuery = nextParams.toString();
+    const nextPath = nextQuery
+      ? `/dashboard/cats/${catId}?${nextQuery}`
+      : `/dashboard/cats/${catId}`;
+
+    router.replace(nextPath, { scroll: false });
+  };
+
+  const openEdit = () => {
+    // Refresh form with latest saved values
+    setEditForm({
+      name: cat?.name ?? "",
+      breed: details?.breed ?? "",
+      gender: details?.gender ?? "",
+      dob: details?.dob ?? "",
+      weightKg: details?.weightKg ? String(details.weightKg) : "",
+      rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
+      photo: cat?.avatar ?? null,
+    });
+    setEditPhotoZoom(1);
+    setEditPhotoOffset({ x: 0, y: 0 });
+    setEditPhotoSize(null);
+    setEditErrors({});
+    setIsEditOpen(true);
+  };
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditForm((p) => ({ ...p, photo: reader.result as string }));
+        setEditPhotoZoom(1);
+        setEditPhotoOffset({ x: 0, y: 0 });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleEditSave = async () => {
+    const errs: Partial<Record<keyof EditFormData, string>> = {};
+    if (!editForm.name.trim()) errs.name = "Name is required";
+    if (!editForm.breed.trim()) errs.breed = "Breed is required";
+    if (!editForm.gender) errs.gender = "Gender is required";
+    if (!editForm.dob) errs.dob = "Date of birth is required";
+    if (Object.keys(errs).length > 0) { setEditErrors(errs); return; }
+
+    setIsSaving(true);
+    const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
+    const avatar = editForm.photo
+      ? await cropImageToSquare(editForm.photo, editPhotoZoom, editPhotoOffset)
+      : null;
+    await updateCat(catId, { name: editForm.name.trim(), avatar });
+    await updateDetails(catId, {
+      breed: editForm.breed,
+      gender,
+      dob: editForm.dob,
+      weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
+      rfidTag: editForm.rfidTag || "—",
+    });
+    setIsSaving(false);
+    setIsEditOpen(false);
+    addToast("Cat profile updated!", "success");
+  };
+
+  const resetEditPhotoState = () => {
+    setEditPhotoZoom(1);
+    setEditPhotoOffset({ x: 0, y: 0 });
+    setEditPhotoSize(null);
+  };
+
+  const handleEditPhotoPointerDown = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (!editForm.photo) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    editPhotoDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: editPhotoOffset.x,
+      originY: editPhotoOffset.y,
+    };
+  };
+
+  const handleEditPhotoPointerMove = (event: React.PointerEvent<HTMLImageElement>) => {
+    const drag = editPhotoDragRef.current;
+    if (drag?.pointerId !== event.pointerId) return;
+    setEditPhotoOffset(
+      clampPhotoOffset(
+        {
+          x: drag.originX + event.clientX - drag.startX,
+          y: drag.originY + event.clientY - drag.startY,
+        },
+        editPhotoSize,
+        editPhotoZoom,
+      ),
+    );
+  };
+
+  const handleEditPhotoPointerUp = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (editPhotoDragRef.current?.pointerId === event.pointerId) {
+      editPhotoDragRef.current = null;
+    }
+  };
+
+  const handleDelete = async () => {
+    await removeCat(catId);
+    router.push("/dashboard/cats");
+  };
+
+  if (!cat) {
     return (
       <div className="min-h-screen bg-litter-card flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-display font-bold text-litter-text mb-2">
-            Cat not found
-          </h1>
-          <button
-            onClick={() => router.push("/dashboard/cats")}
-            className="text-litter-primary hover:underline"
-          >
+          <h1 className="text-2xl font-display font-bold text-litter-text mb-2">Cat not found</h1>
+          <button onClick={() => router.push("/dashboard/cats")} className="text-litter-primary hover:underline">
             Back to My Cats
           </button>
         </div>
@@ -96,38 +385,44 @@ export default function CatDetailClient() {
   const statusLabel = getStatusLabel(cat.status);
 
   return (
-    <div className="min-h-screen bg-litter-card pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
-      <ToastContainer
-        toasts={toasts}
-        onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
-      />
+      <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-        {/* Back button */}
-        <button
-          onClick={() => router.push("/dashboard/cats")}
-          className="flex items-center gap-2 text-theme-muted hover:text-litter-primary mb-4 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm font-medium">Back to My Cats</span>
-        </button>
 
-        {/* Profile Header */}
-        <section className="relative bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
-          {/* Edit button */}
-          <button className="absolute top-4 right-4 p-2 rounded-lg hover:bg-theme-overlay transition-colors">
-            <Pencil className="w-5 h-5 text-theme-muted" />
+        {/* ── Back button ── */}
+        <div className="flex items-center justify-between mb-5 pt-4">
+          <button
+            onClick={() => router.push("/dashboard/cats")}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            My Cats
           </button>
 
+          <button
+            onClick={openEdit}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
+          >
+            <Pencil className="w-4 h-4" />
+            Edit
+          </button>
+        </div>
+
+        {/* ── Profile Header ── */}
+        <section className="bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
           <div className="flex flex-col items-center text-center">
-            {/* Avatar with online indicator */}
+            {/* Avatar */}
             <div className="relative w-24 h-24 mb-4">
               <div className="w-full h-full rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-3xl overflow-hidden">
                 {cat.avatar ? (
-                  <img
+                  <Image
                     src={cat.avatar}
                     alt={cat.name}
+                    width={96}
+                    height={96}
+                    unoptimized
                     className="w-full h-full rounded-full object-cover"
                   />
                 ) : (
@@ -139,59 +434,302 @@ export default function CatDetailClient() {
               )}
             </div>
 
-            {/* Name */}
-            <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-2">
-              {cat.name}
-            </h1>
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-2">{cat.name}</h1>
 
-            {/* Details row */}
             <p className="text-theme-muted mb-3">
-              {details.breed} · {calculateAge(details.dob)} · {details.weightKg}
-              kg
+              {details?.breed || "Unknown breed"}
+              {` · ${formatGender(details?.gender)}`}
+              {details?.dob ? ` · ${calculateAge(details.dob)}` : ""}
+              {details?.weightKg ? ` · ${details.weightKg} kg` : ""}
             </p>
 
-            {/* RFID chip */}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
               <Tag className="w-3 h-3" />
-              RFID: {details.rfidTag}
+              RFID: {details?.rfidTag || "—"}
             </span>
 
-            {/* Status badge */}
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}
-            >
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}>
               {statusLabel}
             </span>
           </div>
         </section>
 
+        {/* ── Edit BottomSheet ── */}
+        <BottomSheet isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Cat Profile">
+          <div className="space-y-6">
+
+            {/* Photo */}
+            <div className="flex flex-col items-center justify-center gap-3">
+              {editForm.photo ? (
+                <>
+                  <div className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-litter-primary bg-litter-primary-light/30">
+                    <Image
+                      src={editForm.photo}
+                      alt="Avatar preview"
+                      width={128}
+                      height={128}
+                      unoptimized
+                      className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
+                      draggable={false}
+                      onLoad={(event) => {
+                        setEditPhotoSize({
+                          width: event.currentTarget.naturalWidth,
+                          height: event.currentTarget.naturalHeight,
+                        });
+                      }}
+                      onPointerDown={handleEditPhotoPointerDown}
+                      onPointerMove={handleEditPhotoPointerMove}
+                      onPointerUp={handleEditPhotoPointerUp}
+                      onPointerCancel={handleEditPhotoPointerUp}
+                      style={{
+                        transform: `translate(${editPhotoOffset.x}px, ${editPhotoOffset.y}px) scale(${editPhotoZoom})`,
+                      }}
+                    />
+                    <label
+                      htmlFor="edit-cat-photo-input"
+                      className="pointer-events-none absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1"
+                    >
+                      <Camera className="w-6 h-6 text-white" />
+                      <span className="text-white text-xs font-medium">Change photo</span>
+                    </label>
+                  </div>
+                  <div className="w-full max-w-xs">
+                    <label htmlFor="edit-cat-photo-zoom" className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
+                    <input
+                      id="edit-cat-photo-zoom"
+                      type="range"
+                      min="1"
+                      max="2.5"
+                      step="0.05"
+                      value={editPhotoZoom}
+                      onChange={(event) => {
+                        const nextZoom = Number(event.target.value);
+                        setEditPhotoZoom(nextZoom);
+                        setEditPhotoOffset((current) =>
+                          clampPhotoOffset(current, editPhotoSize, nextZoom),
+                        );
+                      }}
+                      className="w-full accent-litter-primary"
+                    />
+                    <p className="text-[11px] text-litter-muted mt-1">Drag the photo to reposition.</p>
+                  </div>
+                </>
+              ) : (
+                <label
+                  htmlFor="edit-cat-photo-input"
+                  aria-label="Upload cat photo"
+                  className="group relative flex w-full h-32 rounded-2xl overflow-hidden border-2 border-dashed border-litter-border hover:border-litter-primary transition-colors bg-litter-primary-light/30 cursor-pointer"
+                >
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    <div className="w-10 h-10 rounded-full bg-litter-primary/10 flex items-center justify-center group-hover:bg-litter-primary/20 transition-colors">
+                      <Upload className="w-5 h-5 text-litter-primary" />
+                    </div>
+                    <p className="text-sm font-medium text-litter-primary">Upload photo</p>
+                  </div>
+                </label>
+              )}
+              {editForm.photo && (
+                <div className="flex items-center gap-3 text-xs">
+                  <label htmlFor="edit-cat-photo-input" className="text-litter-muted hover:text-litter-primary transition-colors cursor-pointer">
+                    Change photo
+                  </label>
+                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); resetEditPhotoState(); }}
+                    className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors">
+                    <XIcon className="w-3 h-3" /> Remove photo
+                  </button>
+                </div>
+              )}
+              <input id="edit-cat-photo-input" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+            </div>
+
+            {/* Basic Info */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
+
+              <div>
+                <label htmlFor="edit-cat-name-input" className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Cat Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <PawPrint className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                  <input id="edit-cat-name-input" type="text" value={editForm.name}
+                    onChange={(e) => { setEditForm((p) => ({ ...p, name: e.target.value })); setEditErrors((p) => ({ ...p, name: undefined })); }}
+                    placeholder="e.g. Whiskers"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border ${editErrors.name ? "border-red-500" : "border-litter-border"} bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                  />
+                </div>
+                {editErrors.name && <p className="text-red-500 text-xs mt-1">{editErrors.name}</p>}
+              </div>
+
+              <div>
+                <p className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Breed <span className="text-red-500">*</span>
+                </p>
+                <BreedPicker value={editForm.breed} hasError={!!editErrors.breed}
+                  onChange={(v) => { setEditForm((p) => ({ ...p, breed: v })); setEditErrors((p) => ({ ...p, breed: undefined })); }} />
+                {editErrors.breed && <p className="text-red-500 text-xs mt-1">{editErrors.breed}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="edit-cat-gender-select" className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  Gender <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="edit-cat-gender-select"
+                  value={editForm.gender}
+                  onChange={(e) => {
+                    setEditForm((p) => ({
+                      ...p,
+                      gender: e.target.value as EditFormData["gender"],
+                    }));
+                    setEditErrors((p) => ({ ...p, gender: undefined }));
+                  }}
+                  className={`w-full px-3.5 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-litter-input text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-litter-placeholder"}`}
+                >
+                  <option value="" disabled>Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+                {editErrors.gender && <p className="text-red-500 text-xs mt-1">{editErrors.gender}</p>}
+              </div>
+            </div>
+
+            {/* Health Details */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
+
+              <div>
+                <p className="block text-sm font-medium text-theme-secondary mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays className="w-4 h-4 text-litter-muted" />
+                    Date of Birth <span className="text-red-500">*</span>
+                  </span>
+                </p>
+                <MonthYearPicker value={editForm.dob} hasError={!!editErrors.dob}
+                  onChange={(v) => { setEditForm((p) => ({ ...p, dob: v })); setEditErrors((p) => ({ ...p, dob: undefined })); }} />
+                {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
+              </div>
+
+              <div>
+                <label htmlFor="edit-cat-weight-input" className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
+                <div className="relative">
+                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
+                  <input id="edit-cat-weight-input" type="number" step="0.1" min="0" value={editForm.weightKg}
+                    onChange={(e) => setEditForm((p) => ({ ...p, weightKg: e.target.value }))}
+                    placeholder="4.2"
+                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Device */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Device</p>
+              <div className="rounded-2xl border border-litter-border bg-litter-primary-light/20 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-litter-primary/10 flex items-center justify-center">
+                    <Wifi className="w-4 h-4 text-litter-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-litter-text">RFID Tag ID</p>
+                    <p className="text-xs text-litter-muted">Tap the scan button on your LitterSense device</p>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input type="text" value={editForm.rfidTag}
+                    onChange={(e) => setEditForm((p) => ({ ...p, rfidTag: e.target.value }))}
+                    placeholder="Scan or enter RFID tag"
+                    className="w-full px-4 py-3 pr-12 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
+                  />
+                  <button type="button" title="Auto-fill from device"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all">
+                    <ScanLine className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Save */}
+            <button type="button" onClick={handleEditSave} disabled={isSaving}
+              className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-semibold hover:bg-[#165a4e] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm">
+              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><PawPrint className="w-4 h-4" /> Save Changes</>}
+            </button>
+
+            {/* Danger zone */}
+            <div className="border-t border-litter-border pt-4">
+              <button
+                type="button"
+                onClick={() => { setIsEditOpen(false); setTimeout(() => setIsDeleteStep1Open(true), 150); }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                Remove This Cat
+              </button>
+            </div>
+          </div>
+        </BottomSheet>
+
+        {/* ── Delete Step 1 ── */}
+        <ConfirmDialog
+          isOpen={isDeleteStep1Open}
+          onClose={() => setIsDeleteStep1Open(false)}
+          onConfirm={() => { setIsDeleteStep1Open(false); setIsDeleteStep2Open(true); }}
+          title={`Remove ${cat.name}?`}
+          message={`Are you sure you want to remove ${cat.name} from your LitterSense account? This will also delete all health records, litter session history, and activity data linked to ${cat.name}.`}
+          confirmText="Yes, Remove"
+          cancelText="Keep Cat"
+          variant="danger"
+        />
+
+        {/* ── Delete Step 2 (final warning) ── */}
+        <ConfirmDialog
+          isOpen={isDeleteStep2Open}
+          onClose={() => setIsDeleteStep2Open(false)}
+          onConfirm={handleDelete}
+          title="Permanently Delete All Data?"
+          message={`You are about to permanently delete ${cat.name}'s profile along with all associated records. This includes session logs, health notes, and litter activity history. This action cannot be reversed — once deleted, the data is gone forever. Are you absolutely sure you want to continue?`}
+          confirmText="Yes, Delete Everything"
+          cancelText="Cancel"
+          variant="danger"
+        />
+
         {/* Tabs */}
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden mb-6">
-          <TabBar tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+          <TabBar tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
           <div className="p-4 sm:p-6">
             <div>
               {activeTab === "overview" && (
                 <OverviewTab
                   key="overview"
-                  catId={catId}
                   stats={stats}
-                  details={details}
+                  details={details ?? null}
+                  sessions={sessions}
+                  sensorData={sensorData}
+                  sensorsLoading={sensorsLoading}
+                  sensorsError={sensorsError}
                 />
               )}
               {activeTab === "history" && (
-                <HistoryTab key="history" catId={catId} />
+                <HistoryTab key="history" sessions={sessions} />
               )}
               {activeTab === "trends" && (
                 <TrendsTab
                   key="trends"
-                  catId={catId}
                   trendData={trendData}
-                  details={details}
+                  baseline={trendBaseline}
                 />
               )}
               {activeTab === "health" && (
-                <HealthLogTab key="health" catId={catId} addToast={addToast} />
+                <HealthLogTab
+                  key="health"
+                  catId={catId}
+                  logs={healthLogs}
+                  addToast={addToast}
+                  addHealthLog={addHealthLog}
+                  removeHealthLog={removeHealthLog}
+                />
               )}
             </div>
           </div>
@@ -215,33 +753,49 @@ export default function CatDetailClient() {
 
 // Overview Tab
 interface OverviewTabProps {
-  catId: string;
-  stats:
+  readonly stats:
     | {
-        visits: number;
-        avgDuration: string;
+        readonly visits: number;
+        readonly avgDuration: string;
       }
     | undefined;
-  details: {
-    healthInsight: string;
-    baseline: {
-      avgVisitsPerDay: number;
-      avgDurationSecs: number;
-      mq135DeltaPercent: number;
-      mq136DeltaPercent: number;
-      lastUpdated: string;
+  readonly details: {
+    readonly healthInsight: string;
+    readonly baseline: {
+      readonly avgVisitsPerDay: number;
+      readonly avgDurationSecs: number;
+      readonly mq135DeltaPercent: number;
+      readonly mq136DeltaPercent: number;
+      readonly lastUpdated: string;
     };
-  };
+  } | null;
+  readonly sessions: readonly Session[];
+  readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
+  readonly sensorsLoading: boolean;
+  readonly sensorsError: string | null;
 }
 
-function OverviewTab({ stats, details }: OverviewTabProps) {
-  const sessions = getSessionsByCatId("1"); // Mock recent anomalies
-  const recentAnomalies = sessions.filter((s) => s.anomaly).slice(0, 3);
+function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: Readonly<OverviewTabProps>) {
+  const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
+  const airQuality = getLiveAirQuality(
+    sensorData?.mq135,
+    sensorData?.mq136,
+    sensorData?.mq135Raw,
+    sensorData?.mq136Raw,
+  );
+  let rfidValue = "Offline";
+  if (!sensorsError) {
+    if (sensorsLoading) {
+      rfidValue = "Syncing";
+    } else if (sensorData?.online) {
+      rfidValue = "Online";
+    }
+  }
 
   return (
     <div className="space-y-6">
       {/* Health Insight */}
-      {details.healthInsight && (
+      {details?.healthInsight && (
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex gap-3">
           <Lightbulb className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
           <div>
@@ -271,77 +825,71 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
           />
           <StatCard
             icon={Wind}
-            value={deviceStats.airQuality}
+            value={airQuality}
             label="Air Quality"
-            status={
-              deviceStats.airQuality === "Normal"
-                ? "healthy"
-                : deviceStats.airQuality === "Elevated"
-                  ? "watch"
-                  : "alert"
-            }
+            status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
           />
           <StatCard
-            icon={Droplets}
-            value={`${deviceStats.litterLevel}%`}
-            label="Litter Level"
-            status={
-              deviceStats.litterLevel >= 80
-                ? "alert"
-                : deviceStats.litterLevel >= 60
-                  ? "watch"
-                  : "healthy"
-            }
+            icon={Tag}
+            value={rfidValue}
+            label="RFID Reader"
+            status={sensorData?.online && !sensorsError ? "normal" : "abnormal"}
           />
         </div>
       </div>
 
       {/* Baseline Profile */}
-      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
-          <div className="group relative">
-            <Info className="w-4 h-4 text-theme-muted cursor-help" />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-              Baseline is recalculated every 7 days using a rolling average of
-              recorded sessions.
+      {details ? (
+        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
+            <div className="group relative">
+              <Info className="w-4 h-4 text-theme-muted cursor-help" />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                Baseline is recalculated every 7 days using a rolling average of
+                recorded sessions.
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal visits/day</p>
-            <p className="font-semibold text-litter-text">
-              {details.baseline.avgVisitsPerDay - 1}–
-              {details.baseline.avgVisitsPerDay + 1}
-            </p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal visits/day</p>
+              <p className="font-semibold text-litter-text">
+                {details.baseline.avgVisitsPerDay - 1}–
+                {details.baseline.avgVisitsPerDay + 1}
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal duration</p>
+              <p className="font-semibold text-litter-text">
+                {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
+                {formatDuration(details.baseline.avgDurationSecs + 30)}
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal MQ-135 Δ</p>
+              <p className="font-semibold text-litter-text">
+                &lt; {details.baseline.mq135DeltaPercent + 7}%
+              </p>
+            </div>
+            <div className="bg-litter-card rounded-lg p-3">
+              <p className="text-theme-muted">Normal MQ-136 Δ</p>
+              <p className="font-semibold text-litter-text">
+                &lt; {details.baseline.mq136DeltaPercent + 5}%
+              </p>
+            </div>
           </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal duration</p>
-            <p className="font-semibold text-litter-text">
-              {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
-              {formatDuration(details.baseline.avgDurationSecs + 30)}
-            </p>
-          </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal MQ-135 Δ</p>
-            <p className="font-semibold text-litter-text">
-              &lt; {details.baseline.mq135DeltaPercent + 7}%
-            </p>
-          </div>
-          <div className="bg-litter-card rounded-lg p-3">
-            <p className="text-theme-muted">Normal MQ-136 Δ</p>
-            <p className="font-semibold text-litter-text">
-              &lt; {details.baseline.mq136DeltaPercent + 5}%
-            </p>
-          </div>
-        </div>
 
-        <p className="text-xs text-theme-muted mt-3">
-          Last updated {formatDate(details.baseline.lastUpdated)}
-        </p>
-      </div>
+          <p className="text-xs text-theme-muted mt-3">
+            Last updated {formatDate(details.baseline.lastUpdated)}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border text-center">
+          <p className="text-sm text-litter-muted">Baseline data will appear once the device starts recording sessions.</p>
+        </div>
+      )}
 
       {/* Recent Anomalies */}
       <div>
@@ -366,7 +914,7 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
                   </p>
                 </div>
                 <span className="px-2 py-1 bg-amber-200 text-amber-800 text-xs rounded-full font-medium">
-                  Watch
+                  Abnormal
                 </span>
               </div>
             ))}
@@ -379,12 +927,11 @@ function OverviewTab({ stats, details }: OverviewTabProps) {
 
 // History Tab
 interface HistoryTabProps {
-  catId: string;
+  readonly sessions: readonly Session[];
 }
 
-function HistoryTab({ catId }: HistoryTabProps) {
+function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
-  const sessions = getSessionsByCatId(catId);
   const filteredSessions =
     filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
 
@@ -431,8 +978,14 @@ function HistoryTab({ catId }: HistoryTabProps) {
   );
 }
 
-function SessionRow({ session }: { session: Session }) {
+function SessionRow({ session }: Readonly<{ session: Session }>) {
   const deltaLabel = getDeltaLabel(session.mq135Delta);
+  const isSummary = session.sessionStatus === "DAILY_SUMMARY";
+  const summaryVisits = session.summaryVisits ?? 1;
+  const summaryVisitLabel = summaryVisits === 1 ? "visit" : "visits";
+  const timeLabel = isSummary
+    ? `Daily summary: ${summaryVisits} ${summaryVisitLabel}`
+    : session.time;
 
   return (
     <div
@@ -444,18 +997,31 @@ function SessionRow({ session }: { session: Session }) {
     >
       <div>
         <p className="font-medium text-litter-text">{formatDate(session.date)}</p>
-        <p className="text-sm text-theme-muted">{session.time}</p>
+        <p className="text-sm text-theme-muted">
+          {timeLabel}
+        </p>
       </div>
       <div className="text-center">
         <p className="font-medium text-litter-text">
           {formatDuration(session.durationSecs)}
         </p>
+        {isSummary && (
+          <p className="text-[11px] text-theme-muted">avg duration</p>
+        )}
       </div>
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
-          <span className="text-sm text-theme-secondary">{session.mq135Delta}%</span>
-        </div>
+        {isSummary ? (
+          <span className="px-2 py-0.5 bg-litter-primary-light text-litter-primary text-xs rounded-full">
+            Synced
+          </span>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
+            <span className="text-sm text-theme-secondary">
+              {session.mq135Delta}%
+            </span>
+          </div>
+        )}
         {session.anomaly && (
           <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
             Flagged
@@ -468,24 +1034,21 @@ function SessionRow({ session }: { session: Session }) {
 
 // Trends Tab
 interface TrendsTabProps {
-  catId: string;
-  trendData: Array<{
-    day: string;
-    visits: number;
-    avgDuration: number;
-    mq135Delta: number;
+  readonly trendData: ReadonlyArray<{
+    readonly day: string;
+    readonly visits: number;
+    readonly avgDuration: number;
+    readonly mq135Delta: number;
   }> | null;
-  details: {
-    baseline: {
-      avgVisitsPerDay: number;
-      avgDurationSecs: number;
-      mq135DeltaPercent: number;
-    };
-  };
+  readonly baseline: {
+    readonly avgVisitsPerDay: number;
+    readonly avgDurationSecs: number;
+    readonly mq135DeltaPercent: number;
+  } | null;
 }
 
-function TrendsTab({ trendData, details }: TrendsTabProps) {
-  if (!trendData) {
+function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
+  if (!trendData || !baseline) {
     return (
       <EmptyState
         icon={AlertTriangle}
@@ -507,7 +1070,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
-          baseline={details.baseline.avgVisitsPerDay}
+          baseline={baseline.avgVisitsPerDay}
           color="#1B7A6E"
         />
       </div>
@@ -522,7 +1085,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
-          baseline={details.baseline.avgDurationSecs}
+          baseline={baseline.avgDurationSecs}
           color="#E8924A"
         />
       </div>
@@ -537,7 +1100,7 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
         </div>
         <SparklineChart
           data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
-          baseline={details.baseline.mq135DeltaPercent}
+          baseline={baseline.mq135DeltaPercent}
           color="#1B7A6E"
         />
       </div>
@@ -555,38 +1118,48 @@ function TrendsTab({ trendData, details }: TrendsTabProps) {
 
 // Health Log Tab
 interface HealthLogTabProps {
-  catId: string;
-  addToast: (message: string, type: ToastProps["type"]) => void;
+  readonly catId: string;
+  readonly logs: readonly HealthLog[];
+  readonly addToast: (message: string, type: ToastParams["type"]) => void;
+  readonly addHealthLog: (
+    catId: string,
+    type: HealthLog["type"],
+    note: string,
+  ) => Promise<void>;
+  readonly removeHealthLog: (id: string) => Promise<void>;
 }
 
-function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
-  const [logs, setLogs] = useState<HealthLog[]>(getHealthLogsByCatId(catId));
+function HealthLogTab({
+  catId,
+  logs,
+  addToast,
+  addHealthLog,
+  removeHealthLog,
+}: Readonly<HealthLogTabProps>) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [newLog, setNewLog] = useState({
     type: "Observation" as HealthLog["type"],
     note: "",
   });
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!newLog.note.trim()) return;
 
-    const log: HealthLog = {
-      id: generateId(),
-      catId,
-      date: new Date().toISOString().split("T")[0],
-      type: newLog.type,
-      note: newLog.note,
-    };
-
-    setLogs((prev) => [log, ...prev]);
-    setNewLog({ type: "Observation", note: "" });
-    setIsModalOpen(false);
-    addToast("Health note added successfully", "success");
+    setIsSaving(true);
+    try {
+      await addHealthLog(catId, newLog.type, newLog.note.trim());
+      setNewLog({ type: "Observation", note: "" });
+      setIsModalOpen(false);
+      addToast("Health note added successfully", "success");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setLogs((prev) => prev.filter((l) => l.id !== id));
+  const handleDelete = async (id: string) => {
+    await removeHealthLog(id);
     setDeleteConfirmId(null);
     addToast("Health note deleted", "info");
   };
@@ -628,10 +1201,11 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+            <label htmlFor="health-log-type-select" className="block text-sm font-medium text-theme-secondary mb-1.5">
               Note Type
             </label>
             <select
+              id="health-log-type-select"
               value={newLog.type}
               onChange={(e) =>
                 setNewLog((prev) => ({
@@ -649,10 +1223,11 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+            <label htmlFor="health-log-note-textarea" className="block text-sm font-medium text-theme-secondary mb-1.5">
               What happened?
             </label>
             <textarea
+              id="health-log-note-textarea"
               value={newLog.note}
               onChange={(e) =>
                 setNewLog((prev) => ({ ...prev, note: e.target.value }))
@@ -669,10 +1244,10 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
 
           <button
             onClick={handleSave}
-            disabled={!newLog.note.trim()}
+            disabled={!newLog.note.trim() || isSaving}
             className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Save Note
+            {isSaving ? "Saving..." : "Save Note"}
           </button>
         </div>
       </BottomSheet>
@@ -691,7 +1266,7 @@ function HealthLogTab({ catId, addToast }: HealthLogTabProps) {
   );
 }
 
-function LogCard({ log, onDelete }: { log: HealthLog; onDelete: () => void }) {
+function LogCard({ log, onDelete }: Readonly<{ log: HealthLog; onDelete: () => void }>) {
   const typeColors = getHealthLogTypeColor(log.type);
 
   return (
