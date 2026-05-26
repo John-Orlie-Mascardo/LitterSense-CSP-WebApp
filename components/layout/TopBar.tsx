@@ -1,11 +1,12 @@
-"use client";
+﻿"use client";
 
-import { Bell, Check, Trash2, X } from "lucide-react";
+import { Bell, Check, Download, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useEffect } from "react";
 import { useNotifications, getTimeLabel, type AppNotification } from "@/lib/contexts/NotificationContext";
+import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -17,6 +18,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export function TopBar() {
+  const { isInstallable, triggerInstall } = usePWAInstall();
   const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const pathname = usePathname();
   const router = useRouter();
@@ -112,6 +114,23 @@ export function TopBar() {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2">
+          {/* PWA install button */}
+          {isInstallable && (
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 600, damping: 25 }}
+              className="relative p-2 rounded-xl transition-colors"
+              style={{ color: "var(--color-text)", background: "transparent" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              onClick={() => void triggerInstall()}
+              aria-label="Install app"
+            >
+              <Download className="w-5 h-5" />
+            </motion.button>
+          )}
+
           {/* Notification bell + dropdown */}
           <div className="relative" ref={dropdownRef}>
             <motion.button
@@ -237,7 +256,7 @@ export function TopBar() {
                   {/* Footer */}
                   <div className="px-5 py-3.5" style={{ borderTop: "1px solid var(--color-border)" }}>
                     <Link href="/dashboard/notifications" onClick={() => setDropdownOpen(false)}>
-                      <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>View all notifications →</span>
+                      <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>View all notifications â†’</span>
                     </Link>
                   </div>
                 </motion.div>
@@ -262,3 +281,4 @@ export function TopBar() {
     </header>
   );
 }
+
