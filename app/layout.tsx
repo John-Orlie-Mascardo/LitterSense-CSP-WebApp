@@ -4,6 +4,7 @@ import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { CatProvider } from "@/lib/contexts/CatContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
+import { PWAInstallProvider } from "@/lib/contexts/PWAInstallContext";
 
 import "./globals.css";
 
@@ -44,7 +45,9 @@ export default function RootLayout({
             <DeleteRequestProvider>
               <CatProvider>
                 <NotificationProvider>
-                  {children}
+                  <PWAInstallProvider>
+                    {children}
+                  </PWAInstallProvider>
                 </NotificationProvider>
               </CatProvider>
             </DeleteRequestProvider>

@@ -9,6 +9,12 @@ import {
   Plus,
   X as XIcon,
 } from "lucide-react";
+import {
+  daysInDobMonth,
+  parseDobValue,
+  resolveDobDraft,
+  type DobDraft,
+} from "@/lib/utils/dobPicker";
 
 // ── Breed data ────────────────────────────────────────────────────────────────
 export const PINNED_BREEDS = ["Puspin"];
@@ -182,16 +188,6 @@ export const MONTHS = [
 export const CURRENT_YEAR = new Date().getFullYear();
 export const DOB_YEARS = Array.from({ length: 26 }, (_, i) => CURRENT_YEAR - i);
 
-function daysInMonth(month: string, year: string): number {
-  if (!month || !year) return 31;
-  return new Date(Number(year), Number(month), 0).getDate();
-}
-
-function getValidDay(day: string, month: string, year: string) {
-  if (!day) return "";
-  return Number(day) <= daysInMonth(month, year) ? day : "";
-}
-
 export interface MonthYearPickerProps {
   value: string; // "YYYY-MM" or "YYYY-MM-DD" or ""
   onChange: (v: string) => void;
@@ -199,17 +195,21 @@ export interface MonthYearPickerProps {
 }
 
 export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerProps) {
-  const parts = value ? value.split("-") : [];
-  const year = parts[0] ?? "";
-  const month = parts[1] ?? "";
-  const day = getValidDay(parts[2] ?? "", month, year);
+  const [draft, setDraft] = useState<DobDraft>(() => parseDobValue(value));
 
-  const emit = (y: string, m: string, d: string) => {
-    if (y && m) onChange(d ? `${y}-${m}-${d}` : `${y}-${m}`);
-    else onChange("");
+  useEffect(() => {
+    setDraft(parseDobValue(value));
+  }, [value]);
+
+  const { year, month, day } = draft;
+
+  const emit = (updates: Partial<DobDraft>) => {
+    const next = resolveDobDraft(draft, updates);
+    setDraft(next.draft);
+    onChange(next.value);
   };
 
-  const maxDay = daysInMonth(month, year);
+  const maxDay = daysInDobMonth(month, year);
   const dayOptions = Array.from({ length: maxDay }, (_, i) => String(i + 1).padStart(2, "0"));
 
   const selectClass = (filled: boolean, error?: boolean) =>
@@ -223,7 +223,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
     <div className="space-y-2">
       <div className="flex gap-2">
         <div className="relative flex-[2]">
-          <select value={month} onChange={(e) => { emit(year, e.target.value, getValidDay(day, e.target.value, year)); }}
+          <select value={month} onChange={(e) => { emit({ month: e.target.value }); }}
             className={selectClass(!!month, hasError && !month)}>
             <option value="" disabled>Month *</option>
             {MONTHS.map((m, i) => {
@@ -234,7 +234,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
           <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted" />
         </div>
         <div className="relative flex-[2]">
-          <select value={year} onChange={(e) => { emit(e.target.value, month, getValidDay(day, month, e.target.value)); }}
+          <select value={year} onChange={(e) => { emit({ year: e.target.value }); }}
             className={selectClass(!!year, hasError && !year)}>
             <option value="" disabled>Year *</option>
             {DOB_YEARS.map((y) => (
@@ -245,7 +245,7 @@ export function MonthYearPicker({ value, onChange, hasError }: MonthYearPickerPr
         </div>
       </div>
       <div className="relative w-full">
-        <select value={day} onChange={(e) => { emit(year, month, e.target.value); }}
+        <select value={day} onChange={(e) => { emit({ day: e.target.value }); }}
           className={selectClass(!!day, false)}>
           <option value="">Day (optional)</option>
           {dayOptions.map((d) => (
