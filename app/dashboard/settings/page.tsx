@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useState, useEffect } from "react";
@@ -53,6 +53,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
+import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -64,6 +65,7 @@ const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { isInstallable, triggerInstall } = usePWAInstall();
   const {
     settings,
     updateNotificationSetting,
@@ -450,7 +452,7 @@ export default function SettingsPage() {
           </h3>
           <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
 
-            {/* Data Retention — interactive dropdown */}
+            {/* Data Retention â€” interactive dropdown */}
             <div className="relative">
               <button
                 onClick={() => setShowRetentionDropdown((v) => !v)}
@@ -554,6 +556,30 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* App Section */}
+        {isInstallable && (
+          <div>
+            <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+              App
+            </h3>
+            <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border divide-y divide-litter-border overflow-hidden">
+              <SettingsRow
+                icon={Download}
+                label="Install App"
+                description="Add LitterSense to your home screen"
+                control={
+                  <button
+                    onClick={() => void triggerInstall()}
+                    className="bg-litter-primary text-white rounded-xl px-4 py-1.5 text-sm font-medium active:opacity-80 transition-opacity"
+                  >
+                    Install
+                  </button>
+                }
+              />
+            </div>
+          </div>
+        )}
+
         {/* Account Section */}
         <div>
           <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
@@ -572,7 +598,7 @@ export default function SettingsPage() {
             </button>
             <div className="border-t border-litter-border">
               {!userRequest ? (
-                /* No request yet — show action button */
+                /* No request yet â€” show action button */
                 <button
                   onClick={() => setShowDeleteRequestSheet(true)}
                   className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
@@ -583,7 +609,7 @@ export default function SettingsPage() {
                   </div>
                 </button>
               ) : userRequest.status === "pending" ? (
-                /* Pending — amber status card */
+                /* Pending â€” amber status card */
                 <div className="p-4">
                   <div className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
                     <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -599,7 +625,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : userRequest.status === "approved" ? (
-                /* Approved — red status card */
+                /* Approved â€” red status card */
                 <div className="p-4">
                   <div className="flex items-start gap-3 p-3.5 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
                     <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -612,7 +638,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                /* Rejected — neutral card with re-request option */
+                /* Rejected â€” neutral card with re-request option */
                 <div className="p-4">
                   <div className="flex items-start gap-3 p-3.5 bg-litter-bg rounded-xl border border-litter-border">
                     <XSquare className="w-5 h-5 text-litter-muted shrink-0 mt-0.5" />
@@ -655,12 +681,12 @@ export default function SettingsPage() {
             )}
           </button>
           <p className="text-center text-xs text-theme-muted mt-2">
-            App Version 3.12.0 · Made with care for your cat
+            App Version 3.12.0 Â· Made with care for your cat
           </p>
         </div>
       </main>
 
-      {/* Backdrop — closes dropdown when clicking outside */}
+      {/* Backdrop â€” closes dropdown when clicking outside */}
       {showRetentionDropdown && (
         <button
           className="fixed inset-0 z-10"
@@ -988,7 +1014,7 @@ export default function SettingsPage() {
       {/* Confirm Dialogs */}
       <ConfirmDialog isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} onConfirm={handleClearHistory}
         title="Clear History" message="Are you sure? This will permanently delete all session data for all cats. This cannot be undone." confirmText="Clear" variant="danger" />
-      {/* Step 1 — Reason sheet */}
+      {/* Step 1 â€” Reason sheet */}
       <BottomSheet
         isOpen={showDeleteRequestSheet}
         onClose={() => { setShowDeleteRequestSheet(false); setDeleteReason(""); }}
@@ -1001,9 +1027,9 @@ export default function SettingsPage() {
             <div className="text-sm">
               <p className="font-semibold text-red-700 dark:text-red-400 mb-1.5">Before you continue</p>
               <ul className="text-red-600 dark:text-red-400 space-y-1 text-xs leading-relaxed">
-                <li>• Your account and all cat profiles will be permanently deleted</li>
-                <li>• All monitoring history and health logs will be lost</li>
-                <li>• This action cannot be undone once an admin processes it</li>
+                <li>â€¢ Your account and all cat profiles will be permanently deleted</li>
+                <li>â€¢ All monitoring history and health logs will be lost</li>
+                <li>â€¢ This action cannot be undone once an admin processes it</li>
               </ul>
             </div>
           </div>
@@ -1019,7 +1045,7 @@ export default function SettingsPage() {
               onChange={(event) => setDeleteReason(event.target.value)}
               className="input-base w-full px-4 py-3 rounded-xl border border-litter-border text-sm focus:outline-none focus:border-litter-primary focus:ring-2 focus:ring-litter-primary/10 transition-all"
             >
-              <option value="">Select a reason…</option>
+              <option value="">Select a reasonâ€¦</option>
               <option value="No longer using the service">No longer using the service</option>
               <option value="Privacy concerns">Privacy concerns</option>
               <option value="Switching to a different app">Switching to a different app</option>
@@ -1041,7 +1067,7 @@ export default function SettingsPage() {
         </div>
       </BottomSheet>
 
-      {/* Step 2 — Final confirmation */}
+      {/* Step 2 â€” Final confirmation */}
       <ConfirmDialog
         isOpen={showDeleteFinalConfirm}
         onClose={() => setShowDeleteFinalConfirm(false)}
@@ -1056,3 +1082,4 @@ export default function SettingsPage() {
     </div>
   );
 }
+

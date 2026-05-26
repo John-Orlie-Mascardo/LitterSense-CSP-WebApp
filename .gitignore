@@ -23,6 +23,7 @@
 
 # misc
 .DS_Store
+.superpowers/
 *.pem
 
 # debug
@@ -51,3 +52,5 @@ next-env.d.ts
 .claude
 
 .next-dev.*.log
+
+.docs
