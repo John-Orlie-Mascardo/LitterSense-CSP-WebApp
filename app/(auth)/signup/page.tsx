@@ -12,7 +12,13 @@ import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/configs/firebase";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  getAdditionalUserInfo,
+  GoogleAuthProvider,
+  signInWithPopup,
+  updateProfile,
+} from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -27,13 +33,22 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, loading: authLoading, isAdmin } = useAuth();
+  const {
+    user,
+    loading: authLoading,
+    profileLoading,
+    isAdmin,
+  } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) {
-      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
+    if (!authLoading && !profileLoading && user) {
+      if (user.email === "maclaurenz.cultura@gmail.com" || isAdmin) {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
     }
-  }, [user, authLoading, isAdmin, router]);
+  }, [user, authLoading, profileLoading, isAdmin, router]);
 
   const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault();
@@ -57,6 +72,7 @@ export default function SignUpPage() {
         email: user.email,
         fullName: fullName,
         authProvider: "email",
+        onboardingComplete: false,
         createdAt: serverTimestamp(),
       });
 
@@ -87,12 +103,14 @@ export default function SignUpPage() {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
+      const isNewUser = getAdditionalUserInfo(userCredential)?.isNewUser === true;
 
       // Merge true prevents overwriting if the user document already exists
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         fullName: user.displayName || "Google User",
         authProvider: "google",
+        ...(isNewUser ? { onboardingComplete: false } : {}),
         createdAt: serverTimestamp(),
       }, { merge: true });
 

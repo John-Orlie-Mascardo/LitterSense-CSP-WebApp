@@ -18,7 +18,8 @@ service cloud.firestore {
     }
 
     match /admins/{emailId} {
-      allow read, write: if isAdmin();
+      allow get: if (signedIn() && request.auth.token.email == emailId) || isAdmin();
+      allow list, write: if isAdmin();
     }
 
     match /deviceConfigs/{configToken} {
@@ -70,6 +71,18 @@ service cloud.firestore {
       }
 
       match /notifications/{notificationId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /reports/{reportId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      match /settings/{settingId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create, update: if isOwner(userId);
         allow delete: if isOwner(userId) || isAdmin();

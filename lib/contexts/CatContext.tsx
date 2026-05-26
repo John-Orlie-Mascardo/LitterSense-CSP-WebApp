@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import type {
   Cat,
@@ -134,12 +135,6 @@ const formatAvgDuration = (totalDurationSecs: number, visits: number) => {
   const minutes = Math.floor(avgSecs / 60);
   const seconds = avgSecs % 60;
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-};
-
-const dateTimeSortValue = (date: string, time: string) => {
-  const parsed = Date.parse(`${date} ${time}`);
-  if (Number.isNaN(parsed)) return Date.parse(date) || 0;
-  return parsed;
 };
 
 const normalizeSession = (id: string, data: FirestoreData): Session => {
@@ -433,6 +428,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
     const unsubCats = onSnapshot(
       collection(db, "users", uid, "cats"),
+      { includeMetadataChanges: true },
       (snapshot) => {
         const loaded: Cat[] = [];
         snapshot.forEach((catDoc) => {
@@ -446,7 +442,14 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           });
         });
         setRawCats(loaded);
-        setIsLoading(false);
+        if (
+          shouldFinishInitialCatsLoad({
+            catCount: loaded.length,
+            fromCache: snapshot.metadata.fromCache,
+          })
+        ) {
+          setIsLoading(false);
+        }
       },
       (error) => {
         console.error("Failed to sync cats:", error);

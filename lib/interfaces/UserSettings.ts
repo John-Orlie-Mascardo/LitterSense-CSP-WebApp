@@ -3,6 +3,9 @@ export interface UserSettings {
   notifications: {
     healthAlerts: boolean;
     litterLevelWarnings: boolean;
+    ammoniaAlerts: boolean;
+    h2sAlerts: boolean;
+    rfidVisitAlerts: boolean;
     dailySummary: boolean;
     alertSensitivity: 'low' | 'medium' | 'high';
     quietHours: {

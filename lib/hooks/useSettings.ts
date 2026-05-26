@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/configs/firebase";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
 import type { UserSettings } from "../interfaces/UserSettings";
 
@@ -11,6 +14,9 @@ const defaultSettings: UserSettings = {
   notifications: {
     healthAlerts: true,
     litterLevelWarnings: true,
+    ammoniaAlerts: true,
+    h2sAlerts: true,
+    rfidVisitAlerts: false,
     dailySummary: false,
     alertSensitivity: "medium",
     quietHours: {
@@ -63,6 +69,7 @@ const mergeSettings = (parsed: Partial<UserSettings>): UserSettings => ({
 });
 
 export function useSettings() {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -90,6 +97,53 @@ export function useSettings() {
     }
   }, [settings, isLoaded]);
 
+  useEffect(() => {
+    if (!user || !isLoaded) return;
+
+    let isActive = true;
+
+    const loadFirestoreNotifications = async () => {
+      try {
+        const snapshot = await getDoc(
+          doc(db, "users", user.uid, "settings", "notifications"),
+        );
+        if (!isActive || !snapshot.exists()) return;
+        const notificationSettings = { ...snapshot.data() };
+        delete notificationSettings.updatedAt;
+
+        setSettings((prev) =>
+          mergeSettings({
+            ...prev,
+            notifications: {
+              ...prev.notifications,
+              ...notificationSettings,
+            },
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to load notification settings:", error);
+      }
+    };
+
+    void loadFirestoreNotifications();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isLoaded, user]);
+
+  const persistNotificationSettings = useCallback(
+    async (notifications: UserSettings["notifications"]) => {
+      if (!user) return;
+      await setDoc(
+        doc(db, "users", user.uid, "settings", "notifications"),
+        notifications,
+        { merge: true },
+      );
+    },
+    [user],
+  );
+
   const updateNotificationSetting = useCallback(
     <K extends keyof UserSettings["notifications"]>(
       key: K,
@@ -99,8 +153,12 @@ export function useSettings() {
         ...prev,
         notifications: { ...prev.notifications, [key]: value },
       }));
+      void persistNotificationSettings({
+        ...settings.notifications,
+        [key]: value,
+      });
     },
-    []
+    [persistNotificationSettings, settings.notifications]
   );
 
   // Update quiet hours sub-fields
@@ -113,8 +171,12 @@ export function useSettings() {
           quietHours: { ...prev.notifications.quietHours, ...patch },
         },
       }));
+      void persistNotificationSettings({
+        ...settings.notifications,
+        quietHours: { ...settings.notifications.quietHours, ...patch },
+      });
     },
-    []
+    [persistNotificationSettings, settings.notifications]
   );
 
   // Update a single cat's notification prefs
@@ -129,8 +191,14 @@ export function useSettings() {
           ),
         },
       }));
+      void persistNotificationSettings({
+        ...settings.notifications,
+        perCat: settings.notifications.perCat.map((c) =>
+          c.catId === catId ? { ...c, ...patch } : c,
+        ),
+      });
     },
-    []
+    [persistNotificationSettings, settings.notifications]
   );
 
   const updateDeviceSetting = useCallback(

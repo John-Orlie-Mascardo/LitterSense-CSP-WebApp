@@ -151,8 +151,8 @@ export default function ReportsPage() {
     }
   };
 
-  const handleDeletePastReport = (id: string) => {
-    deleteReport(id);
+  const handleDeletePastReport = async (id: string) => {
+    await deleteReport(id);
     setDeleteConfirmId(null);
     addToast("Report deleted", "info");
   };

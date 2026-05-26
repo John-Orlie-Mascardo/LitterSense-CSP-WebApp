@@ -100,7 +100,13 @@ const initialFormData: CatFormData = {
 };
 
 export default function CatsPage() {
-  const { cats, addCat, catDetails: contextCatDetails, getStatsByCatId } = useCats();
+  const {
+    cats,
+    addCat,
+    catDetails: contextCatDetails,
+    getStatsByCatId,
+    isLoading: catsLoading,
+  } = useCats();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState<CatFormData>(initialFormData);
   const [errors, setErrors] = useState<
@@ -274,7 +280,21 @@ export default function CatsPage() {
 
         {/* Cats Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {cats.length === 0 ? (
+          {catsLoading ? (
+            <div className="col-span-full">
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-4">
+                  <Loader2 className="w-8 h-8 text-litter-primary animate-spin" />
+                </div>
+                <h3 className="font-display text-lg font-semibold text-litter-text mb-2">
+                  Loading your cats
+                </h3>
+                <p className="text-theme-muted max-w-xs">
+                  Syncing your cat profiles with Firebase.
+                </p>
+              </div>
+            </div>
+          ) : cats.length === 0 ? (
             <div className="col-span-full">
               <EmptyState
                 icon={CatIcon}

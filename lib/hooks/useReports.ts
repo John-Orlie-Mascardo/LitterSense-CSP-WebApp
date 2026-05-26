@@ -1,15 +1,24 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useCats, type CatTrendPoint } from "@/lib/contexts/CatContext";
 import {
-  mockPastReports,
   type HealthLog,
   type PastReport,
   type Session,
 } from "../data/data";
 import { generateId } from "../utils/formatters";
+import { normalizePastReport, sortPastReports } from "@/lib/utils/reportHistory";
 import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
@@ -150,7 +159,29 @@ export function useReports() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentReport, setCurrentReport] = useState<ReportData | null>(null);
-  const [pastReports, setPastReports] = useState<PastReport[]>(mockPastReports);
+  const [pastReports, setPastReports] = useState<PastReport[]>([]);
+
+  useEffect(() => {
+    if (!user) {
+      queueMicrotask(() => setPastReports([]));
+      return;
+    }
+
+    const unsubscribe = onSnapshot(
+      collection(db, "users", user.uid, "reports"),
+      (snapshot) => {
+        const loaded = snapshot.docs.map((reportDoc) =>
+          normalizePastReport(reportDoc.id, reportDoc.data()),
+        );
+        setPastReports(sortPastReports(loaded));
+      },
+      (error) => {
+        console.error("Failed to sync previous reports:", error);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user]);
 
   const generateReport = useCallback(async (config: ReportConfig): Promise<ReportData> => {
     setIsGenerating(true);
@@ -280,14 +311,25 @@ export function useReports() {
       generatedOn: new Date().toISOString().split("T")[0],
       filename: `LitterSense_${catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
     };
-    setPastReports((prev) => [newPastReport, ...prev]);
+    if (user) {
+      await setDoc(doc(db, "users", user.uid, "reports", newPastReport.id), {
+        ...newPastReport,
+        createdAt: serverTimestamp(),
+      });
+    } else {
+      setPastReports((prev) => sortPastReports([newPastReport, ...prev]));
+    }
 
     return report;
   }, [cats, getHealthLogsByCatId, getSessionsByCatId, getTrendData, user]);
 
-  const deleteReport = useCallback((reportId: string) => {
+  const deleteReport = useCallback(async (reportId: string) => {
+    if (user) {
+      await deleteDoc(doc(db, "users", user.uid, "reports", reportId));
+      return;
+    }
     setPastReports((prev) => prev.filter((report) => report.id !== reportId));
-  }, []);
+  }, [user]);
 
   const downloadReport = useCallback((filename: string) => {
     console.log(`Downloading ${filename}...`);

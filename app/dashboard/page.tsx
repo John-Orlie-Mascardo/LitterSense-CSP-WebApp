@@ -15,7 +15,7 @@
 import Image from "next/image";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
+import { Clock, Timer, Wind, BarChart2, AlertTriangle, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
 import { useCats } from "@/lib/contexts/CatContext";
@@ -275,6 +275,22 @@ function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
   );
 }
 
+function DashboardLoadingState() {
+  return (
+    <section className="flex flex-col items-center justify-center text-center py-20">
+      <div className="w-16 h-16 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-5">
+        <Loader2 className="w-8 h-8 text-litter-primary animate-spin" />
+      </div>
+      <h1 className="font-display text-2xl font-bold text-litter-text mb-2">
+        Loading your cats
+      </h1>
+      <p className="text-litter-muted text-sm max-w-xs">
+        Syncing your dashboard with Firebase.
+      </p>
+    </section>
+  );
+}
+
 function PopulatedDashboardState({
   cats,
   activeCatId,
@@ -501,7 +517,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
-  const { cats, getCatById, getStatsByCatId, sessions } = useCats();
+  const { cats, getCatById, getStatsByCatId, sessions, isLoading: catsLoading } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
   const {
     data: sensorData,
@@ -602,7 +618,7 @@ export default function DashboardPage() {
     sensorsLoading,
     sensorsError,
   });
-  const isEmpty = cats.length === 0;
+  const isEmpty = !catsLoading && cats.length === 0;
   const recentVisits = getRecentVisits(sessions, getCatById);
   const greeting = getGreeting();
   const todayDate = formatDate();
@@ -613,7 +629,9 @@ export default function DashboardPage() {
       <TopBar />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
-        {isEmpty ? (
+        {catsLoading ? (
+          <DashboardLoadingState />
+        ) : isEmpty ? (
           <EmptyDashboardState onAddCat={() => router.push("/dashboard/cats")} />
         ) : (
           <PopulatedDashboardState
