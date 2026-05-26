@@ -17,6 +17,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { getHardwareReachableOrigin } from "@/lib/utils/deviceProvisioning";
 
 const OWNER_DEVICE_CONFIG_DOC_ID = "default";
 const DEFAULT_DEVICE_NAME = "LitterSense Unit #1";
@@ -229,7 +230,14 @@ export function useDeviceProvisioning() {
 
   const provisioningUrl = useMemo(() => {
     if (globalThis.window === undefined) return "";
-    return `${window.location.origin}/api/device-config/${deviceConfig.configToken}`;
+    const provisioningOrigin = getHardwareReachableOrigin(
+      window.location.origin,
+      process.env.NEXT_PUBLIC_DEVICE_CONFIG_ORIGIN,
+    );
+
+    if (!provisioningOrigin) return "";
+
+    return `${provisioningOrigin}/api/device-config/${deviceConfig.configToken}`;
   }, [deviceConfig.configToken]);
 
   return {

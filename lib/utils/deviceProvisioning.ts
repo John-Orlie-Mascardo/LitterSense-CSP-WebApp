@@ -29,6 +29,41 @@ export function getHardwareConfigUrl(configUrl: string) {
   }
 }
 
+const normalizeOrigin = (origin: string) => {
+  const trimmedOrigin = origin.trim();
+
+  if (!trimmedOrigin) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmedOrigin).origin;
+  } catch {
+    return "";
+  }
+};
+
+export function getHardwareReachableOrigin(browserOrigin: string, fallbackOrigin = "") {
+  const normalizedBrowserOrigin = normalizeOrigin(browserOrigin);
+  const normalizedFallbackOrigin = normalizeOrigin(fallbackOrigin);
+
+  if (!normalizedBrowserOrigin) {
+    return normalizedFallbackOrigin;
+  }
+
+  try {
+    const browserHostname = new URL(normalizedBrowserOrigin).hostname.toLowerCase();
+
+    if (LOCALHOST_CONFIG_HOSTS.has(browserHostname) && normalizedFallbackOrigin) {
+      return normalizedFallbackOrigin;
+    }
+
+    return normalizedBrowserOrigin;
+  } catch {
+    return normalizedFallbackOrigin;
+  }
+}
+
 export function buildDeviceProvisioningBody({
   wifiSsid,
   wifiPassword,

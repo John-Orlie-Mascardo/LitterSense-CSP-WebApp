@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 export type DeviceSensors = {
   online: boolean;
+  connectedSsid: string;
   mq135: string;
   mq136: string;
   mq135Raw: number | null;

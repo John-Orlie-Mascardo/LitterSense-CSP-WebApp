@@ -37,11 +37,13 @@ import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import {
   SETUP_DEVICE_PROVISION_URL,
   buildDeviceProvisioningBody,
 } from "@/lib/utils/deviceProvisioning";
+import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth } from "@/lib/configs/firebase";
@@ -84,7 +86,13 @@ export default function SettingsPage() {
     isLoading: isDeviceProvisioningLoading,
     isSaving: isDeviceProvisioningSaving,
   } = useDeviceProvisioning();
+  const { data: deviceSensors } = useDeviceSensors();
   const { theme, setTheme } = useTheme();
+  const deviceNetworkSummary = getDeviceNetworkSummary({
+    isLoading: isDeviceProvisioningLoading,
+    configuredSsid: deviceConfig.wifiSsid,
+    connectedSsid: deviceSensors?.connectedSsid,
+  });
 
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -396,11 +404,7 @@ export default function SettingsPage() {
                 <div className="min-w-0">
                   <span className="text-sm font-medium text-litter-text">ESP32 Wi-Fi Provisioning</span>
                   <p className="truncate text-xs text-theme-muted">
-                    {isDeviceProvisioningLoading
-                      ? "Loading device setup..."
-                      : deviceConfig.wifiSsid.trim()
-                        ? `Network: ${deviceConfig.wifiSsid.trim()}`
-                        : "Set owner Wi-Fi and setup URL"}
+                    {deviceNetworkSummary}
                   </p>
                 </div>
               </div>
