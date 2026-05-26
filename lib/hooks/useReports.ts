@@ -10,6 +10,7 @@ import {
   type Session,
 } from "../data/data";
 import { generateId } from "../utils/formatters";
+import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
 
@@ -90,9 +91,7 @@ const getInclusiveDayCount = (startDate: Date, endDate: Date) => {
 const getVisitCount = (session: Session) => session.summaryVisits ?? 1;
 
 const getSessionSortValue = (session: Session) => {
-  const parsed = Date.parse(`${session.date} ${session.time}`);
-  if (!Number.isNaN(parsed)) return parsed;
-  return Date.parse(session.date) || 0;
+  return getSessionSortTimestamp(session);
 };
 
 const buildAggregateTrendData = (

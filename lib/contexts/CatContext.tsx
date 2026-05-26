@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import type {
   Cat,
   CatDetails,
@@ -150,6 +151,7 @@ const normalizeSession = (id: string, data: FirestoreData): Session => {
     catId: parseString(data.catId),
     date: parseString(data.date) || getLocalDateKey(eventDate),
     time: parseString(data.time) || formatLocalTime(eventDate),
+    endedAt,
     durationSecs: parseNumber(data.durationSecs),
     mq135Delta: parseNumber(data.mq135Delta),
     mq136Delta: parseNumber(data.mq136Delta),
@@ -240,8 +242,8 @@ const buildSessionsWithDailySummaries = (
   }, []);
 
   return [...catSessions, ...summaryRows].sort((a, b) => {
-    const aSort = dateTimeSortValue(a.date, a.time);
-    const bSort = dateTimeSortValue(b.date, b.time);
+    const aSort = getSessionSortValue(a);
+    const bSort = getSessionSortValue(b);
     return bSort - aSort;
   });
 };
@@ -281,7 +283,7 @@ const deriveStatsForCat = (
       todaySessions.reduce((sum, session) => sum + session.durationSecs, 0),
       todaySessions[0]?.date
         ? new Date(
-          dateTimeSortValue(todaySessions[0].date, todaySessions[0].time),
+          getSessionSortValue(todaySessions[0]),
         ).toISOString()
         : "",
     );
@@ -488,9 +490,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           .map((sessionDoc) => {
             const data = sessionDoc.data() as FirestoreData;
             const session = normalizeSession(sessionDoc.id, data);
-            const sortAt =
-              Date.parse(parseString(data.endedAt)) ||
-              dateTimeSortValue(session.date, session.time);
+            const sortAt = getSessionSortValue(session);
             return { session, sortAt };
           })
           .sort((a, b) => b.sortAt - a.sortAt)

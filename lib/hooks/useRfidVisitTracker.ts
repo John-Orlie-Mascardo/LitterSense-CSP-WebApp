@@ -15,15 +15,15 @@ const normalizeTag = (s: string) =>
   s.toLowerCase().replace(/[^a-f0-9]/g, "");
 
 /**
- * Records one visit only when the ESP32 reports a completed successful session.
+ * Observes completed RFID sessions from the ESP32 without writing Firestore visits.
  *
- * Matching order:
- * 1. Match completed session card/full UID against a cat's registered RFID tag.
- * 2. Ignore completed sessions whose RFID tag is not registered to a cat.
+ * The `/api/sensors` ingestion route is the single writer for completed sessions.
+ * This hook may still run in dashboard tabs for live telemetry, but it must not
+ * call `recordVisit` or create session documents.
  */
 export function useRfidVisitTracker(sensor: DeviceSensors | null) {
-  const { cats, catDetails, recordVisit } = useCats();
-  const lastRecordedSessionKey = useRef("");
+  const { cats, catDetails, sessions } = useCats();
+  const lastObservedSessionKey = useRef("");
 
   useEffect(() => {
     if (!sensor?.online) return;
@@ -49,7 +49,7 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
 
     if (sessionCompleted) {
       const sessionKey = `${completedSessionCount}|${lastSessionEndMs ?? ""}|${lastSessionDurationMs ?? ""}`;
-      if (sessionKey === lastRecordedSessionKey.current) return;
+      if (sessionKey === lastObservedSessionKey.current) return;
 
       const card = activeRfidCard || rfidCard || "";
       const hex = activeRfidHex || rfidHex || "";
@@ -62,24 +62,60 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
           completedSessionCount,
           lastSessionStatus,
         });
-        lastRecordedSessionKey.current = sessionKey;
+        lastObservedSessionKey.current = sessionKey;
         return;
       }
 
-      lastRecordedSessionKey.current = sessionKey;
       const durationSecs = Math.max(
         DEFAULT_VISIT_DURATION_SECS,
         Math.round((lastSessionDurationMs ?? 0) / 1000),
       );
-      console.debug("[RFID] completed visit recorded for", catToRecord.id);
-      recordVisit(catToRecord.id, durationSecs, {
-        sessionStatus: lastSessionStatus,
+      const endedAtIso = lastSessionEndMs ? new Date(lastSessionEndMs).toISOString() : "";
+      if (
+        endedAtIso &&
+        hasMatchingRecordedSession(
+          sessions,
+          catToRecord.id,
+          durationSecs,
+          endedAtIso,
+          lastSessionStatus,
+        )
+      ) {
+        lastObservedSessionKey.current = sessionKey;
+        console.debug("[RFID] completed visit already recorded for", catToRecord.id);
+        return;
+      }
+
+      lastObservedSessionKey.current = sessionKey;
+      console.debug("[RFID] completed visit observed for server ingestion", {
+        catId: catToRecord.id,
+        completedSessionCount,
+        lastSessionStatus,
       });
       return;
     }
 
     // Do not count ENTER, raw scans, IN_PROGRESS, or FALSE_ENTRY_IGNORED.
-  }, [sensor, cats, catDetails, recordVisit]);
+  }, [sensor, cats, catDetails, sessions]);
+}
+
+function hasMatchingRecordedSession(
+  sessions: ReturnType<typeof useCats>["sessions"],
+  catId: string,
+  durationSecs: number,
+  endedAtIso: string,
+  sessionStatus: string,
+) {
+  return sessions.some((session) => {
+    if (session.catId !== catId) return false;
+    if (session.durationSecs !== durationSecs) return false;
+    if (session.endedAt !== endedAtIso) return false;
+    if (sessionStatus && session.sessionStatus && session.sessionStatus !== sessionStatus) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 function findCatByRfid(

@@ -27,6 +27,7 @@ import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { PastReport } from "@/lib/data/mockData";
 import { useReports, type ReportData } from "@/lib/hooks/useReports";
+import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 import {
   formatDuration,
   formatDate,
@@ -457,7 +458,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 <th className="pb-2 font-medium">Duration</th>
                 <th className="pb-2 font-medium">MQ-135 Δ</th>
                 <th className="pb-2 font-medium">MQ-136 Δ</th>
-                <th className="pb-2 font-medium">Flag</th>
+                <th className="pb-2 font-medium">Note</th>
               </tr>
             </thead>
             <tbody>
@@ -467,7 +468,9 @@ function ReportPreview({ report }: ReportPreviewProps) {
                     <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
                   )}
                   <td className="py-1.5 text-litter-text">{session.date}</td>
-                  <td className="py-1.5 text-litter-text">{session.time || "--"}</td>
+                  <td className="py-1.5 text-litter-text">
+                    {formatSessionTimeLabel(session) || "--"}
+                  </td>
                   <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
                   <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
                   <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
@@ -477,11 +480,11 @@ function ReportPreview({ report }: ReportPreviewProps) {
                       <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
                         Summary
                       </span>
-                    ) : session.anomaly && (
-                      <span className="px-1.5 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
-                        Flagged
+                    ) : session.anomaly ? (
+                      <span className="text-litter-muted text-xs">
+                        {formatDuration(session.durationSecs)}
                       </span>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               ))}

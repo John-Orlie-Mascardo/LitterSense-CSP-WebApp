@@ -4,7 +4,7 @@ import { Bell, Check, Download, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, type KeyboardEvent } from "react";
 import { useNotifications, getTimeLabel, type AppNotification } from "@/lib/contexts/NotificationContext";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 
@@ -46,6 +46,16 @@ export function TopBar() {
     router.push(notification.route);
   };
 
+  const handleNotificationKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+    notification: AppNotification,
+  ) => {
+    if (event.currentTarget !== event.target) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handleNotificationClick(notification);
+  };
+
   return (
     <header
       className="fixed top-0 left-0 right-0 z-40"
@@ -67,7 +77,7 @@ export function TopBar() {
           className="flex items-center gap-2.5 cursor-pointer select-none"
         >
           <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
             style={{
               background: "linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary) 100%)",
               boxShadow: "0 2px 8px rgba(var(--color-primary-rgb, 99,102,241), 0.35)",
@@ -122,8 +132,8 @@ export function TopBar() {
               transition={{ type: "spring", stiffness: 600, damping: 25 }}
               className="relative p-2 rounded-xl transition-colors"
               style={{ color: "var(--color-text)", background: "transparent" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               onClick={() => void triggerInstall()}
               aria-label="Install app"
             >
@@ -139,8 +149,8 @@ export function TopBar() {
               transition={{ type: "spring", stiffness: 600, damping: 25 }}
               className="relative p-2 rounded-xl transition-colors"
               style={{ color: "var(--color-text)", background: dropdownOpen ? "var(--color-bg)" : "transparent" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "var(--color-bg)"; }}
-              onMouseLeave={(e) => { if (!dropdownOpen) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg)"; }}
+              onMouseLeave={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "transparent"; }}
               onClick={() => setDropdownOpen((v) => !v)}
               aria-label="Notifications"
             >
@@ -151,7 +161,7 @@ export function TopBar() {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center"
+                    className="absolute -top-0.5 -right-0.5 min-w-4.5 h-[18px] bg-red-500 rounded-full flex items-center justify-center"
                     style={{ boxShadow: "0 0 0 2px var(--color-card)", fontSize: "10px", color: "white", fontWeight: 700, paddingInline: "3px" }}
                   >
                     {unreadCount > 99 ? "99+" : unreadCount}
@@ -220,6 +230,14 @@ export function TopBar() {
                         <div
                           key={n.id}
                           onClick={() => handleNotificationClick(n)}
+                          onKeyDown={(event) => handleNotificationKeyDown(event, n)}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={
+                            n.route
+                              ? `Open notification: ${n.title}`
+                              : `Mark notification as read: ${n.title}`
+                          }
                           className="flex items-start gap-3 px-5 py-4 transition-colors"
                           style={{
                             background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.06)",
@@ -228,7 +246,7 @@ export function TopBar() {
                           }}
                         >
                           <div
-                            className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                            className="mt-0.5 w-2 h-2 rounded-full shrink-0"
                             style={{ background: n.isRead ? "transparent" : "var(--color-primary)", marginTop: "6px" }}
                           />
                           <div className="flex-1 min-w-0">
@@ -238,7 +256,7 @@ export function TopBar() {
                               {n.createdAt ? getTimeLabel(n.createdAt) : ""}
                             </p>
                           </div>
-                          <div className="flex flex-col gap-1 flex-shrink-0">
+                          <div className="flex flex-col gap-1 shrink-0">
                             {!n.isRead && (
                               <button onClick={(e) => { e.stopPropagation(); void markAsRead(n.id); }} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
                                 <Check className="w-3.5 h-3.5" />
