@@ -24,9 +24,17 @@ test("device network settings open Wi-Fi provisioning from a row", () => {
   );
 
   assert.match(section, /setShowWifiProvisioning\(true\)/);
+  assert.match(section, /deviceNetworkSummary/);
   assert.doesNotMatch(section, /id="wifiSsid"/);
   assert.doesNotMatch(section, /id="wifiPassword"/);
   assert.doesNotMatch(section, /handleSendDeviceProvisioningToHardware/);
+});
+
+test("device network summary prefers live sensor SSID over saved config", () => {
+  assert.match(source, /useDeviceSensors\(\)/);
+  assert.match(source, /getDeviceNetworkSummary\(\{/);
+  assert.match(source, /configuredSsid:\s*deviceConfig\.wifiSsid/);
+  assert.match(source, /connectedSsid:\s*deviceSensors\?\.connectedSsid/);
 });
 
 test("device network settings appear before notification settings", () => {

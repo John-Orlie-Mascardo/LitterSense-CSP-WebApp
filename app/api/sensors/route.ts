@@ -25,6 +25,10 @@ const NO_STORE_HEADERS = {
 };
 
 type Esp32SensorPayload = {
+  connectedSsid?: string;
+  connectedWifiSsid?: string;
+  wifiSsid?: string;
+  ssid?: string;
   mq135?: string;
   mq136?: string;
   mq135Raw?: number;
@@ -133,6 +137,13 @@ export async function GET() {
     return Response.json(
       {
         online: true,
+        connectedSsid: sensorText(
+          payload.connectedSsid ??
+            payload.connectedWifiSsid ??
+            payload.wifiSsid ??
+            payload.ssid,
+          "",
+        ),
         mq135: sensorText(payload.mq135, "Unknown"),
         mq136: sensorText(payload.mq136, "Unknown"),
         mq135Raw: sensorNumber(payload.mq135Raw),
