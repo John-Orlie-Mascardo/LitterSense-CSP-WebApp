@@ -44,7 +44,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 prefetch={true}
-                className="relative flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-xl min-w-[56px] group"
+                className="relative flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-xl min-w-14 group"
                 aria-current={isActive ? "page" : undefined}
               >
                 {/* Sliding background pill */}

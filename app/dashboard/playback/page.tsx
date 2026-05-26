@@ -24,6 +24,11 @@ const FASTAPI_URL = "http://localhost:8000";
 const SHOW_RECORDINGS_UI = false;
 
 type LiveStreamState = "unknown" | "connected" | "error";
+type ActiveTab = "live" | "recordings";
+type ActiveView = "live" | "recordings";
+type SelectedDate = "all" | "today" | "yesterday";
+
+const RECORDING_PREVIEW_LIMIT = 3;
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -102,6 +107,42 @@ const MOCK_RECORDINGS: RecordingEvent[] = [
     thumbnailColor: "#D4EDE8",
   },
 ];
+
+function hasDvrError(dvrStatus: string) {
+  return dvrStatus === "error" || dvrStatus.startsWith("error");
+}
+
+function getStatusLabel(liveStreamState: LiveStreamState, dvrStatus: string) {
+  if (liveStreamState === "connected") return "Connected";
+  if (dvrStatus === "recording") return "Recording";
+  if (dvrStatus === "waiting") return "Waiting";
+  if (liveStreamState === "error" || hasDvrError(dvrStatus)) return "Error";
+  return "Connecting";
+}
+
+function getStatusColor(liveStreamState: LiveStreamState, dvrStatus: string) {
+  if (liveStreamState === "connected") return "bg-green-500";
+  if (dvrStatus === "recording") return "bg-red-500";
+  if (liveStreamState === "error" || hasDvrError(dvrStatus)) return "bg-yellow-500";
+  return "bg-green-500";
+}
+
+function getFilteredRecordings(
+  recordings: RecordingEvent[],
+  selectedCat: string,
+  selectedDate: SelectedDate,
+) {
+  return recordings.filter((recording) => {
+    const catMatch = selectedCat === "All Cats" || recording.cat === selectedCat;
+    const dateMatch = selectedDate === "all" || recording.date === selectedDate;
+    return catMatch && dateMatch;
+  });
+}
+
+function getVisibleRecordings(recordings: RecordingEvent[], showAllRecordings: boolean) {
+  if (showAllRecordings) return recordings;
+  return recordings.slice(0, RECORDING_PREVIEW_LIMIT);
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -195,7 +236,7 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
           )}
         </div>
       </button>
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-3">
         <div className="w-full h-1 bg-litter-card/30 rounded-full mb-2 cursor-pointer">
           <div
             className="h-full bg-litter-primary rounded-full relative"
@@ -242,7 +283,7 @@ function RecordingRow({
       onClick={onSelect}
     >
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
         style={{ backgroundColor: recording.thumbnailColor }}
       >
         {recording.type === "cat_visit" ? (
@@ -269,7 +310,7 @@ function RecordingRow({
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="p-1.5 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+        className="p-1.5 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
         title="Delete recording"
       >
         <Trash2 className="w-4 h-4" />
@@ -278,14 +319,403 @@ function RecordingRow({
   );
 }
 
+function PlaybackHeader({
+  activeTab,
+  onActiveTabChange,
+}: {
+  readonly activeTab: ActiveTab;
+  readonly onActiveTabChange: (tab: ActiveTab) => void;
+}) {
+  return (
+    <section className="mb-5">
+      <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-1">
+        Playback
+      </h1>
+      <p className="text-[#6B7280] text-sm">
+        {SHOW_RECORDINGS_UI
+          ? "Review your LitterSense camera recordings"
+          : "Watch your LitterSense camera live feed"}
+      </p>
+      {SHOW_RECORDINGS_UI ? (
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => onActiveTabChange("live")}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              activeTab === "live"
+                ? "bg-litter-primary text-white border-litter-primary"
+                : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            Live
+          </button>
+          <button
+            onClick={() => onActiveTabChange("recordings")}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              activeTab === "recordings"
+                ? "bg-litter-primary text-white border-litter-primary"
+                : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
+            }`}
+          >
+            <Video className="w-3.5 h-3.5" />
+            Recordings
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-1.5 text-sm font-medium text-litter-primary">
+          <Radio className="w-3.5 h-3.5" />
+          Live
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DeviceGate({
+  isConnecting,
+  onConnect,
+}: {
+  readonly isConnecting: boolean;
+  readonly onConnect: () => void;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="h-64 w-64 rounded-full bg-litter-primary/10 blur-3xl" />
+      </div>
+      <div className="relative z-10 flex flex-col items-center gap-4">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-litter-primary/20 bg-litter-primary/10 shadow-inner">
+          <Radio className="h-9 w-9 text-litter-primary" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
+          <p className="mt-1 text-sm text-theme-muted max-w-6 mx-auto">
+            {SHOW_RECORDINGS_UI
+              ? "Pair your LitterSense unit to watch the live feed and browse recording history."
+              : "Pair your LitterSense unit to watch the live feed."}
+          </p>
+        </div>
+        <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
+          {[
+            { step: "1", label: "Power on your LitterSense device" },
+            { step: "2", label: "Make sure it's on the same Wi-Fi network" },
+            { step: "3", label: "Tap Connect below to pair" },
+          ].map(({ step, label }) => (
+            <div key={step} className="flex items-center gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-litter-primary text-[11px] font-bold text-white">
+                {step}
+              </span>
+              <span className="text-sm text-theme-muted">{label}</span>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={onConnect}
+          disabled={isConnecting}
+          className="mt-2 flex items-center gap-2 rounded-full bg-litter-primary px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-litter-primary/25 transition-all hover:bg-[#165a4e] hover:shadow-litter-primary/40 disabled:opacity-60"
+        >
+          {isConnecting ? (
+            <>
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+                className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
+              />
+              Connecting…
+            </>
+          ) : (
+            <>
+              <Radio className="h-4 w-4" />
+              Connect Device
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlaybackViewer({
+  activeView,
+  selectedRecording,
+  onStreamStateChange,
+}: {
+  readonly activeView: ActiveView;
+  readonly selectedRecording: RecordingEvent | null;
+  readonly onStreamStateChange: (state: LiveStreamState) => void;
+}) {
+  return (
+    <div className="mb-4">
+      {activeView === "live" ? (
+        <LiveView onStreamStateChange={onStreamStateChange} />
+      ) : (
+        <VideoPlayer recording={selectedRecording} />
+      )}
+    </div>
+  );
+}
+
+function RecordingDeviceInfo({ selectedRecording }: { readonly selectedRecording: RecordingEvent }) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <div>
+        <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="w-2 h-2 rounded-full bg-litter-primary" />
+          <span className="text-sm text-litter-primary font-medium">Playback</span>
+          <span className="text-theme-muted text-sm">·</span>
+          <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
+          <Maximize2 className="w-4 h-4" />
+        </button>
+        <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
+          <Settings className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DeviceStatusCard({
+  statusLabel,
+  statusColor,
+  onDisconnect,
+}: {
+  readonly statusLabel: string;
+  readonly statusColor: string;
+  readonly onDisconnect: () => void;
+}) {
+  return (
+    <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
+      <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+        Device Status
+      </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="relative flex h-4 w-4 shrink-0">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusColor} opacity-50`} />
+            <span className={`relative inline-flex h-4 w-4 rounded-full ${statusColor}`} />
+          </span>
+          <div>
+            <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
+            <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense Unit #67</p>
+          </div>
+        </div>
+        <button
+          onClick={onDisconnect}
+          className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+        >
+          Disconnect
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RecordingFilters({
+  selectedDate,
+  selectedCat,
+  onDateChange,
+  onCatChange,
+}: {
+  readonly selectedDate: SelectedDate;
+  readonly selectedCat: string;
+  readonly onDateChange: (date: SelectedDate) => void;
+  readonly onCatChange: (cat: string) => void;
+}) {
+  return (
+    <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
+      <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+        Filters
+      </p>
+      <div className="flex items-center gap-2 mb-3">
+        <Calendar className="w-3.5 h-3.5 text-theme-muted shrink-0" />
+        <div className="flex gap-1.5 flex-wrap">
+          {(["all", "today", "yesterday"] as const).map((date) => (
+            <button
+              key={date}
+              onClick={() => onDateChange(date)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
+                selectedDate === date
+                  ? "bg-litter-primary text-white border-litter-primary"
+                  : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
+              }`}
+            >
+              {date === "all" ? "All Dates" : date.charAt(0).toUpperCase() + date.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Filter className="w-3.5 h-3.5 text-theme-muted shrink-0" />
+        <div className="flex gap-1.5 flex-wrap">
+          {MOCK_CATS.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => onCatChange(cat)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                selectedCat === cat
+                  ? "bg-litter-primary text-white border-litter-primary"
+                  : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecordingHistory({
+  filteredRecordings,
+  visibleRecordings,
+  showAllRecordings,
+  selectedRecordingId,
+  onToggleShowAllRecordings,
+  onSelectRecording,
+  onDeleteRecording,
+}: {
+  readonly filteredRecordings: RecordingEvent[];
+  readonly visibleRecordings: RecordingEvent[];
+  readonly showAllRecordings: boolean;
+  readonly selectedRecordingId?: string;
+  readonly onToggleShowAllRecordings: () => void;
+  readonly onSelectRecording: (recording: RecordingEvent) => void;
+  readonly onDeleteRecording: (id: string) => void;
+}) {
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-base text-litter-text">Recording History</h2>
+        {filteredRecordings.length > RECORDING_PREVIEW_LIMIT && (
+          <button
+            onClick={onToggleShowAllRecordings}
+            className="text-litter-primary text-sm font-semibold hover:underline"
+          >
+            {showAllRecordings ? "Show Less" : "View All"}
+          </button>
+        )}
+      </div>
+      {filteredRecordings.length === 0 ? (
+        <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-10 text-center">
+          <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm font-medium text-litter-text">No recordings found</p>
+          <p className="text-xs text-theme-muted mt-1">Try changing the filters above.</p>
+        </div>
+      ) : (
+        <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
+          {visibleRecordings.map((recording, idx) => (
+            <div
+              key={recording.id}
+              className={idx < visibleRecordings.length - 1 ? "border-b border-litter-border" : ""}
+            >
+              <RecordingRow
+                recording={recording}
+                isSelected={selectedRecordingId === recording.id}
+                onSelect={() => onSelectRecording(recording)}
+                onDelete={() => onDeleteRecording(recording.id)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConnectedPlaybackView({
+  activeTab,
+  selectedRecording,
+  selectedDate,
+  selectedCat,
+  filteredRecordings,
+  visibleRecordings,
+  showAllRecordings,
+  dvrStatus,
+  liveStreamState,
+  onStreamStateChange,
+  onDisconnect,
+  onDateChange,
+  onCatChange,
+  onToggleShowAllRecordings,
+  onSelectRecording,
+  onDeleteRecording,
+}: {
+  readonly activeTab: ActiveTab;
+  readonly selectedRecording: RecordingEvent | null;
+  readonly selectedDate: SelectedDate;
+  readonly selectedCat: string;
+  readonly filteredRecordings: RecordingEvent[];
+  readonly visibleRecordings: RecordingEvent[];
+  readonly showAllRecordings: boolean;
+  readonly dvrStatus: string;
+  readonly liveStreamState: LiveStreamState;
+  readonly onStreamStateChange: (state: LiveStreamState) => void;
+  readonly onDisconnect: () => void;
+  readonly onDateChange: (date: SelectedDate) => void;
+  readonly onCatChange: (cat: string) => void;
+  readonly onToggleShowAllRecordings: () => void;
+  readonly onSelectRecording: (recording: RecordingEvent) => void;
+  readonly onDeleteRecording: (id: string) => void;
+}) {
+  const activeView: ActiveView = SHOW_RECORDINGS_UI ? activeTab : "live";
+  const statusLabel = getStatusLabel(liveStreamState, dvrStatus);
+  const statusColor = getStatusColor(liveStreamState, dvrStatus);
+
+  return (
+    <div>
+      <PlaybackViewer
+        activeView={activeView}
+        selectedRecording={selectedRecording}
+        onStreamStateChange={onStreamStateChange}
+      />
+
+      {activeView === "recordings" && selectedRecording && (
+        <RecordingDeviceInfo selectedRecording={selectedRecording} />
+      )}
+
+      <DeviceStatusCard
+        statusLabel={statusLabel}
+        statusColor={statusColor}
+        onDisconnect={onDisconnect}
+      />
+
+      {SHOW_RECORDINGS_UI && (
+        <>
+          <RecordingFilters
+            selectedDate={selectedDate}
+            selectedCat={selectedCat}
+            onDateChange={onDateChange}
+            onCatChange={onCatChange}
+          />
+          <RecordingHistory
+            filteredRecordings={filteredRecordings}
+            visibleRecordings={visibleRecordings}
+            showAllRecordings={showAllRecordings}
+            selectedRecordingId={selectedRecording?.id}
+            onToggleShowAllRecordings={onToggleShowAllRecordings}
+            onSelectRecording={onSelectRecording}
+            onDeleteRecording={onDeleteRecording}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PlaybackPage() {
-  const [activeTab, setActiveTab] = useState<"live" | "recordings">("live");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("live");
   const [recordings, setRecordings] = useState<RecordingEvent[]>(MOCK_RECORDINGS);
   const [selectedRecording, setSelectedRecording] = useState<RecordingEvent | null>(MOCK_RECORDINGS[0]);
   const [selectedCat, setSelectedCat] = useState("All Cats");
-  const [selectedDate, setSelectedDate] = useState<"all" | "today" | "yesterday">("all");
+  const [selectedDate, setSelectedDate] = useState<SelectedDate>("all");
   const [showAllRecordings, setShowAllRecordings] = useState(false);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -294,20 +724,21 @@ export default function PlaybackPage() {
 
   // Poll DVR status every 3 seconds while connected
   useEffect(() => {
-    if (!deviceConnected) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`${FASTAPI_URL}/dvr/status`);
-        if (!res.ok) {
-          throw new Error("DVR status unavailable");
+    if (deviceConnected) {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`${FASTAPI_URL}/dvr/status`);
+          if (!res.ok) {
+            throw new Error("DVR status unavailable");
+          }
+          const { status } = await res.json();
+          setDvrStatus(status);
+        } catch {
+          setDvrStatus("error");
         }
-        const { status } = await res.json();
-        setDvrStatus(status);
-      } catch {
-        setDvrStatus("error");
-      }
-    }, 3000);
-    return () => clearInterval(interval);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
   }, [deviceConnected]);
 
   const handleConnect = async () => {
@@ -335,287 +766,44 @@ export default function PlaybackPage() {
   };
 
   const handleDelete = (id: string) => {
-    setRecordings((prev) => prev.filter((r) => r.id !== id));
+    const remainingRecordings = recordings.filter((recording) => recording.id !== id);
+    setRecordings(remainingRecordings);
     if (selectedRecording?.id === id) {
-      const remaining = recordings.find((r) => r.id !== id);
-      setSelectedRecording(remaining ?? null);
+      setSelectedRecording(remainingRecordings[0] ?? null);
     }
   };
 
-  const filteredRecordings = recordings.filter((r) => {
-    const catMatch = selectedCat === "All Cats" || r.cat === selectedCat;
-    const dateMatch = selectedDate === "all" || r.date === selectedDate;
-    return catMatch && dateMatch;
-  });
-
-  const visibleRecordings = showAllRecordings
-    ? filteredRecordings
-    : filteredRecordings.slice(0, 3);
-  const activeView = SHOW_RECORDINGS_UI ? activeTab : "live";
-  const dvrHasError = dvrStatus === "error" || dvrStatus.startsWith("error");
-  const showConnectedStatus = liveStreamState === "connected";
-  const showErrorStatus = liveStreamState === "error" || dvrHasError;
-
-  const statusLabel =
-    showConnectedStatus       ? "Connected" :
-    dvrStatus === "recording" ? "Recording" :
-    dvrStatus === "waiting"   ? "Waiting" :
-    showErrorStatus           ? "Error" :
-    "Connecting";
-
-  const statusColor =
-    showConnectedStatus       ? "bg-green-500" :
-    dvrStatus === "recording" ? "bg-red-500" :
-    showErrorStatus           ? "bg-yellow-500" :
-    "bg-green-500";
+  const filteredRecordings = getFilteredRecordings(recordings, selectedCat, selectedDate);
+  const visibleRecordings = getVisibleRecordings(filteredRecordings, showAllRecordings);
 
   return (
     <div className="min-h-screen bg-litter-bg pb-24">
       <TopBar />
 
       <main className="pt-20 px-4 sm:px-6 max-w-lg mx-auto">
-        {/* Header */}
-        <section className="mb-5">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-1">
-            Playback
-          </h1>
-          <p className="text-[#6B7280] text-sm">
-            {SHOW_RECORDINGS_UI
-              ? "Review your LitterSense camera recordings"
-              : "Watch your LitterSense camera live feed"}
-          </p>
-          {SHOW_RECORDINGS_UI ? (
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => setActiveTab("live")}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                  activeTab === "live"
-                    ? "bg-litter-primary text-white border-litter-primary"
-                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-                }`}
-              >
-                <Radio className="w-3.5 h-3.5" />
-                Live
-              </button>
-              <button
-                onClick={() => setActiveTab("recordings")}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                  activeTab === "recordings"
-                    ? "bg-litter-primary text-white border-litter-primary"
-                    : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
-                }`}
-              >
-                <Video className="w-3.5 h-3.5" />
-                Recordings
-              </button>
-            </div>
-          ) : (
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-1.5 text-sm font-medium text-litter-primary">
-              <Radio className="w-3.5 h-3.5" />
-              Live
-            </div>
-          )}
-        </section>
+        <PlaybackHeader activeTab={activeTab} onActiveTabChange={setActiveTab} />
 
-        {/* ── Device Gate ─────────────────────────────────────── */}
-        {!deviceConnected ? (
-          <div className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center">
-            <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-64 w-64 rounded-full bg-litter-primary/10 blur-3xl" />
-            </div>
-            <div className="relative z-10 flex flex-col items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-litter-primary/20 bg-litter-primary/10 shadow-inner">
-                <Radio className="h-9 w-9 text-litter-primary" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
-                <p className="mt-1 text-sm text-theme-muted max-w-[260px] mx-auto">
-                  {SHOW_RECORDINGS_UI
-                    ? "Pair your LitterSense unit to watch the live feed and browse recording history."
-                    : "Pair your LitterSense unit to watch the live feed."}
-                </p>
-              </div>
-              <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
-                {[
-                  { step: "1", label: "Power on your LitterSense device" },
-                  { step: "2", label: "Make sure it's on the same Wi-Fi network" },
-                  { step: "3", label: "Tap Connect below to pair" },
-                ].map(({ step, label }) => (
-                  <div key={step} className="flex items-center gap-3">
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-litter-primary text-[11px] font-bold text-white">
-                      {step}
-                    </span>
-                    <span className="text-sm text-theme-muted">{label}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={handleConnect}
-                disabled={isConnecting}
-                className="mt-2 flex items-center gap-2 rounded-full bg-litter-primary px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-litter-primary/25 transition-all hover:bg-[#165a4e] hover:shadow-litter-primary/40 disabled:opacity-60"
-              >
-                {isConnecting ? (
-                  <>
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
-                      className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
-                    />
-                    Connecting…
-                  </>
-                ) : (
-                  <>
-                    <Radio className="h-4 w-4" />
-                    Connect Device
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+        {deviceConnected ? (
+          <ConnectedPlaybackView
+            activeTab={activeTab}
+            selectedRecording={selectedRecording}
+            selectedDate={selectedDate}
+            selectedCat={selectedCat}
+            filteredRecordings={filteredRecordings}
+            visibleRecordings={visibleRecordings}
+            showAllRecordings={showAllRecordings}
+            dvrStatus={dvrStatus}
+            liveStreamState={liveStreamState}
+            onStreamStateChange={setLiveStreamState}
+            onDisconnect={handleDisconnect}
+            onDateChange={setSelectedDate}
+            onCatChange={setSelectedCat}
+            onToggleShowAllRecordings={() => setShowAllRecordings((value) => !value)}
+            onSelectRecording={setSelectedRecording}
+            onDeleteRecording={handleDelete}
+          />
         ) : (
-          <div>
-            {/* Video player */}
-            <div className="mb-4">
-              {activeView === "live" ? (
-                <LiveView onStreamStateChange={setLiveStreamState} />
-              ) : (
-                <VideoPlayer recording={selectedRecording} />
-              )}
-            </div>
-
-            {/* Device Info Row (recordings only) */}
-            {activeView === "recordings" && selectedRecording && (
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-litter-primary" />
-                    <span className="text-sm text-litter-primary font-medium">Playback</span>
-                    <span className="text-theme-muted text-sm">·</span>
-                    <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
-                    <Maximize2 className="w-4 h-4" />
-                  </button>
-                  <button className="w-9 h-9 rounded-xl border border-litter-border bg-litter-card flex items-center justify-center text-litter-primary hover:bg-litter-primary-light transition-colors shadow-sm">
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── Device Status Card ── */}
-            <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
-              <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
-                Device Status
-              </p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="relative flex h-4 w-4 shrink-0">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusColor} opacity-50`} />
-                    <span className={`relative inline-flex h-4 w-4 rounded-full ${statusColor}`} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
-                    <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense Unit #67</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleDisconnect}
-                  className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-
-            {/* ── Filters Card ── */}
-            {SHOW_RECORDINGS_UI && (
-              <>
-            <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
-              <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
-                Filters
-              </p>
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-3.5 h-3.5 text-theme-muted shrink-0" />
-                <div className="flex gap-1.5 flex-wrap">
-                  {(["all", "today", "yesterday"] as const).map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setSelectedDate(d)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
-                        selectedDate === d
-                          ? "bg-litter-primary text-white border-litter-primary"
-                          : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
-                      }`}
-                    >
-                      {d === "all" ? "All Dates" : d.charAt(0).toUpperCase() + d.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-3.5 h-3.5 text-theme-muted shrink-0" />
-                <div className="flex gap-1.5 flex-wrap">
-                  {MOCK_CATS.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCat(cat)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        selectedCat === cat
-                          ? "bg-litter-primary text-white border-litter-primary"
-                          : "bg-litter-bg text-theme-muted border-litter-border hover:border-litter-primary/40"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Recording History ── */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-base text-litter-text">Recording History</h2>
-                {filteredRecordings.length > 3 && (
-                  <button
-                    onClick={() => setShowAllRecordings((v) => !v)}
-                    className="text-litter-primary text-sm font-semibold hover:underline"
-                  >
-                    {showAllRecordings ? "Show Less" : "View All"}
-                  </button>
-                )}
-              </div>
-              {filteredRecordings.length === 0 ? (
-                <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-10 text-center">
-                  <Video className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-litter-text">No recordings found</p>
-                  <p className="text-xs text-theme-muted mt-1">Try changing the filters above.</p>
-                </div>
-              ) : (
-                <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
-                  {visibleRecordings.map((recording, idx) => (
-                    <div
-                      key={recording.id}
-                      className={idx < visibleRecordings.length - 1 ? "border-b border-litter-border" : ""}
-                    >
-                      <RecordingRow
-                        recording={recording}
-                        isSelected={selectedRecording?.id === recording.id}
-                        onSelect={() => setSelectedRecording(recording)}
-                        onDelete={() => handleDelete(recording.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-                </div>
-              </>
-            )}
-          </div>
+          <DeviceGate isConnecting={isConnecting} onConnect={handleConnect} />
         )}
       </main>
 

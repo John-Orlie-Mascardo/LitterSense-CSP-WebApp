@@ -53,6 +53,7 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
+import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 
 const AVATAR_PREVIEW_SIZE = 128;
 
@@ -907,15 +908,12 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
               >
                 <div>
                   <p className="font-medium text-amber-800">
-                    {anomaly.anomalyType}
+                    {formatDuration(anomaly.durationSecs)}
                   </p>
                   <p className="text-sm text-amber-600">
                     {formatDate(anomaly.date)} at {anomaly.time}
                   </p>
                 </div>
-                <span className="px-2 py-1 bg-amber-200 text-amber-800 text-xs rounded-full font-medium">
-                  Abnormal
-                </span>
               </div>
             ))}
           </div>
@@ -985,7 +983,7 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
   const summaryVisitLabel = summaryVisits === 1 ? "visit" : "visits";
   const timeLabel = isSummary
     ? `Daily summary: ${summaryVisits} ${summaryVisitLabel}`
-    : session.time;
+    : formatSessionTimeLabel(session);
 
   return (
     <div
@@ -1021,11 +1019,6 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
               {session.mq135Delta}%
             </span>
           </div>
-        )}
-        {session.anomaly && (
-          <span className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
-            Flagged
-          </span>
         )}
       </div>
     </div>
