@@ -4,6 +4,7 @@ import type {
 } from "@/lib/utils/sensorSync";
 
 export const DEVICE_SENSOR_SNAPSHOT_PATH = "deviceState/current";
+export const SENSOR_SNAPSHOT_STALE_AFTER_MS = 30000;
 
 export interface DeviceSensorSnapshot {
   online: boolean;
@@ -44,10 +45,25 @@ interface BuildDeviceSensorSnapshotInput {
   now?: Date;
 }
 
+interface ToDeviceSensorsResponseOptions {
+  now?: Date;
+  staleAfterMs?: number;
+  forceOffline?: boolean;
+}
+
 const DEFAULT_NO_EXIT_TIMEOUT_MS = 900000;
 
 const toIntOrNull = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const isFreshSnapshotTimestamp = (
+  updatedAt: string,
+  now: Date,
+  staleAfterMs: number,
+) => {
+  const updatedAtMs = Date.parse(updatedAt);
+  return Number.isFinite(updatedAtMs) && now.getTime() - updatedAtMs <= staleAfterMs;
+};
 
 export function buildDeviceSensorSnapshot({
   deviceId,
@@ -101,9 +117,19 @@ export function buildDeviceSensorSnapshot({
   };
 }
 
-export function toDeviceSensorsResponse(snapshot: Partial<DeviceSensorSnapshot>) {
+export function toDeviceSensorsResponse(
+  snapshot: Partial<DeviceSensorSnapshot>,
+  options: ToDeviceSensorsResponseOptions = {},
+) {
+  const now = options.now ?? new Date();
+  const staleAfterMs =
+    options.staleAfterMs ?? SENSOR_SNAPSHOT_STALE_AFTER_MS;
+  const updatedAt =
+    typeof snapshot.updatedAt === "string" ? snapshot.updatedAt : "";
+  const isFresh = isFreshSnapshotTimestamp(updatedAt, now, staleAfterMs);
+
   return {
-    online: snapshot.online ?? false,
+    online: !options.forceOffline && Boolean(snapshot.online) && isFresh,
     connectedSsid: typeof snapshot.connectedSsid === "string" ? snapshot.connectedSsid : "",
     mq135: typeof snapshot.mq135 === "string" ? snapshot.mq135 : "Unknown",
     mq136: typeof snapshot.mq136 === "string" ? snapshot.mq136 : "Unknown",
@@ -126,6 +152,6 @@ export function toDeviceSensorsResponse(snapshot: Partial<DeviceSensorSnapshot>)
     falseEntryCount: toIntOrNull(snapshot.falseEntryCount),
     noExitTimeoutCount: toIntOrNull(snapshot.noExitTimeoutCount),
     noExitTimeoutMs: toIntOrNull(snapshot.noExitTimeoutMs),
-    updatedAt: typeof snapshot.updatedAt === "string" ? snapshot.updatedAt : new Date().toISOString(),
+    updatedAt: updatedAt || now.toISOString(),
   };
 }

@@ -53,6 +53,10 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
+import {
+  getLiveAirQualityStatus,
+  getLiveRfidStatus,
+} from "@/lib/utils/liveSensorStatus";
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 
 const AVATAR_PREVIEW_SIZE = 128;
@@ -112,27 +116,6 @@ type CatDetailTabId = (typeof tabs)[number]["id"];
 
 const isCatDetailTabId = (tabId: string | null): tabId is CatDetailTabId =>
   tabs.some((tab) => tab.id === tabId);
-
-const isGasDetected = (label: string, raw: number | null | undefined) => {
-  const normalized = label.toLowerCase();
-  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
-};
-
-const getLiveAirQuality = (
-  mq135: string | undefined,
-  mq136: string | undefined,
-  mq135Raw: number | null | undefined,
-  mq136Raw: number | null | undefined,
-) => {
-  if (!mq135 || !mq136) return "Normal";
-  return isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)
-    ? "Abnormal"
-    : "Normal";
-};
-
-const getAirQualityStatus = (airQuality: string) => {
-  return airQuality === "Abnormal" ? "abnormal" : "normal";
-};
 
 const getTrendBaseline = (
   details:
@@ -778,20 +761,16 @@ interface OverviewTabProps {
 
 function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: Readonly<OverviewTabProps>) {
   const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
-  const airQuality = getLiveAirQuality(
-    sensorData?.mq135,
-    sensorData?.mq136,
-    sensorData?.mq135Raw,
-    sensorData?.mq136Raw,
-  );
-  let rfidValue = "Offline";
-  if (!sensorsError) {
-    if (sensorsLoading) {
-      rfidValue = "Syncing";
-    } else if (sensorData?.online) {
-      rfidValue = "Online";
-    }
-  }
+  const airQualityStatus = getLiveAirQualityStatus({
+    sensorData,
+    sensorsLoading,
+    sensorsError,
+  });
+  const rfidStatus = getLiveRfidStatus({
+    sensorData,
+    sensorsLoading,
+    sensorsError,
+  });
 
   return (
     <div className="space-y-6">
@@ -826,15 +805,17 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
           />
           <StatCard
             icon={Wind}
-            value={airQuality}
+            value={airQualityStatus.value}
             label="Air Quality"
-            status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
+            status={airQualityStatus.status}
+            statusLabel={airQualityStatus.label}
           />
           <StatCard
             icon={Tag}
-            value={rfidValue}
+            value={rfidStatus.value}
             label="RFID Reader"
-            status={sensorData?.online && !sensorsError ? "normal" : "abnormal"}
+            status={rfidStatus.status}
+            statusLabel={rfidStatus.label}
           />
         </div>
       </div>

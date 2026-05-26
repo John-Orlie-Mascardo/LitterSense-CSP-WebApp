@@ -26,6 +26,11 @@ import { CatChip } from "@/components/cats/CatChip";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { formatDuration } from "@/lib/utils/formatters";
+import {
+  getLiveAirQualityStatus,
+  getLiveRfidStatus,
+  type SensorDisplayStatus,
+} from "@/lib/utils/liveSensorStatus";
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatStats } from "@/lib/interfaces/CatStats";
@@ -99,28 +104,6 @@ const getUserFirstName = (displayName: string | null | undefined) => {
   return displayName.split(" ")[0];
 };
 
-const getAirQualityStatus = (quality: string) => {
-  return quality === "Abnormal" ? "abnormal" : "normal";
-};
-
-const isGasDetected = (label: string, raw: number | null | undefined) => {
-  const normalized = label.toLowerCase();
-  return raw === 0 || normalized.includes("gas") || normalized.includes("detected");
-};
-
-const getLiveAirQuality = (
-  mq135: string | undefined,
-  mq136: string | undefined,
-  mq135Raw: number | null | undefined,
-  mq136Raw: number | null | undefined,
-): "Normal" | "Abnormal" => {
-  if (!mq135 || !mq136) return "Normal";
-  if (isGasDetected(mq135, mq135Raw) || isGasDetected(mq136, mq136Raw)) {
-    return "Abnormal";
-  }
-  return "Normal";
-};
-
 const getVisitsStatus = (visits: number) => {
   if (visits > 6) return "abnormal";
   return "normal";
@@ -158,55 +141,6 @@ const getStatusLabel = (status: string | undefined, includeIcon: boolean = false
       baseLabel = "Normal";
   }
   return includeIcon ? `● ${baseLabel}` : baseLabel;
-};
-
-const getAirQualityStatusLabel = (airQuality: string) => {
-  return airQuality === "Abnormal" ? "Abnormal" : "Normal";
-};
-
-const getLiveAirQualityStatusLabel = (
-  sensorsError: string | null,
-  sensorsLoading: boolean,
-  airQuality: string,
-) => {
-  if (sensorsError) return "Offline";
-  if (sensorsLoading) return "Syncing";
-  return getAirQualityStatusLabel(airQuality);
-};
-
-const getSensorErrorLabel = (error: string | null) => {
-  if (!error) return "Check IP";
-
-  const normalized = error.toLowerCase();
-  if (normalized.includes("timed out")) return "Timeout";
-  if (normalized.includes("returned 404")) return "Missing route";
-  if (
-    normalized.includes("unavailable") ||
-    normalized.includes("fetch failed") ||
-    normalized.includes("econnrefused") ||
-    normalized.includes("bad port")
-  ) {
-    return "Server down";
-  }
-
-  return "Check IP";
-};
-
-const getRfidStatus = (
-  sensorData: ReturnType<typeof useDeviceSensors>["data"],
-  sensorsLoading: boolean,
-  sensorsError: string | null,
-) => {
-  if (sensorsError) {
-    return {
-      value: "Offline",
-      status: "abnormal" as const,
-      label: getSensorErrorLabel(sensorsError),
-    };
-  }
-  if (sensorsLoading) return { value: "Syncing", status: "normal" as const, label: "Polling" };
-  if (!sensorData?.online) return { value: "Offline", status: "abnormal" as const, label: "No data" };
-  return { value: "Online", status: "normal" as const, label: "Live" };
 };
 
 const useDismissedAbnormalKeys = (abnormalCats: { id: string; status: string }[]) => {
@@ -352,9 +286,7 @@ function PopulatedDashboardState({
   hasAnomaly,
   abnormalCat,
   isDismissedAbnormalReady,
-  airQuality,
-  sensorsError,
-  airQualityStatusLabel,
+  airQualityStatus,
   rfidStatus,
   recentVisits,
   onSelectCat,
@@ -371,10 +303,8 @@ function PopulatedDashboardState({
   readonly hasAnomaly: boolean;
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
-  readonly airQuality: "Normal" | "Abnormal";
-  readonly sensorsError: string | null;
-  readonly airQualityStatusLabel: string;
-  readonly rfidStatus: ReturnType<typeof getRfidStatus>;
+  readonly airQualityStatus: SensorDisplayStatus;
+  readonly rfidStatus: SensorDisplayStatus;
   readonly recentVisits: RecentVisit[];
   readonly onSelectCat: (catId: string) => void;
   readonly onViewAbnormalDetails: () => void;
@@ -500,10 +430,10 @@ function PopulatedDashboardState({
             />
             <StatCard
               icon={Wind}
-              value={airQuality}
+              value={airQualityStatus.value}
               label="Air Quality"
-              status={sensorsError ? "abnormal" : getAirQualityStatus(airQuality)}
-              statusLabel={airQualityStatusLabel}
+              status={airQualityStatus.status}
+              statusLabel={airQualityStatus.label}
             />
             <StatCard
               icon={BarChart2}
@@ -662,18 +592,16 @@ export default function DashboardPage() {
     }
   }, [hasAnomaly, triggerOnAnomaly]);
 
-  const airQuality = getLiveAirQuality(
-    sensorData?.mq135,
-    sensorData?.mq136,
-    sensorData?.mq135Raw,
-    sensorData?.mq136Raw,
-  );
-  const airQualityStatusLabel = getLiveAirQualityStatusLabel(
-    sensorsError,
+  const airQualityStatus = getLiveAirQualityStatus({
+    sensorData,
     sensorsLoading,
-    airQuality,
-  );
-  const rfidStatus = getRfidStatus(sensorData, sensorsLoading, sensorsError);
+    sensorsError,
+  });
+  const rfidStatus = getLiveRfidStatus({
+    sensorData,
+    sensorsLoading,
+    sensorsError,
+  });
   const isEmpty = cats.length === 0;
   const recentVisits = getRecentVisits(sessions, getCatById);
   const greeting = getGreeting();
@@ -699,9 +627,7 @@ export default function DashboardPage() {
             hasAnomaly={hasAnomaly}
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
-            airQuality={airQuality}
-            sensorsError={sensorsError}
-            airQualityStatusLabel={airQualityStatusLabel}
+            airQualityStatus={airQualityStatus}
             rfidStatus={rfidStatus}
             recentVisits={recentVisits}
             onSelectCat={setSelectedCatId}
