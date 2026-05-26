@@ -8,6 +8,15 @@ import {
   findCatIdByRfid,
   normalizeSensorSyncRequest,
 } from "@/lib/utils/sensorSync";
+import {
+  classifySensorProxyUrl,
+  shouldSkipServerSensorProxy,
+} from "@/lib/utils/sensorEndpointDiagnostics";
+import {
+  buildDeviceSensorSnapshot,
+  DEVICE_SENSOR_SNAPSHOT_PATH,
+  toDeviceSensorsResponse,
+} from "@/lib/utils/deviceSensorSnapshot";
 
 export const runtime = "nodejs";
 
@@ -107,6 +116,46 @@ const readRequestBody = async (request: Request) => {
 };
 
 export async function GET() {
+  const sensorProxyTarget = classifySensorProxyUrl(ESP32_SENSOR_URL);
+  const shouldFallbackToStoredSnapshot = shouldSkipServerSensorProxy(
+    ESP32_SENSOR_URL,
+    process.env.VERCEL === "1",
+  );
+
+  const getStoredSnapshot = async () => {
+    try {
+      const client = getFirestoreRestClient();
+      const snapshotDoc = await client.getDocument(DEVICE_SENSOR_SNAPSHOT_PATH);
+      if (!snapshotDoc) return null;
+      return toDeviceSensorsResponse(snapshotDoc.data);
+    } catch {
+      return null;
+    }
+  };
+
+  if (shouldFallbackToStoredSnapshot) {
+    const storedSnapshot = await getStoredSnapshot();
+
+    if (storedSnapshot) {
+      return Response.json(storedSnapshot, {
+        headers: {
+          ...NO_STORE_HEADERS,
+        },
+      });
+    }
+
+    return Response.json(
+      {
+        online: false,
+        error: "ESP32 LAN sensor URL is not reachable from Vercel",
+        detail:
+          "Vercel cannot poll private LAN or loopback addresses, and no stored sensor snapshot is available yet. Let the ESP32 post one successful sync so Vercel can read the stored snapshot.",
+        sensorProxyTarget,
+      },
+      { status: 503, headers: NO_STORE_HEADERS },
+    );
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(
     () => controller.abort(),
@@ -179,6 +228,15 @@ export async function GET() {
       error instanceof Error &&
       (error.name === "AbortError" || message.toLowerCase().includes("aborted"));
 
+    const storedSnapshot = await getStoredSnapshot();
+    if (storedSnapshot) {
+      return Response.json(storedSnapshot, {
+        headers: {
+          ...NO_STORE_HEADERS,
+        },
+      });
+    }
+
     console.error("ESP32 sensor proxy failed.", {
       url: ESP32_SENSOR_URL,
       timedOut,
@@ -199,25 +257,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-
-  try {
-    body = await readRequestBody(request);
-  } catch {
-    return Response.json(
-      { ok: false, error: "Invalid sensor sync body." },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
+  const bodyResult = await getRequestBodyOrError(request);
+  if (bodyResult instanceof Response) {
+    return bodyResult;
   }
 
-  const configToken = getConfigToken(request, body);
-  if (!CONFIG_TOKEN_PATTERN.test(configToken)) {
-    return Response.json(
-      { ok: false, error: "Missing or invalid device config token." },
-      { status: 400, headers: NO_STORE_HEADERS },
-    );
+  const { body } = bodyResult;
+  const tokenResult = getConfigTokenOrError(request, body);
+  if (tokenResult instanceof Response) {
+    return tokenResult;
   }
 
+  const { configToken } = tokenResult;
   const normalized = normalizeSensorSyncRequest(
     {
       ...(typeof body === "object" && body !== null ? body : {}),
@@ -226,86 +277,204 @@ export async function POST(request: Request) {
     new Date(),
   );
 
+  return handleSensorSync(body, configToken, normalized);
+}
+
+async function getRequestBodyOrError(
+  request: Request,
+): Promise<{ body: unknown } | Response> {
+  try {
+    const body = await readRequestBody(request);
+    return { body };
+  } catch {
+    return Response.json(
+      { ok: false, error: "Invalid sensor sync body." },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+}
+
+function getConfigTokenOrError(
+  request: Request,
+  body: unknown,
+): { configToken: string } | Response {
+  const configToken = getConfigToken(request, body);
+  if (!CONFIG_TOKEN_PATTERN.test(configToken)) {
+    return Response.json(
+      { ok: false, error: "Missing or invalid device config token." },
+      { status: 400, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  return { configToken };
+}
+
+function getDeviceIdFromBody(body: unknown): string {
+  if (typeof body !== "object" || body === null || !("deviceId" in body)) {
+    return "";
+  }
+
+  const deviceId = (body as { deviceId?: unknown }).deviceId;
+  return typeof deviceId === "string" ? deviceId : "";
+}
+
+function getConfigDocOrError(
+  configDoc: Awaited<ReturnType<ReturnType<typeof getFirestoreRestClient>["getDocument"]>>,
+  ownerId: string,
+): Response | undefined {
+  if (!configDoc || !ownerId) {
+    return Response.json(
+      {
+        ok: false,
+        error: "Device config not found or missing owner.",
+        detail: "Save the ESP32 Wi-Fi provisioning settings again before syncing sensor logs.",
+      },
+      { status: configDoc ? 422 : 404, headers: NO_STORE_HEADERS },
+    );
+  }
+
+  return undefined;
+}
+
+function buildCatDetails(
+  catDetailDocs: Awaited<ReturnType<ReturnType<typeof getFirestoreRestClient>["listDocuments"]>>,
+) {
+  return catDetailDocs.map((doc) => [
+    doc.id,
+    { rfidTag: doc.data.rfidTag },
+  ] satisfies [string, { rfidTag?: unknown }]);
+}
+
+function buildSyncResponse(args: {
+  normalized: ReturnType<typeof normalizeSensorSyncRequest>;
+  recorded: Array<{ sessionId: string; catId: string }>;
+  duplicates: Array<{ sessionId: string; catId: string }>;
+  unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }>;
+}) {
+  const { normalized, recorded, duplicates, unmatched } = args;
+  return Response.json(
+    {
+      ok: true,
+      received: normalized.events.length + normalized.ignored.length,
+      recorded: recorded.length,
+      duplicates: duplicates.length,
+      ignored: normalized.ignored,
+      unmatched,
+      recordedSessions: recorded,
+      duplicateSessions: duplicates,
+    },
+    { headers: NO_STORE_HEADERS },
+  );
+}
+
+async function processSensorEvents(args: {
+  client: ReturnType<typeof getFirestoreRestClient>;
+  normalized: ReturnType<typeof normalizeSensorSyncRequest>;
+  catDetails: ReturnType<typeof buildCatDetails>;
+  ownerId: string;
+  configToken: string;
+  serverNow: Date;
+}) {
+  const { client, normalized, catDetails, ownerId, configToken, serverNow } =
+    args;
+  const recorded: Array<{ sessionId: string; catId: string }> = [];
+  const recordedEvents: typeof normalized.events = [];
+  const duplicates: Array<{ sessionId: string; catId: string }> = [];
+  const unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
+
+  for (const event of normalized.events) {
+    const catId = findCatIdByRfid(catDetails, event.rfidCard, event.rfidHex);
+    if (!catId) {
+      unmatched.push({
+        eventId: event.eventId,
+        rfidCard: event.rfidCard,
+        rfidHex: event.rfidHex,
+      });
+      continue;
+    }
+
+    const sessionId = buildSessionDocumentId(configToken, event);
+    const plan = buildVisitWritePlan({
+      userId: ownerId,
+      catId,
+      configToken,
+      event,
+      sessionId,
+      serverNow,
+    });
+    const existingSession = await client.getDocument(plan.sessionPath);
+    if (existingSession) {
+      duplicates.push({ sessionId, catId });
+      continue;
+    }
+
+    await client.commit([
+      client.createSetWrite(plan.sessionPath, plan.sessionData, {
+        exists: false,
+      }),
+      ...plan.summaryPaths.map((path) =>
+        client.createIncrementWrite(path, plan.summaryData, {
+          visits: 1,
+          totalDurationSecs: plan.durationSecs,
+        }),
+      ),
+    ]);
+    recorded.push({ sessionId, catId });
+    recordedEvents.push(event);
+  }
+
+  return { recorded, recordedEvents, duplicates, unmatched };
+}
+
+async function handleSensorSync(
+  body: unknown,
+  configToken: string,
+  normalized: ReturnType<typeof normalizeSensorSyncRequest>,
+): Promise<Response> {
   try {
     const client = getFirestoreRestClient();
+    const deviceId = getDeviceIdFromBody(body);
     const configDoc = await client.getDocument(`deviceConfigs/${configToken}`);
     const ownerId = getString(configDoc?.data.ownerId).trim();
-    if (!configDoc || !ownerId) {
-      return Response.json(
-        {
-          ok: false,
-          error: "Device config not found or missing owner.",
-          detail: "Save the ESP32 Wi-Fi provisioning settings again before syncing sensor logs.",
-        },
-        { status: configDoc ? 422 : 404, headers: NO_STORE_HEADERS },
-      );
-    }
+    const configError = getConfigDocOrError(configDoc, ownerId);
+    if (configError) return configError;
 
     const catDetailDocs = await client.listDocuments(
       `users/${ownerId}/catDetails`,
     );
-    const catDetails = catDetailDocs.map((doc) => [
-      doc.id,
-      { rfidTag: doc.data.rfidTag },
-    ] satisfies [string, { rfidTag?: unknown }]);
-    const recorded: Array<{ sessionId: string; catId: string }> = [];
-    const duplicates: Array<{ sessionId: string; catId: string }> = [];
-    const unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
+    const catDetails = buildCatDetails(catDetailDocs);
     const serverNow = new Date();
-
-    for (const event of normalized.events) {
-      const catId = findCatIdByRfid(catDetails, event.rfidCard, event.rfidHex);
-      if (!catId) {
-        unmatched.push({
-          eventId: event.eventId,
-          rfidCard: event.rfidCard,
-          rfidHex: event.rfidHex,
-        });
-        continue;
-      }
-
-      const sessionId = buildSessionDocumentId(configToken, event);
-      const plan = buildVisitWritePlan({
-        userId: ownerId,
-        catId,
+    const existingSensorSnapshot = await client.getDocument(
+      DEVICE_SENSOR_SNAPSHOT_PATH,
+    );
+    const { recorded, recordedEvents, duplicates, unmatched } =
+      await processSensorEvents({
+        client,
+        normalized,
+        catDetails,
+        ownerId,
         configToken,
-        event,
-        sessionId,
         serverNow,
       });
-      const existingSession = await client.getDocument(plan.sessionPath);
-      if (existingSession) {
-        duplicates.push({ sessionId, catId });
-        continue;
-      }
 
-      await client.commit([
-        client.createSetWrite(plan.sessionPath, plan.sessionData, {
-          exists: false,
-        }),
-        ...plan.summaryPaths.map((path) =>
-          client.createIncrementWrite(path, plan.summaryData, {
-            visits: 1,
-            totalDurationSecs: plan.durationSecs,
-          }),
-        ),
-      ]);
-      recorded.push({ sessionId, catId });
-    }
+    const sensorSnapshot = buildDeviceSensorSnapshot({
+      deviceId,
+      configToken,
+      recordedEvents,
+      ignoredEvents: normalized.ignored,
+      previous: existingSensorSnapshot?.data ?? {},
+      now: serverNow,
+    });
 
-    return Response.json(
-      {
-        ok: true,
-        received: normalized.events.length + normalized.ignored.length,
-        recorded: recorded.length,
-        duplicates: duplicates.length,
-        ignored: normalized.ignored,
-        unmatched,
-        recordedSessions: recorded,
-        duplicateSessions: duplicates,
-      },
-      { headers: NO_STORE_HEADERS },
-    );
+    await client.commit([
+      client.createSetWrite(
+        DEVICE_SENSOR_SNAPSHOT_PATH,
+        sensorSnapshot as unknown as Record<string, unknown>,
+        existingSensorSnapshot ? undefined : { exists: false },
+      ),
+    ]);
+
+    return buildSyncResponse({ normalized, recorded, duplicates, unmatched });
   } catch (error) {
     const isFirestoreError = error instanceof FirestoreRestError;
     const status = isFirestoreError ? error.status : 500;
