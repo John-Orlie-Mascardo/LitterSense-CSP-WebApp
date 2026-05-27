@@ -210,7 +210,7 @@ export default function SignUpPage() {
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-litter-text mb-2">
               Create your account
             </h1>
-            <p className="text-[#6B7280]">
+            <p className="text-litter-muted">
               Monitor your cat&apos;s health from anywhere.
             </p>
           </div>
@@ -232,14 +232,14 @@ export default function SignUpPage() {
                 Full Name
               </label>
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type="text"
                   id="fullName"
                   value={fullName}
                   onChange={(event) => setFullName(event.target.value)}
                   placeholder="Enter your full name"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -254,14 +254,14 @@ export default function SignUpPage() {
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type="email"
                   id="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -276,20 +276,20 @@ export default function SignUpPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-12 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-litter-text transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-litter-muted hover:text-litter-text transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -309,20 +309,20 @@ export default function SignUpPage() {
                 Confirm Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   id="confirmPassword"
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Repeat your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-12 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-litter-text transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-litter-muted hover:text-litter-text transition-colors"
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -371,16 +371,16 @@ export default function SignUpPage() {
 
           {/* Divider */}
           <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-[#D1D5DB]" />
-            <span className="text-sm text-[#6B7280]">or sign up with</span>
-            <div className="flex-1 h-px bg-[#D1D5DB]" />
+            <div className="flex-1 h-px bg-litter-border" />
+            <span className="text-sm text-litter-muted">or sign up with</span>
+            <div className="flex-1 h-px bg-litter-border" />
           </div>
 
           {/* Google Sign Up */}
           <button
             type="button"
             onClick={handleGoogleSignUp}
-            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -404,7 +404,7 @@ export default function SignUpPage() {
           </button>
 
           {/* Login Link */}
-          <p className="text-center text-sm text-[#6B7280] mt-6">
+          <p className="text-center text-sm text-litter-muted mt-6">
             Already have an account?{" "}
             <Link
               href="/login"

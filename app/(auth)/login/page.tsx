@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type SyntheticEvent } from "react";
 import {
   Mail,
   Lock,
@@ -48,13 +48,14 @@ export default function LoginPage() {
     }
   }, [user, authLoading, isAdmin, router]);
 
-  const handleSubmit = async (event: React.SubmitEvent) => {
+  const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push(email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
+      // Redirect is handled by the useEffect above once AuthContext resolves
+      // isAdmin from Firestore — don't push here or we'll use stale isAdmin state.
     } catch (error) {
       let errorMessage = "Failed to sign in.";
       if (error instanceof FirebaseError) {
@@ -90,7 +91,8 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      router.push(user.email === "maclaurenz.cultura@gmail.com" || isAdmin ? "/admin" : "/dashboard");
+      // Redirect is handled by the useEffect above once AuthContext resolves
+      // isAdmin from Firestore — don't push here or we'll use stale isAdmin state.
     } catch (error) {
       const message = error instanceof FirebaseError ? error.message : "Failed to sign in with Google.";
       setError(message);
@@ -183,7 +185,7 @@ export default function LoginPage() {
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-litter-text mb-2">
               Welcome back
             </h1>
-            <p className="text-[#6B7280]">
+            <p className="text-litter-muted">
               Monitor your cat&apos;s health from anywhere.
             </p>
           </div>
@@ -204,14 +206,14 @@ export default function LoginPage() {
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type="email"
                   id="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -226,20 +228,20 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type={showPassword ? "text" : "password"}
                   id="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-12 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6B7280] hover:text-litter-text transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-litter-muted hover:text-litter-text transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -254,7 +256,7 @@ export default function LoginPage() {
             <div className="flex justify-end">
               <Link
                 href="/forgot-password"
-                className="text-sm text-litter-primary hover:text-[#145C54] transition-colors"
+                className="text-sm text-litter-primary hover:text-litter-primary-hover transition-colors"
               >
                 Forgot password?
               </Link>
@@ -298,16 +300,16 @@ export default function LoginPage() {
 
           {/* Divider */}
           <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-[#D1D5DB]" />
-            <span className="text-sm text-[#6B7280]">or continue with</span>
-            <div className="flex-1 h-px bg-[#D1D5DB]" />
+            <div className="flex-1 h-px bg-litter-border" />
+            <span className="text-sm text-litter-muted">or continue with</span>
+            <div className="flex-1 h-px bg-litter-border" />
           </div>
 
           {/* Google Sign In */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-[#F9FAFB] transition-all duration-200 flex items-center justify-center gap-3"
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
@@ -331,7 +333,7 @@ export default function LoginPage() {
           </button>
 
           {/* Sign Up Link */}
-          <p className="text-center text-sm text-[#6B7280] mt-6">
+          <p className="text-center text-sm text-litter-muted mt-6">
             Don&apos;t have an account?{" "}
             <Link
               href="/signup"

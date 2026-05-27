@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-[#E8F5F1] to-white flex items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-litter-bg flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
         {/* Card */}
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border/50 px-6 py-8">
@@ -57,7 +57,7 @@ export default function ForgotPasswordPage() {
           <div className="flex items-center gap-4 mb-8">
             <Link
               href="/login"
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#F3F4F6] transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-litter-card-hover transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-litter-text" />
             </Link>
@@ -78,7 +78,7 @@ export default function ForgotPasswordPage() {
             <h1 className="font-bold text-2xl text-litter-text mb-2">
               Reset Password
             </h1>
-            <p className="text-[#6B7280] text-sm leading-relaxed">
+            <p className="text-litter-muted text-sm leading-relaxed">
               Enter the email associated with your account and we&apos;ll send
               you a reset link.
             </p>
@@ -101,14 +101,14 @@ export default function ForgotPasswordPage() {
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6B7280]" />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-litter-muted" />
                 <input
                   type="email"
                   id="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="example@email.com"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-card border border-litter-border rounded-xl text-litter-text placeholder-[#6B7280]/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-[#1B7A6E]/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -154,7 +154,7 @@ export default function ForgotPasswordPage() {
           <div className="text-center mt-6">
             <Link
               href="/login"
-              className="text-sm text-[#6B7280] hover:text-litter-primary transition-colors inline-flex items-center gap-1"
+              className="text-sm text-litter-muted hover:text-litter-primary transition-colors inline-flex items-center gap-1"
             >
               <span>‹</span> Back to Sign In
             </Link>

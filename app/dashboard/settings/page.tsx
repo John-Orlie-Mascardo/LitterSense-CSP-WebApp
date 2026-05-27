@@ -878,7 +878,7 @@ export default function SettingsPage() {
           <button
             onClick={() => setShowSignOutConfirm(true)}
             disabled={isSigningOut}
-            className="w-full py-3 px-4 border-2 border-red-400 text-red-500 rounded-xl font-medium hover:bg-red-50 active:bg-red-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+            className="w-full py-3 px-4 border-2 border-litter-danger text-litter-danger rounded-xl font-medium hover:bg-litter-danger-bg active:bg-litter-danger-bg/80 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
           >
             {isSigningOut ? (
               <>
@@ -979,7 +979,7 @@ export default function SettingsPage() {
                   </span>
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-[#165a4e] transition-colors shadow-md">
+              <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-litter-primary-hover transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
                 <input type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
               </label>
@@ -992,10 +992,10 @@ export default function SettingsPage() {
               type="text"
               value={editProfileForm.displayName}
               onChange={(event) => setEditProfileForm((prev) => ({ ...prev, displayName: event.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
-          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] transition-colors">
+          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors">
             Save Changes
           </button>
         </div>
@@ -1012,14 +1012,14 @@ export default function SettingsPage() {
             <label htmlFor="currentPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Current Password</label>
             <input id="currentPassword" type="password" value={passwordForm.current}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, current: event.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">New Password</label>
             <input id="newPassword" type="password" value={passwordForm.new}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, new: event.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
             {passwordForm.new && (() => {
               const getStrengthClass = () => {
@@ -1031,7 +1031,7 @@ export default function SettingsPage() {
               return (
                 <div className="mt-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="flex-1 h-1 bg-litter-border rounded-full overflow-hidden">
                       <div className={`h-full transition-all ${getStrengthClass()}`} />
                     </div>
                     <span className="text-xs text-theme-muted">{passwordStrength.label}</span>
@@ -1044,13 +1044,13 @@ export default function SettingsPage() {
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Confirm New Password</label>
             <input id="confirmPassword" type="password" value={passwordForm.confirm}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirm: event.target.value }))}
-              className="w-full px-4 py-3 rounded-xl border border-litter-border focus:outline-none focus:ring-2 focus:ring-[#1E6B5E] focus:border-transparent transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
           <button
             onClick={handleChangePassword}
             disabled={!passwordForm.current || !passwordForm.new || !passwordForm.confirm || passwordForm.new !== passwordForm.confirm}
-            className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password
           </button>
@@ -1097,7 +1097,7 @@ export default function SettingsPage() {
               type="text"
               value={deviceConfig.deviceName}
               onChange={(event) => setDeviceConfig((prev) => ({ ...prev, deviceName: event.target.value }))}
-              className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+              className="w-full rounded-xl bg-litter-input text-litter-text border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-litter-primary/30"
               placeholder="LitterSense Unit #1"
               disabled={isDeviceProvisioningSaving}
             />
@@ -1112,7 +1112,7 @@ export default function SettingsPage() {
               type="text"
               value={deviceConfig.wifiSsid}
               onChange={(event) => setDeviceConfig((prev) => ({ ...prev, wifiSsid: event.target.value }))}
-              className="w-full rounded-xl border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+              className="w-full rounded-xl bg-litter-input text-litter-text border border-litter-border px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-litter-primary/30"
               placeholder="Enter the owner Wi-Fi name"
               disabled={isDeviceProvisioningSaving}
             />
@@ -1128,7 +1128,7 @@ export default function SettingsPage() {
                 type={showWifiPassword ? "text" : "password"}
                 value={deviceConfig.wifiPassword}
                 onChange={(event) => setDeviceConfig((prev) => ({ ...prev, wifiPassword: event.target.value }))}
-                className="w-full rounded-xl border border-litter-border px-4 py-3 pr-12 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#1E6B5E]"
+                className="w-full rounded-xl bg-litter-input text-litter-text border border-litter-border px-4 py-3 pr-12 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-litter-primary/30"
                 placeholder="Enter the owner Wi-Fi password"
                 disabled={isDeviceProvisioningSaving}
               />
@@ -1196,7 +1196,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSaveDeviceProvisioning}
             disabled={isDeviceProvisioningLoading || isDeviceProvisioningSaving}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-[#165a4e] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-litter-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isDeviceProvisioningSaving ? (
               <>
@@ -1258,7 +1258,7 @@ export default function SettingsPage() {
           </p>
           <button
             onClick={() => setShowPrivacyPolicy(false)}
-            className="w-full mt-6 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-[#165a4e] transition-colors"
+            className="w-full mt-6 px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors"
           >
             Close
           </button>

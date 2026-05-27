@@ -362,7 +362,9 @@ function CatStatusBadge({
   return (
     <span
       className={`${className} ${
-        status === "normal" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+        status === "normal"
+          ? "bg-status-normal text-status-normal"
+          : "bg-status-abnormal text-status-abnormal"
       }`}
     >
       {getStatusLabel(status, includeIcon)}
@@ -503,13 +505,13 @@ function PopulatedDashboardState({
 
         {isDismissedAbnormalReady && abnormalCat && (
           <div className="overflow-hidden mb-6">
-            <div className="bg-amber-50 border border-amber-200 border-l-4 border-l-amber-400 rounded-r-2xl rounded-l-sm p-4">
+            <div className="bg-status-warning border border-status-warning border-l-4 border-l-litter-warning rounded-r-2xl rounded-l-sm p-4">
               <div className="flex items-start gap-3 mb-3">
-                <div className="p-2 bg-amber-100 rounded-full shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                <div className="p-2 bg-litter-warning-bg rounded-full shrink-0 border border-litter-warning-border">
+                  <AlertTriangle className="w-5 h-5 text-litter-warning" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-amber-700 font-bold text-sm">
+                  <p className="text-status-warning font-bold text-sm">
                     {abnormalCat.name} - Abnormal Behavior
                   </p>
                   <p className="text-litter-muted text-xs mt-1">
@@ -521,13 +523,13 @@ function PopulatedDashboardState({
               <div className="flex items-center gap-2">
                 <button
                   onClick={onViewAbnormalDetails}
-                  className="flex-1 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                  className="flex-1 py-2.5 bg-litter-warning-bg hover:bg-litter-warning/20 text-status-warning text-sm font-semibold rounded-xl transition-colors border border-status-warning"
                 >
                   View Details
                 </button>
                 <button
                   onClick={onDismissAbnormal}
-                  className="px-4 py-2.5 bg-white/80 hover:bg-white text-amber-700 text-sm font-semibold rounded-xl transition-colors border border-amber-200"
+                  className="px-4 py-2.5 bg-litter-card hover:bg-litter-card-hover text-status-warning text-sm font-semibold rounded-xl transition-colors border border-status-warning"
                 >
                   Dismiss
                 </button>
