@@ -10,26 +10,46 @@
  */
 "use client";
 import { LucideIcon } from "lucide-react";
+
+type StatCardStatus = "normal" | "watch" | "alert" | "offline" | "abnormal";
+
 interface StatCardProps {
   icon: LucideIcon;
   value: string | number;
   label: string;
-  status?: "normal" | "abnormal";
+  subtitle?: string;
+  status?: StatCardStatus;
   statusLabel?: string;
 }
 const iconColors = {
   normal:  "text-litter-primary",
+  watch: "text-amber-500",
+  alert: "text-red-500",
+  offline: "text-slate-400",
   abnormal: "text-red-500",
 };
 const statusBarColors = {
   normal:  "bg-litter-primary",
+  watch: "bg-amber-500",
+  alert: "bg-red-500",
+  offline: "bg-slate-300",
   abnormal: "bg-red-500",
 };
 const statusLabelColors = {
   normal:  "text-litter-primary",
+  watch: "text-amber-500",
+  alert: "text-red-500",
+  offline: "text-slate-400",
   abnormal: "text-red-500",
 };
-export function StatCard({ icon: Icon, value, label, status = "normal", statusLabel }: Readonly<StatCardProps>) {
+export function StatCard({
+  icon: Icon,
+  value,
+  label,
+  subtitle,
+  status = "normal",
+  statusLabel,
+}: Readonly<StatCardProps>) {
   return (
     <div className="bg-litter-card rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden">
       {/* Top row: icon left, status label right */}
@@ -47,6 +67,11 @@ export function StatCard({ icon: Icon, value, label, status = "normal", statusLa
       </p>
       {/* Label */}
       <p className="font-body text-sm text-litter-muted mt-1 leading-tight">{label}</p>
+      {subtitle && (
+        <p className="font-body text-xs text-litter-muted/80 mt-0.5 leading-tight">
+          {subtitle}
+        </p>
+      )}
       {/* Status indicator bar */}
       <div
         className={`absolute bottom-0 left-0 right-0 h-1 ${statusBarColors[status]}`}

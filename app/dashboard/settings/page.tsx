@@ -15,7 +15,6 @@ import {
   Trash2,
   ChevronDown,
   Download,
-  History,
   XSquare,
   Check,
   AlertTriangle,
@@ -25,6 +24,9 @@ import {
   RefreshCw,
   Eye,
   EyeOff,
+  CloudFog,
+  Droplets,
+  Radio,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -36,6 +38,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
+import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
@@ -65,6 +68,151 @@ const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
+type ExportAllFormat = "pdf" | "csv" | "doc" | "json";
+
+type ExportAllPayload = {
+  settings: UserSettings;
+  cats: ReturnType<typeof useCats>["cats"];
+  catStats: ReturnType<typeof useCats>["catStats"];
+  catDetails: ReturnType<typeof useCats>["catDetails"];
+  sessions: ReturnType<typeof useCats>["sessions"];
+  healthLogs: ReturnType<typeof useCats>["healthLogs"];
+  exportedAt: string;
+};
+
+const csvCell = (value: unknown) => {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
+
+const downloadBlob = (content: BlobPart, type: string, filename: string) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const buildExportHtml = (payload: ExportAllPayload) => {
+  const catRows = payload.cats
+    .map((cat) => {
+      const stats = payload.catStats[cat.id];
+      const details = payload.catDetails[cat.id];
+      return `
+        <tr>
+          <td>${escapeHtml(cat.name)}</td>
+          <td>${escapeHtml(cat.status)}</td>
+          <td>${escapeHtml(details?.rfidTag)}</td>
+          <td>${escapeHtml(stats?.visits ?? 0)}</td>
+          <td>${escapeHtml(stats?.avgDuration ?? "--")}</td>
+          <td>${escapeHtml(stats?.litterLevel ?? "")}</td>
+        </tr>
+      `;
+    })
+    .join("");
+  const sessionRows = payload.sessions
+    .map((session) => `
+      <tr>
+        <td>${escapeHtml(session.catId)}</td>
+        <td>${escapeHtml(session.date)}</td>
+        <td>${escapeHtml(session.startedAt)}</td>
+        <td>${escapeHtml(session.endedAt)}</td>
+        <td>${escapeHtml(session.durationSecs)}</td>
+        <td>${escapeHtml(session.sessionStatus)}</td>
+      </tr>
+    `)
+    .join("");
+
+  return `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>LitterSense Export</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #17211f; padding: 24px; }
+          h1, h2 { color: #1E6B5E; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px; }
+          th, td { border: 1px solid #d9e4e1; padding: 8px; text-align: left; vertical-align: top; }
+          th { background: #eef8f5; }
+          pre { white-space: pre-wrap; border: 1px solid #d9e4e1; padding: 12px; background: #f8faf9; }
+        </style>
+      </head>
+      <body>
+        <h1>LitterSense Data Export</h1>
+        <p>Exported: ${escapeHtml(payload.exportedAt)}</p>
+        <h2>Cats</h2>
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Status</th><th>RFID</th><th>Visits</th><th>Avg Duration</th><th>Litter Level</th></tr>
+          </thead>
+          <tbody>${catRows || "<tr><td colspan=\"6\">No cats</td></tr>"}</tbody>
+        </table>
+        <h2>Sessions</h2>
+        <table>
+          <thead>
+            <tr><th>Cat ID</th><th>Date</th><th>Started</th><th>Ended</th><th>Duration Secs</th><th>Status</th></tr>
+          </thead>
+          <tbody>${sessionRows || "<tr><td colspan=\"6\">No sessions</td></tr>"}</tbody>
+        </table>
+        <h2>Settings</h2>
+        <pre>${escapeHtml(JSON.stringify(payload.settings, null, 2))}</pre>
+      </body>
+    </html>`;
+};
+
+const buildExportCsv = (payload: ExportAllPayload) => {
+  const rows = [
+    ["LitterSense Data Export"],
+    ["Exported At", payload.exportedAt],
+    [],
+    ["Cats"],
+    ["ID", "Name", "Status", "RFID", "Visits", "Avg Duration", "Litter Level"],
+    ...payload.cats.map((cat) => [
+      cat.id,
+      cat.name,
+      cat.status,
+      payload.catDetails[cat.id]?.rfidTag ?? "",
+      payload.catStats[cat.id]?.visits ?? 0,
+      payload.catStats[cat.id]?.avgDuration ?? "",
+      payload.catStats[cat.id]?.litterLevel ?? "",
+    ]),
+    [],
+    ["Sessions"],
+    ["ID", "Cat ID", "Date", "Started At", "Ended At", "Duration Secs", "Status", "Anomaly"],
+    ...payload.sessions.map((session) => [
+      session.id,
+      session.catId,
+      session.date,
+      session.startedAt ?? "",
+      session.endedAt ?? "",
+      session.durationSecs,
+      session.sessionStatus ?? "",
+      session.anomaly ? "Yes" : "No",
+    ]),
+    [],
+    ["Health Logs"],
+    ["ID", "Cat ID", "Date", "Type", "Note"],
+    ...payload.healthLogs.map((log) => [
+      log.id,
+      log.catId,
+      log.date,
+      log.type,
+      log.note,
+    ]),
+  ];
+
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const { isInstallable, triggerInstall } = usePWAInstall();
@@ -74,9 +222,14 @@ export default function SettingsPage() {
     updateDeviceSetting,
     updateAppearanceSetting,
     updateAccountSetting,
-    clearAllData,
-    exportAllData,
   } = useSettings();
+  const {
+    cats,
+    catStats,
+    catDetails,
+    sessions,
+    healthLogs,
+  } = useCats();
   const {
     deviceConfig,
     setDeviceConfig,
@@ -97,7 +250,7 @@ export default function SettingsPage() {
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showExportSheet, setShowExportSheet] = useState(false);
   const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
   const [showDeleteFinalConfirm, setShowDeleteFinalConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
@@ -216,10 +369,53 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClearHistory = () => {
-    clearAllData();
-    setShowClearConfirm(false);
-    addToast("All session history cleared", "info");
+  const buildExportPayload = (): ExportAllPayload => ({
+    settings,
+    cats,
+    catStats,
+    catDetails,
+    sessions,
+    healthLogs,
+    exportedAt: new Date().toISOString(),
+  });
+
+  const handleExportAll = (format: ExportAllFormat) => {
+    const payload = buildExportPayload();
+    const dateKey = new Date().toISOString().split("T")[0];
+    const baseName = `littersense_export_${dateKey}`;
+
+    if (format === "csv") {
+      downloadBlob(buildExportCsv(payload), "text/csv", `${baseName}.csv`);
+      addToast("CSV export downloaded", "success");
+    } else if (format === "doc") {
+      downloadBlob(
+        buildExportHtml(payload),
+        "application/msword",
+        `${baseName}.doc`,
+      );
+      addToast("DOC export downloaded", "success");
+    } else if (format === "json") {
+      downloadBlob(
+        JSON.stringify(payload, null, 2),
+        "application/json",
+        `${baseName}.json`,
+      );
+      addToast("JSON export downloaded", "success");
+    } else {
+      const popup = window.open("", "_blank", "noopener,noreferrer");
+      if (!popup) {
+        addToast("Allow pop-ups to export as PDF", "error");
+        return;
+      }
+
+      popup.document.write(buildExportHtml(payload));
+      popup.document.close();
+      popup.focus();
+      popup.print();
+      addToast("Choose Save as PDF in the print dialog", "info");
+    }
+
+    setShowExportSheet(false);
   };
 
   const handleSignOut = async () => {
@@ -446,6 +642,45 @@ export default function SettingsPage() {
                 }
               />
             </div>
+            <div className="border-t border-litter-border">
+              <SettingsRow
+                icon={Droplets}
+                label="Ammonia (Urine Odor) Alerts"
+                description="Get notified when NH3 exceeds threshold"
+                control={
+                  <Toggle
+                    checked={settings.notifications.ammoniaAlerts}
+                    onChange={(v) => updateNotificationSetting("ammoniaAlerts", v)}
+                  />
+                }
+              />
+            </div>
+            <div className="border-t border-litter-border">
+              <SettingsRow
+                icon={CloudFog}
+                label="H2S (Stool Odor) Alerts"
+                description="Get notified when H2S exceeds threshold"
+                control={
+                  <Toggle
+                    checked={settings.notifications.h2sAlerts}
+                    onChange={(v) => updateNotificationSetting("h2sAlerts", v)}
+                  />
+                }
+              />
+            </div>
+            <div className="border-t border-litter-border">
+              <SettingsRow
+                icon={Radio}
+                label="RFID Entry/Exit"
+                description="Get notified when a cat enters or leaves"
+                control={
+                  <Toggle
+                    checked={settings.notifications.rfidVisitAlerts}
+                    onChange={(v) => updateNotificationSetting("rfidVisitAlerts", v)}
+                  />
+                }
+              />
+            </div>
           </div>
         </div>
 
@@ -505,24 +740,12 @@ export default function SettingsPage() {
 
             <div className="border-t border-litter-border">
               <button
-                onClick={exportAllData}
+                onClick={() => setShowExportSheet(true)}
                 className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
                   <Download className="w-5 h-5 text-theme-muted" />
                   <span className="text-sm font-medium text-litter-text">Export All Data</span>
-                </div>
-                <ChevronRight className="w-5 h-5 text-theme-muted" />
-              </button>
-            </div>
-            <div className="border-t border-litter-border">
-              <button
-                onClick={() => setShowClearConfirm(true)}
-                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <History className="w-5 h-5 text-red-500" />
-                  <span className="text-sm font-medium text-red-500">Clear History</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-theme-muted" />
               </button>
@@ -684,9 +907,6 @@ export default function SettingsPage() {
               </>
             )}
           </button>
-          <p className="text-center text-xs text-theme-muted mt-2">
-            App Version 3.12.0 Â· Made with care for your cat
-          </p>
         </div>
       </main>
 
@@ -706,6 +926,51 @@ export default function SettingsPage() {
       )}
 
       <BottomNav />
+
+      {/* Export All Data Bottom Sheet */}
+      <BottomSheet
+        isOpen={showExportSheet}
+        onClose={() => setShowExportSheet(false)}
+        title="Export All Data"
+      >
+        <div className="space-y-3">
+          {[
+            {
+              format: "pdf" as const,
+              label: "PDF",
+              description: "Open a printable export and save it as PDF.",
+            },
+            {
+              format: "csv" as const,
+              label: "CSV",
+              description: "Download spreadsheet-friendly cat and session data.",
+            },
+            {
+              format: "doc" as const,
+              label: "DOC",
+              description: "Download a Word-compatible document.",
+            },
+            {
+              format: "json" as const,
+              label: "JSON",
+              description: "Download the complete structured export.",
+            },
+          ].map((option) => (
+            <button
+              key={option.format}
+              onClick={() => handleExportAll(option.format)}
+              className="w-full rounded-xl border border-litter-border bg-litter-card p-4 text-left transition-colors hover:bg-theme-hover"
+            >
+              <span className="text-sm font-semibold text-litter-text">
+                {option.label}
+              </span>
+              <span className="mt-1 block text-xs text-theme-muted">
+                {option.description}
+              </span>
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
 
       {/* Edit Profile Bottom Sheet */}
       <BottomSheet isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
@@ -1016,8 +1281,6 @@ export default function SettingsPage() {
       </BottomSheet>
 
       {/* Confirm Dialogs */}
-      <ConfirmDialog isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} onConfirm={handleClearHistory}
-        title="Clear History" message="Are you sure? This will permanently delete all session data for all cats. This cannot be undone." confirmText="Clear" variant="danger" />
       {/* Step 1 â€” Reason sheet */}
       <BottomSheet
         isOpen={showDeleteRequestSheet}

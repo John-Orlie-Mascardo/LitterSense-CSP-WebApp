@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
@@ -68,8 +68,49 @@ const mergeSettings = (parsed: Partial<UserSettings>): UserSettings => ({
   },
 });
 
+const pickNotificationSettings = (
+  value: Partial<UserSettings["notifications"]>,
+): Partial<UserSettings["notifications"]> => {
+  const next: Partial<UserSettings["notifications"]> = {};
+
+  if (typeof value.healthAlerts === "boolean") {
+    next.healthAlerts = value.healthAlerts;
+  }
+  if (typeof value.litterLevelWarnings === "boolean") {
+    next.litterLevelWarnings = value.litterLevelWarnings;
+  }
+  if (typeof value.ammoniaAlerts === "boolean") {
+    next.ammoniaAlerts = value.ammoniaAlerts;
+  }
+  if (typeof value.h2sAlerts === "boolean") {
+    next.h2sAlerts = value.h2sAlerts;
+  }
+  if (typeof value.rfidVisitAlerts === "boolean") {
+    next.rfidVisitAlerts = value.rfidVisitAlerts;
+  }
+  if (typeof value.dailySummary === "boolean") {
+    next.dailySummary = value.dailySummary;
+  }
+  if (
+    value.alertSensitivity === "low" ||
+    value.alertSensitivity === "medium" ||
+    value.alertSensitivity === "high"
+  ) {
+    next.alertSensitivity = value.alertSensitivity;
+  }
+  if (value.quietHours && typeof value.quietHours === "object") {
+    next.quietHours = value.quietHours;
+  }
+  if (Array.isArray(value.perCat)) {
+    next.perCat = value.perCat;
+  }
+
+  return next;
+};
+
 export function useSettings() {
   const { user } = useAuth();
+  const uid = user?.uid;
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -98,50 +139,47 @@ export function useSettings() {
   }, [settings, isLoaded]);
 
   useEffect(() => {
-    if (!user || !isLoaded) return;
+    if (!uid || !isLoaded) return undefined;
 
-    let isActive = true;
-
-    const loadFirestoreNotifications = async () => {
-      try {
-        const snapshot = await getDoc(
-          doc(db, "users", user.uid, "settings", "notifications"),
+    return onSnapshot(
+      doc(db, "users", uid, "settings", "notifications"),
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const remote = pickNotificationSettings(
+          snapshot.data() as Partial<UserSettings["notifications"]>,
         );
-        if (!isActive || !snapshot.exists()) return;
-        const notificationSettings = { ...snapshot.data() };
-        delete notificationSettings.updatedAt;
-
-        setSettings((prev) =>
-          mergeSettings({
-            ...prev,
-            notifications: {
-              ...prev.notifications,
-              ...notificationSettings,
+        setSettings((prev) => ({
+          ...prev,
+          notifications: {
+            ...prev.notifications,
+            ...remote,
+            quietHours: {
+              ...prev.notifications.quietHours,
+              ...(remote.quietHours ?? {}),
             },
-          }),
-        );
-      } catch (error) {
-        console.error("Failed to load notification settings:", error);
-      }
-    };
-
-    void loadFirestoreNotifications();
-
-    return () => {
-      isActive = false;
-    };
-  }, [isLoaded, user]);
+            perCat: remote.perCat ?? prev.notifications.perCat,
+          },
+        }));
+      },
+      (error) => {
+        console.error("Failed to sync notification settings:", error);
+      },
+    );
+  }, [uid, isLoaded]);
 
   const persistNotificationSettings = useCallback(
     async (notifications: UserSettings["notifications"]) => {
-      if (!user) return;
+      if (!uid) return;
       await setDoc(
-        doc(db, "users", user.uid, "settings", "notifications"),
-        notifications,
+        doc(db, "users", uid, "settings", "notifications"),
+        {
+          ...notifications,
+          updatedAt: serverTimestamp(),
+        },
         { merge: true },
       );
     },
-    [user],
+    [uid],
   );
 
   const updateNotificationSetting = useCallback(
@@ -153,12 +191,21 @@ export function useSettings() {
         ...prev,
         notifications: { ...prev.notifications, [key]: value },
       }));
-      void persistNotificationSettings({
-        ...settings.notifications,
-        [key]: value,
-      });
+
+      if (uid) {
+        void setDoc(
+          doc(db, "users", uid, "settings", "notifications"),
+          {
+            [key]: value,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        ).catch((error) => {
+          console.error("Failed to save notification setting:", error);
+        });
+      }
     },
-    [persistNotificationSettings, settings.notifications]
+    [uid]
   );
 
   // Update quiet hours sub-fields
@@ -251,24 +298,6 @@ export function useSettings() {
     setSettings(defaultSettings);
   }, []);
 
-  const clearAllData = useCallback(() => {
-    console.log("Clearing all data...");
-  }, []);
-
-  const exportAllData = useCallback(() => {
-    const data = {
-      settings,
-      exportDate: new Date().toISOString(),
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `littersense_export_${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [settings]);
-
   return {
     settings,
     isLoaded,
@@ -280,7 +309,5 @@ export function useSettings() {
     updateAppearanceSetting,
     updateAccountSetting,
     resetSettings,
-    clearAllData,
-    exportAllData,
   };
 }

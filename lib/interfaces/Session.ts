@@ -3,6 +3,7 @@ export interface Session {
   catId: string;
   date: string;
   time: string;
+  startedAt?: string;
   endedAt?: string;
   durationSecs: number;
   mq135Delta: number;

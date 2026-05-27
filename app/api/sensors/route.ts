@@ -152,7 +152,7 @@ export async function GET() {
           "Vercel cannot poll private LAN or loopback addresses, and no stored sensor snapshot is available yet. Let the ESP32 post one successful sync so Vercel can read the stored snapshot.",
         sensorProxyTarget,
       },
-      { status: 503, headers: NO_STORE_HEADERS },
+      { headers: NO_STORE_HEADERS },
     );
   }
 
@@ -177,7 +177,7 @@ export async function GET() {
           error: `ESP32 returned ${upstream.status}`,
           detail,
         },
-        { status: 502 },
+        { headers: NO_STORE_HEADERS },
       );
     }
 
@@ -249,7 +249,7 @@ export async function GET() {
         error: timedOut ? "ESP32 sensors timed out" : "ESP32 sensors unavailable",
         detail: message,
       },
-      { status: timedOut ? 504 : 503 },
+      { headers: NO_STORE_HEADERS },
     );
   } finally {
     clearTimeout(timeoutId);

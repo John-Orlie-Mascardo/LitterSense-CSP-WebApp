@@ -1,11 +1,16 @@
 ﻿"use client";
 
-import { Bell, Check, Download, Trash2, X } from "lucide-react";
+import { AlertTriangle, Bell, Check, Download, Settings, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, useEffect, type KeyboardEvent } from "react";
-import { useNotifications, getTimeLabel, type AppNotification } from "@/lib/contexts/NotificationContext";
+import {
+  getNotificationCategory,
+  getTimeLabel,
+  useNotifications,
+  type AppNotification,
+} from "@/lib/contexts/NotificationContext";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 
 const pageTitles: Record<string, string> = {
@@ -54,6 +59,23 @@ export function TopBar() {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
     handleNotificationClick(notification);
+  };
+
+  const getNotificationIcon = (notification: AppNotification) => {
+    const category = getNotificationCategory(notification);
+    if (category === "system") {
+      return (
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-theme-overlay">
+          <Settings className="h-4 w-4 text-theme-muted" />
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-litter-primary-light">
+        <AlertTriangle className="h-4 w-4 text-litter-primary" />
+      </div>
+    );
   };
 
   return (
@@ -177,7 +199,7 @@ export function TopBar() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  className="absolute right-0 mt-2 rounded-2xl overflow-hidden"
+                  className="absolute right-0 mt-2 overflow-hidden rounded-2xl"
                   style={{
                     width: "min(480px, calc(100vw - 1rem))",
                     background: "var(--color-card)",
@@ -238,20 +260,22 @@ export function TopBar() {
                               ? `Open notification: ${n.title}`
                               : `Mark notification as read: ${n.title}`
                           }
-                          className="flex items-start gap-3 px-5 py-4 transition-colors"
+                          className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-theme-hover"
                           style={{
-                            background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.06)",
+                            background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.08)",
                             borderBottom: "1px solid var(--color-border)",
                             cursor: "pointer",
                           }}
                         >
-                          <div
-                            className="mt-0.5 w-2 h-2 rounded-full shrink-0"
-                            style={{ background: n.isRead ? "transparent" : "var(--color-primary)", marginTop: "6px" }}
-                          />
+                          {getNotificationIcon(n)}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold" style={{ color: "var(--color-text)" }}>{n.title}</p>
-                            <p className="text-sm opacity-70 mt-1" style={{ color: "var(--color-text)" }}>{n.message}</p>
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm font-semibold leading-snug" style={{ color: "var(--color-text)" }}>{n.title}</p>
+                              {!n.isRead && (
+                                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-litter-primary" />
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm leading-snug text-theme-muted">{n.message}</p>
                             <p className="text-xs opacity-40 mt-1.5" style={{ color: "var(--color-text)" }}>
                               {n.createdAt ? getTimeLabel(n.createdAt) : ""}
                             </p>
@@ -274,7 +298,9 @@ export function TopBar() {
                   {/* Footer */}
                   <div className="px-5 py-3.5" style={{ borderTop: "1px solid var(--color-border)" }}>
                     <Link href="/dashboard/notifications" onClick={() => setDropdownOpen(false)}>
-                      <span className="text-xs font-medium" style={{ color: "var(--color-primary)" }}>View all notifications â†’</span>
+                      <span className="block rounded-lg py-2 text-center text-xs font-semibold text-litter-primary transition-colors hover:bg-theme-hover">
+                        Open notifications
+                      </span>
                     </Link>
                   </div>
                 </motion.div>

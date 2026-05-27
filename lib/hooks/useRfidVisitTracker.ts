@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { NewNotificationData } from "@/lib/contexts/NotificationContext";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { DeviceSensors } from "@/lib/hooks/useDeviceSensors";
 
@@ -14,6 +15,11 @@ const hexToDec = (hex: string): string => {
 const normalizeTag = (s: string) =>
   s.toLowerCase().replace(/[^a-f0-9]/g, "");
 
+interface RfidVisitTrackerOptions {
+  rfidVisitAlerts?: boolean;
+  addNotification?: (data: NewNotificationData) => Promise<void>;
+}
+
 /**
  * Observes completed RFID sessions from the ESP32 without writing Firestore visits.
  *
@@ -21,9 +27,15 @@ const normalizeTag = (s: string) =>
  * This hook may still run in dashboard tabs for live telemetry, but it must not
  * call `recordVisit` or create session documents.
  */
-export function useRfidVisitTracker(sensor: DeviceSensors | null) {
+export function useRfidVisitTracker(
+  sensor: DeviceSensors | null,
+  options: RfidVisitTrackerOptions = {},
+) {
   const { cats, catDetails, sessions } = useCats();
   const lastObservedSessionKey = useRef("");
+  const lastEntryNotificationKey = useRef("");
+  const { addNotification, rfidVisitAlerts = true } = options;
+  const alertsEnabled = rfidVisitAlerts !== false;
 
   useEffect(() => {
     if (!sensor?.online) return;
@@ -38,6 +50,28 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
       rfidCard,
       rfidHex,
     } = sensor;
+    const card = activeRfidCard || rfidCard || "";
+    const hex = activeRfidHex || rfidHex || "";
+
+    if (sensor.sessionActive) {
+      const entryKey = `${sensor.activeSessionStartMs ?? ""}|${card}|${hex}`;
+      if (entryKey && entryKey !== lastEntryNotificationKey.current) {
+        const catInBox = findCatByRfid(cats, catDetails, card, hex);
+        lastEntryNotificationKey.current = entryKey;
+
+        if (catInBox && alertsEnabled && addNotification) {
+          void addNotification({
+            type: "cat_visit",
+            title: `${catInBox.name} entered the litter box`,
+            message: "RFID entry detected.",
+            source: "rfid_visit",
+            catId: catInBox.id,
+            catName: catInBox.name,
+            route: `/dashboard/cats/${catInBox.id}`,
+          });
+        }
+      }
+    }
 
     const sessionCompleted =
       completedSessionCount !== null &&
@@ -51,8 +85,6 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
       const sessionKey = `${completedSessionCount}|${lastSessionEndMs ?? ""}|${lastSessionDurationMs ?? ""}`;
       if (sessionKey === lastObservedSessionKey.current) return;
 
-      const card = activeRfidCard || rfidCard || "";
-      const hex = activeRfidHex || rfidHex || "";
       const catToRecord = findCatByRfid(cats, catDetails, card, hex);
 
       if (!catToRecord) {
@@ -71,6 +103,18 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
         Math.round((lastSessionDurationMs ?? 0) / 1000),
       );
       const endedAtIso = lastSessionEndMs ? new Date(lastSessionEndMs).toISOString() : "";
+      if (alertsEnabled && addNotification) {
+        void addNotification({
+          type: "cat_visit",
+          title: `${catToRecord.name} left the litter box`,
+          message: `RFID exit detected after ${formatDurationLabel(durationSecs)}.`,
+          source: "rfid_visit",
+          catId: catToRecord.id,
+          catName: catToRecord.name,
+          route: `/dashboard/cats/${catToRecord.id}`,
+        });
+      }
+
       if (
         endedAtIso &&
         hasMatchingRecordedSession(
@@ -96,7 +140,13 @@ export function useRfidVisitTracker(sensor: DeviceSensors | null) {
     }
 
     // Do not count ENTER, raw scans, IN_PROGRESS, or FALSE_ENTRY_IGNORED.
-  }, [sensor, cats, catDetails, sessions]);
+  }, [sensor, cats, catDetails, sessions, alertsEnabled, addNotification]);
+}
+
+function formatDurationLabel(durationSecs: number) {
+  const minutes = Math.floor(durationSecs / 60);
+  const seconds = durationSecs % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
 function hasMatchingRecordedSession(

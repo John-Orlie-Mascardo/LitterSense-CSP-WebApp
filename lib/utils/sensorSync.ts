@@ -11,6 +11,7 @@ export interface NormalizedSensorSyncEvent {
   eventId: string;
   status: CountableSessionStatus;
   durationSecs: number;
+  startedAt: string;
   endedAt: string;
   rfidCard: string;
   rfidHex: string;
@@ -242,12 +243,24 @@ export function normalizeSensorSyncRequest(
             : ((durationMs ?? 0) / 1000)),
       ),
     );
-    const endedAt = parseEventDate(raw, receivedAt).toISOString();
+    const endedAtDate = parseEventDate(raw, receivedAt);
+    const endedAt = endedAtDate.toISOString();
+    const explicitStartedAt = getFirstString(raw, [
+      "startedAt",
+      "sessionStartedAt",
+      "activeSessionStartedAt",
+    ]);
+    const parsedStartedAt = explicitStartedAt ? new Date(explicitStartedAt) : null;
+    const startedAt =
+      parsedStartedAt && !Number.isNaN(parsedStartedAt.getTime())
+        ? parsedStartedAt.toISOString()
+        : new Date(endedAtDate.getTime() - safeDurationSecs * 1000).toISOString();
 
     events.push({
       eventId,
       status,
       durationSecs: safeDurationSecs,
+      startedAt,
       endedAt,
       rfidCard,
       rfidHex,
@@ -304,6 +317,7 @@ export function buildSessionDocumentId(
       event.rfidHex,
       event.status,
       event.durationSecs,
+      event.startedAt,
       event.endedAt,
     ].join("|"),
   )}`;
@@ -346,6 +360,7 @@ export function buildVisitWritePlan({
       sessionStatus: event.status,
       syncedFromDevice: true,
       createdAt: nowIso,
+      startedAt: event.startedAt,
       endedAt: eventDate.toISOString(),
     },
     summaryPaths,
