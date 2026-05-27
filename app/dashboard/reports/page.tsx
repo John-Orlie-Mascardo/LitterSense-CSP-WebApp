@@ -5,7 +5,6 @@ import {
   FileText,
   Download,
   Table,
-  Share2,
   Trash2,
   ChevronDown,
   Loader2,
@@ -16,7 +15,6 @@ import {
   Timer,
   Clock,
   PlusCircle,
-  Lightbulb,
   MoreVertical,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
@@ -33,15 +31,17 @@ import {
   formatDate,
   getStatusColor,
   generateId,
-  getHealthLogTypeColor,
 } from "@/lib/utils/formatters";
 
-type DateRangeValue = "7" | "30" | "90";
+type DateRangeValue = "1" | "3" | "7" | "14" | "21" | "30";
 
 const dateRanges: { value: DateRangeValue; label: string }[] = [
+  { value: "1", label: "Last 1 Day" },
+  { value: "3", label: "Last 3 Days" },
   { value: "7", label: "Last 7 Days" },
+  { value: "14", label: "Last 14 Days" },
+  { value: "21", label: "Last 21 Days" },
   { value: "30", label: "Last 30 Days" },
-  { value: "90", label: "Last 90 Days" },
 ];
 
 const csvCell = (value: string | number | boolean) => {
@@ -58,14 +58,17 @@ export default function ReportsPage() {
     pastReports,
     generateReport,
     deleteReport,
+    viewReport,
   } = useReports();
 
   const [selectedCat, setSelectedCat] = useState<string>("all");
   const [selectedRange, setSelectedRange] = useState<DateRangeValue>("7");
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showAllReports, setShowAllReports] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const hasCats = cats.length > 0;
+  const visibleReports = showAllReports ? pastReports : pastReports.slice(0, 3);
 
   useEffect(() => {
     const requestedCatId = new URLSearchParams(globalThis.location.search).get("catId");
@@ -134,27 +137,21 @@ export default function ReportsPage() {
     addToast("CSV exported successfully", "success");
   };
 
-  const handleShare = async () => {
-    if (!currentReport) return;
-    const shareData = {
-      title: `LitterSense Health Report - ${currentReport.catName}`,
-      text: `Health report for ${currentReport.catName} (${currentReport.period})`,
-      url: globalThis.location.href,
-    };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch {}
-    } else {
-      navigator.clipboard.writeText(globalThis.location.href);
-      addToast("Link copied to clipboard", "success");
-    }
-  };
-
   const handleDeletePastReport = (id: string) => {
     deleteReport(id);
     setDeleteConfirmId(null);
     addToast("Report deleted", "info");
+  };
+
+  const handleViewPastReport = (id: string) => {
+    if (!viewReport(id)) {
+      addToast("This report preview is no longer available in this session", "info");
+      return;
+    }
+
+    setTimeout(() => {
+      reportRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
   };
 
   return (
@@ -177,7 +174,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
             <p className="text-sm text-theme-muted mt-0.5">
-              Generate and share reports with your vet
+              Generate and export behavior reports
             </p>
           </div>
           <button className="p-2 theme-icon-btn">
@@ -297,13 +294,6 @@ export default function ReportsPage() {
                 <Table className="w-4 h-4" />
                 Export as CSV
               </button>
-              <button
-                onClick={handleShare}
-                className="flex items-center gap-2 px-4 py-2.5 border border-litter-border text-theme-secondary rounded-lg font-medium text-sm theme-row-hover"
-              >
-                <Share2 className="w-4 h-4" />
-                Share with Vet
-              </button>
             </div>
           </div>
         )}
@@ -312,9 +302,14 @@ export default function ReportsPage() {
         <div className="reports-screen-only mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-bold text-litter-text">Previous Reports</h2>
-            <button className="text-sm font-semibold text-litter-primary hover:underline">
-              VIEW ALL
-            </button>
+            {pastReports.length > 3 && (
+              <button
+                onClick={() => setShowAllReports((prev) => !prev)}
+                className="text-sm font-semibold text-litter-primary hover:underline"
+              >
+                {showAllReports ? "SHOW LESS" : "VIEW ALL"}
+              </button>
+            )}
           </div>
 
           {pastReports.length === 0 ? (
@@ -325,27 +320,18 @@ export default function ReportsPage() {
             </div>
           ) : (
             <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
-              {pastReports.map((report, idx) => (
+              {visibleReports.map((report, idx) => (
                 <PastReportCard
                   key={report.id}
                   report={report}
-                  isLast={idx === pastReports.length - 1}
+                  isLast={idx === visibleReports.length - 1}
                   onDelete={() => setDeleteConfirmId(report.id)}
                   onDownload={() => addToast(`Downloading ${report.filename}...`, "info")}
-                  onView={() => addToast("Report preview coming soon", "info")}
+                  onView={() => handleViewPastReport(report.id)}
                 />
               ))}
             </div>
           )}
-        </div>
-
-        {/* ── Pro Tip Banner ── */}
-        <div className="reports-screen-only bg-litter-primary-light border border-[#C6EBE4] rounded-2xl px-4 py-4 mb-6 flex items-start gap-3">
-          <Lightbulb className="w-5 h-5 text-litter-primary shrink-0 mt-0.5" />
-          <p className="text-sm text-litter-text leading-relaxed">
-            <span className="font-semibold">Pro Tip:</span> You can directly email these reports to
-            your veterinarian by tapping the share icon after downloading.
-          </p>
         </div>
 
       </main>
@@ -541,43 +527,6 @@ function ReportPreview({ report }: ReportPreviewProps) {
         </div>
       )}
 
-      {/* Vet Notes */}
-      <div className="reports-print-section p-5 border-b border-litter-border">
-        <p className="font-semibold text-litter-text text-sm mb-3">Vet Notes</p>
-        {report.healthLogs.length === 0 ? (
-          <p className="text-sm text-theme-muted">No vet notes for this period</p>
-        ) : (
-          <div className="space-y-2">
-            {report.healthLogs.map((log) => {
-              const typeColors = getHealthLogTypeColor(log.type);
-              return (
-                <div key={log.id} className="bg-theme-overlay rounded-xl p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}>
-                      {log.type}
-                    </span>
-                    {showCatColumn && (
-                      <span className="text-xs text-theme-muted">{log.catName}</span>
-                    )}
-                    <span className="text-xs text-theme-muted">{formatDate(log.date)}</span>
-                  </div>
-                  <p className="text-sm text-litter-text">{log.note}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Recommendations */}
-      <div className="reports-print-section p-5">
-        <p className="font-semibold text-litter-text text-sm mb-2">Recommendations</p>
-        <p className="text-sm text-theme-muted leading-relaxed">
-          {report.summary.anomaliesDetected === 0
-            ? "No behavioral anomalies detected during this period. Continue regular monitoring."
-            : `${report.summary.anomaliesDetected} anomalous sessions detected. Increased visit frequency and extended duration may indicate early signs of FLUTD or urinary discomfort. Veterinary consultation is recommended.`}
-        </p>
-      </div>
     </div>
   );
 }

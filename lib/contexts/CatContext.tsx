@@ -136,14 +136,18 @@ const formatAvgDuration = (totalDurationSecs: number, visits: number) => {
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 };
 
-const dateTimeSortValue = (date: string, time: string) => {
-  const parsed = Date.parse(`${date} ${time}`);
-  if (Number.isNaN(parsed)) return Date.parse(date) || 0;
-  return parsed;
+const inferSessionStartedAt = (endedAt: string, durationSecs: number) => {
+  if (!endedAt) return "";
+  const parsed = new Date(endedAt);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Date(parsed.getTime() - Math.max(0, durationSecs) * 1000).toISOString();
 };
 
 const normalizeSession = (id: string, data: FirestoreData): Session => {
   const endedAt = parseString(data.endedAt) || parseString(data.createdAt);
+  const durationSecs = parseNumber(data.durationSecs);
+  const startedAt =
+    parseString(data.startedAt) || inferSessionStartedAt(endedAt, durationSecs);
   const eventDate = endedAt ? new Date(endedAt) : new Date();
 
   return {
@@ -151,8 +155,9 @@ const normalizeSession = (id: string, data: FirestoreData): Session => {
     catId: parseString(data.catId),
     date: parseString(data.date) || getLocalDateKey(eventDate),
     time: parseString(data.time) || formatLocalTime(eventDate),
+    startedAt,
     endedAt,
-    durationSecs: parseNumber(data.durationSecs),
+    durationSecs,
     mq135Delta: parseNumber(data.mq135Delta),
     mq136Delta: parseNumber(data.mq136Delta),
     anomaly: data.anomaly === true,
@@ -229,6 +234,14 @@ const buildSessionsWithDailySummaries = (
         lastVisitDate && !Number.isNaN(lastVisitDate.getTime())
           ? formatLocalTime(lastVisitDate)
           : "",
+      startedAt:
+        lastVisitDate && !Number.isNaN(lastVisitDate.getTime())
+          ? new Date(lastVisitDate.getTime() - averageDuration * 1000).toISOString()
+          : undefined,
+      endedAt:
+        lastVisitDate && !Number.isNaN(lastVisitDate.getTime())
+          ? lastVisitDate.toISOString()
+          : undefined,
       durationSecs: averageDuration,
       mq135Delta: 0,
       mq136Delta: 0,
@@ -685,6 +698,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     const today = getLocalDateKey(now);
     const lastVisit = now.toISOString();
     const safeDurationSecs = Math.max(1, Math.round(durationSecs));
+    const startedAt = new Date(now.getTime() - safeDurationSecs * 1000).toISOString();
     const dailyRef = doc(
       db,
       "users",
@@ -736,6 +750,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         anomalyType: anomaly.anomalyType,
         sessionStatus: options?.sessionStatus ?? "NORMAL",
         createdAt: lastVisit,
+        startedAt,
         endedAt: lastVisit,
       });
     });

@@ -151,6 +151,7 @@ export function useReports() {
   const [progress, setProgress] = useState(0);
   const [currentReport, setCurrentReport] = useState<ReportData | null>(null);
   const [pastReports, setPastReports] = useState<PastReport[]>(mockPastReports);
+  const [reportArchive, setReportArchive] = useState<Record<string, ReportData>>({});
 
   const generateReport = useCallback(async (config: ReportConfig): Promise<ReportData> => {
     setIsGenerating(true);
@@ -270,6 +271,7 @@ export function useReports() {
     };
 
     setCurrentReport(report);
+    setReportArchive((prev) => ({ ...prev, [report.id]: report }));
     setIsGenerating(false);
 
     const newPastReport: PastReport = {
@@ -287,7 +289,19 @@ export function useReports() {
 
   const deleteReport = useCallback((reportId: string) => {
     setPastReports((prev) => prev.filter((report) => report.id !== reportId));
+    setReportArchive((prev) => {
+      const next = { ...prev };
+      delete next[reportId];
+      return next;
+    });
   }, []);
+
+  const viewReport = useCallback((reportId: string) => {
+    const report = reportArchive[reportId];
+    if (!report) return false;
+    setCurrentReport(report);
+    return true;
+  }, [reportArchive]);
 
   const downloadReport = useCallback((filename: string) => {
     console.log(`Downloading ${filename}...`);
@@ -300,6 +314,7 @@ export function useReports() {
     pastReports,
     generateReport,
     deleteReport,
+    viewReport,
     downloadReport,
     setCurrentReport,
   };

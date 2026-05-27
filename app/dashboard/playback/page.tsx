@@ -389,7 +389,7 @@ function DeviceGate({
         </div>
         <div>
           <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
-          <p className="mt-1 text-sm text-theme-muted max-w-6 mx-auto">
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-theme-muted">
             {SHOW_RECORDINGS_UI
               ? "Pair your LitterSense unit to watch the live feed and browse recording history."
               : "Pair your LitterSense unit to watch the live feed."}

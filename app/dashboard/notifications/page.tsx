@@ -1,63 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowLeft,
+  Bell,
   CheckCheck,
   MoreVertical,
-  Shield,
   Settings,
-  Info,
   Trash2,
 } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
 import {
-  useNotifications,
   getDateGroup,
+  getNotificationCategory,
   getTimeLabel,
+  useNotifications,
+  type AppNotification,
+  type NotificationCategory,
 } from "@/lib/contexts/NotificationContext";
-import type { AppNotification, NotificationType } from "@/lib/contexts/NotificationContext";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type NotificationTab = "all" | NotificationCategory;
 
-type NotificationTab = "all" | "alerts" | "system";
-
-// ─── Notification Icon ────────────────────────────────────────────────────────
-
-function NotifIcon({ type }: { readonly type: NotificationType }) {
-  if (type === "health") {
+function NotificationIcon({
+  notification,
+}: {
+  readonly notification: AppNotification;
+}) {
+  const category = getNotificationCategory(notification);
+  if (category === "system") {
     return (
-      <div className="w-11 h-11 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
-        <Shield className="w-5 h-5 text-orange-500" />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-theme-overlay">
+        <Settings className="h-5 w-5 text-theme-muted" />
       </div>
     );
   }
-  if (type === "system") {
-    return (
-      <div className="w-11 h-11 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-        <Settings className="w-5 h-5 text-blue-400" />
-      </div>
-    );
-  }
+
   return (
-    <div className="w-11 h-11 rounded-full bg-teal-100 flex items-center justify-center shrink-0">
-      <Info className="w-5 h-5 text-litter-primary" />
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-litter-primary-light">
+      <AlertTriangle className="h-5 w-5 text-litter-primary" />
     </div>
   );
 }
 
-// ─── Tab filter ───────────────────────────────────────────────────────────────
-
-function matchesTab(type: NotificationType, tab: NotificationTab): boolean {
+function matchesTab(notification: AppNotification, tab: NotificationTab) {
   if (tab === "all") return true;
-  if (tab === "alerts") return type === "health" || type === "cat_visit";
-  if (tab === "system") return type === "system";
-  return true;
+  return getNotificationCategory(notification) === tab;
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function EmptyState({ activeTab }: { readonly activeTab: NotificationTab }) {
+  const label =
+    activeTab === "alerts"
+      ? "No alert notifications"
+      : activeTab === "system"
+        ? "No system notifications"
+        : "No notifications";
+
+  return (
+    <div className="flex flex-col items-center justify-center px-8 py-24 text-center">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-litter-primary-light">
+        <Bell className="h-7 w-7 text-litter-primary" />
+      </div>
+      <p className="font-semibold text-litter-text">{label}</p>
+      <p className="mt-1 max-w-xs text-sm leading-relaxed text-theme-muted">
+        You&apos;re all caught up. New cat, litter box, and system updates will appear here.
+      </p>
+    </div>
+  );
+}
+
+function NotificationRow({
+  notification,
+  onOpen,
+  onDelete,
+}: {
+  readonly notification: AppNotification;
+  readonly onOpen: () => void;
+  readonly onDelete: () => void;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.16 }}
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`flex cursor-pointer items-start gap-3 border-b border-litter-border px-4 py-4 transition-colors hover:bg-theme-hover ${
+        notification.isRead ? "bg-litter-card" : "bg-litter-primary-light/50"
+      }`}
+    >
+      <NotificationIcon notification={notification} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-semibold leading-snug text-litter-text">
+            {notification.title}
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="whitespace-nowrap text-xs text-theme-muted">
+              {notification.createdAt ? getTimeLabel(notification.createdAt) : ""}
+            </span>
+            {!notification.isRead && (
+              <span className="h-2 w-2 rounded-full bg-litter-primary" />
+            )}
+          </div>
+        </div>
+        <p className="mt-1 text-sm leading-relaxed text-theme-muted">
+          {notification.message}
+        </p>
+        {notification.catName && (
+          <span className="mt-2 inline-flex rounded-full bg-theme-overlay px-2 py-0.5 text-xs font-medium text-theme-muted">
+            {notification.catName}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-muted transition-colors hover:bg-red-50 hover:text-red-500"
+        aria-label="Delete notification"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </motion.div>
+  );
+}
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -69,9 +148,43 @@ export default function NotificationsPage() {
     deleteNotification,
     clearAll,
   } = useNotifications();
-
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [showMenu, setShowMenu] = useState(false);
+
+  const tabs: { key: NotificationTab; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "alerts", label: "Alerts" },
+    { key: "system", label: "System" },
+  ];
+
+  const filtered = useMemo(
+    () => notifications.filter((notification) => matchesTab(notification, activeTab)),
+    [activeTab, notifications],
+  );
+
+  const groups = useMemo(
+    () =>
+      [
+        { label: "Today", key: "today" as const },
+        { label: "Yesterday", key: "yesterday" as const },
+        { label: "Earlier", key: "earlier" as const },
+      ].map((group) => ({
+        ...group,
+        notifications: filtered.filter(
+          (notification) =>
+            notification.createdAt &&
+            getDateGroup(notification.createdAt) === group.key,
+        ),
+      })),
+    [filtered],
+  );
+
+  const handleNotificationClick = async (notification: AppNotification) => {
+    await markAsRead(notification.id);
+    if (notification.route) {
+      router.push(notification.route);
+    }
+  };
 
   const handleMarkAllRead = async () => {
     await markAllAsRead();
@@ -83,95 +196,72 @@ export default function NotificationsPage() {
     setShowMenu(false);
   };
 
-  const filtered = notifications.filter((n) => matchesTab(n.type, activeTab));
-
-  const dateGroups: {
-    label: string;
-    key: "today" | "yesterday" | "earlier";
-  }[] = [
-    { label: "TODAY", key: "today" },
-    { label: "YESTERDAY", key: "yesterday" },
-    { label: "EARLIER", key: "earlier" },
-  ];
-
-  const tabs: { key: NotificationTab; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "alerts", label: "Alerts" },
-    { key: "system", label: "System" },
-  ];
-
-  const handleNotificationClick = async (notification: AppNotification) => {
-    await markAsRead(notification.id);
-    if (notification.route) {
-      router.push(notification.route);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#F2F2F2] pb-24">
-
-      {/* ── Fixed Header ─────────────────────────────────────────────────────── */}
-      <div className="fixed top-0 left-0 right-0 bg-litter-card z-50 shadow-sm">
-        <div className="max-w-lg mx-auto">
-
-          {/* Row 1: back + title + icons */}
-          <div className="flex items-center justify-between px-4 pt-5 pb-2">
-            <div className="flex items-center gap-2">
+    <div className="min-h-screen bg-litter-bg pb-24">
+      <header className="sticky top-0 z-40 border-b border-litter-border bg-litter-card/95 backdrop-blur">
+        <div className="mx-auto max-w-lg px-4">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => router.back()}
-                className="p-1 -ml-1 rounded-lg hover:bg-theme-overlay transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-litter-text transition-colors hover:bg-theme-hover"
+                aria-label="Go back"
               >
-                <ArrowLeft className="w-5 h-5 text-litter-text" />
+                <ArrowLeft className="h-5 w-5" />
               </button>
-              <h1 className="text-xl font-bold text-litter-text">Notifications</h1>
+              <div>
+                <h1 className="font-display text-xl font-bold text-litter-text">
+                  Notifications
+                </h1>
+                <p className="text-xs text-theme-muted">
+                  Alerts and system updates
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-0.5 relative">
-              {/* Mark all read */}
+            <div className="relative flex items-center gap-1">
               <button
                 onClick={handleMarkAllRead}
-                className="p-2 rounded-lg hover:bg-theme-overlay transition-colors"
-                title="Mark all as read"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-litter-primary transition-colors hover:bg-theme-hover"
+                aria-label="Mark all as read"
               >
-                <CheckCheck className="w-5 h-5 text-litter-primary" />
+                <CheckCheck className="h-5 w-5" />
               </button>
-
-              {/* Kebab menu */}
               <button
-                onClick={() => setShowMenu((v) => !v)}
-                className="p-2 rounded-lg hover:bg-theme-overlay transition-colors"
+                onClick={() => setShowMenu((value) => !value)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-litter-text transition-colors hover:bg-theme-hover"
+                aria-label="Open notification menu"
               >
-                <MoreVertical className="w-5 h-5 text-litter-text" />
+                <MoreVertical className="h-5 w-5" />
               </button>
 
-              {/* Dropdown */}
               <AnimatePresence>
                 {showMenu && (
                   <>
                     <button
-                      className="fixed inset-0 z-40 bg-transparent cursor-default"
+                      className="fixed inset-0 z-40 cursor-default bg-transparent"
                       onClick={() => setShowMenu(false)}
                       aria-label="Close menu"
                     />
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                      initial={{ opacity: 0, scale: 0.96, y: -4 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -4 }}
                       transition={{ duration: 0.12 }}
-                      className="absolute top-11 right-0 bg-litter-card rounded-xl shadow-xl border border-gray-100 py-1 w-44 z-50"
+                      className="absolute right-0 top-11 z-50 w-48 overflow-hidden rounded-xl border border-litter-border bg-litter-card shadow-xl"
                     >
                       <button
                         onClick={handleMarkAllRead}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-litter-text hover:bg-theme-hover transition-colors"
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-litter-text transition-colors hover:bg-theme-hover"
                       >
-                        <CheckCheck className="w-4 h-4 text-litter-primary" />
+                        <CheckCheck className="h-4 w-4 text-litter-primary" />
                         Mark all as read
                       </button>
                       <button
                         onClick={handleClearAll}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-red-500 transition-colors hover:bg-red-50"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="h-4 w-4" />
                         Clear all
                       </button>
                     </motion.div>
@@ -181,138 +271,68 @@ export default function NotificationsPage() {
             </div>
           </div>
 
-          {/* Row 2: Tabs */}
-          <div className="flex px-4 border-b border-gray-100">
+          <div className="flex gap-2">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative mr-7 pb-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.key ? "text-litter-primary" : "text-[#6B7280]"
+                className={`relative px-3 pb-3 pt-1 text-sm font-medium transition-colors ${
+                  activeTab === tab.key ? "text-litter-primary" : "text-theme-muted"
                 }`}
               >
                 {tab.label}
                 {activeTab === tab.key && (
-                  <motion.div
-                    layoutId="notifTabLine"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-litter-primary rounded-full"
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  <motion.span
+                    layoutId="notification-tab"
+                    className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-litter-primary"
                   />
                 )}
               </button>
             ))}
           </div>
-
         </div>
-      </div>
+      </header>
 
-      {/* ── Content ──────────────────────────────────────────────────────────── */}
-      <main className="pt-[112px] max-w-lg mx-auto">
-
+      <main className="mx-auto max-w-lg px-4 pt-5">
         {isLoading ? (
-          <div className="flex flex-col gap-3 px-4 pt-6">
-            {[1, 2, 3].map((i) => (
+          <div className="space-y-3">
+            {[1, 2, 3].map((item) => (
               <div
-                key={i}
-                className="h-20 rounded-xl bg-litter-card animate-pulse"
+                key={item}
+                className="h-24 animate-pulse rounded-xl border border-litter-border bg-litter-card"
               />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-28 text-center px-8">
-            <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center mb-4">
-              <CheckCheck className="w-7 h-7 text-litter-primary" />
-            </div>
-            <p className="font-semibold text-litter-text mb-1">All caught up!</p>
-            <p className="text-sm text-theme-muted">No notifications here.</p>
+          <div className="rounded-2xl border border-litter-border bg-litter-card shadow-sm">
+            <EmptyState activeTab={activeTab} />
           </div>
         ) : (
-          <>
-            {dateGroups.map(({ label, key }) => {
-              const group = filtered.filter(
-                (n) => n.createdAt && getDateGroup(n.createdAt) === key
-              );
-              if (group.length === 0) return null;
+          <div className="space-y-5">
+            {groups.map((group) => {
+              if (group.notifications.length === 0) return null;
 
               return (
-                <div key={key}>
-
-                  {/* Date header */}
-                  <div className="px-4 pt-5 pb-2">
-                    <p className="text-xs font-semibold text-theme-muted tracking-widest uppercase">
-                      {label}
-                    </p>
-                  </div>
-
-                  {/* White card block */}
-                  <div className="bg-litter-card">
-                    <AnimatePresence>
-                      {group.map((notif: AppNotification, idx: number) => (
-                        <motion.div
-                          key={notif.id}
-                          layout
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.15 }}
-                          onClick={() => void handleNotificationClick(notif)}
-                          className={`flex items-start gap-3 px-4 py-4 cursor-pointer transition-colors hover:bg-theme-hover ${
-                            idx === 0 ? "" : "border-t border-gray-100"
-                          }`}
-                        >
-                          {/* Colored icon */}
-                          <NotifIcon type={notif.type} />
-
-                          {/* Text */}
-                          <div className="flex-1 min-w-0">
-                            {/* Title + timestamp + blue dot */}
-                            <div className="flex items-start justify-between gap-2 mb-0.5">
-                              <p
-                                className={`text-sm leading-snug ${
-                                  notif.isRead
-                                    ? "font-semibold text-litter-text"
-                                    : "font-bold text-litter-text"
-                                }`}
-                              >
-                                {notif.title}
-                              </p>
-                              <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                                <span className="text-xs text-theme-muted whitespace-nowrap">
-                                  {notif.createdAt
-                                    ? getTimeLabel(notif.createdAt)
-                                    : ""}
-                                </span>
-                                {!notif.isRead && (
-                                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Message body */}
-                            <p className="text-sm text-theme-muted leading-snug">
-                              {notif.message}
-                            </p>
-                          </div>
-
-                          {/* Delete */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteNotification(notif.id);
-                            }}
-                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors mt-0.5"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </motion.div>
+                <section key={group.key}>
+                  <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-widest text-theme-muted">
+                    {group.label}
+                  </p>
+                  <div className="overflow-hidden rounded-2xl border border-litter-border bg-litter-card shadow-sm">
+                    <AnimatePresence initial={false}>
+                      {group.notifications.map((notification) => (
+                        <NotificationRow
+                          key={notification.id}
+                          notification={notification}
+                          onOpen={() => void handleNotificationClick(notification)}
+                          onDelete={() => void deleteNotification(notification.id)}
+                        />
                       ))}
                     </AnimatePresence>
                   </div>
-
-                </div>
+                </section>
               );
             })}
-          </>
+          </div>
         )}
       </main>
 

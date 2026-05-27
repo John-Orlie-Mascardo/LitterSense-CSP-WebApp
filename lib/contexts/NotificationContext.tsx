@@ -25,13 +25,22 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { useSettings } from "@/lib/hooks/useSettings";
 import type { Cat } from "@/lib/data/mockData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type NotificationType = "health" | "system" | "cat_visit";
-export type NotificationSource = "dashboard_abnormal";
+export type NotificationSource =
+  | "dashboard_abnormal"
+  | "rfid_visit"
+  | "ammonia_alert"
+  | "h2s_alert"
+  | "litter_level"
+  | "admin"
+  | "system";
 export type NotificationStatus = Extract<Cat["status"], "abnormal">;
+export type NotificationCategory = "alerts" | "system";
 
 export interface AppNotification {
   id: string;
@@ -104,6 +113,38 @@ const buildNotificationSyncPayload = (data: Partial<AppNotification>) =>
 
 const getNotificationDocId = (abnormalKey: string) => encodeURIComponent(abnormalKey);
 
+export const getNotificationCategory = (
+  notification: Pick<AppNotification, "type" | "source">,
+): NotificationCategory => {
+  if (notification.type === "system") return "system";
+  if (notification.source === "admin" || notification.source === "system") {
+    return "system";
+  }
+  return "alerts";
+};
+
+const isNotificationAllowed = (
+  data: Pick<AppNotification, "type" | "source">,
+  settings: ReturnType<typeof useSettings>["settings"],
+) => {
+  if (getNotificationCategory(data) === "system") return true;
+
+  if (data.source === "rfid_visit" || data.type === "cat_visit") {
+    return settings.notifications.rfidVisitAlerts;
+  }
+  if (data.source === "ammonia_alert") {
+    return settings.notifications.ammoniaAlerts;
+  }
+  if (data.source === "h2s_alert") {
+    return settings.notifications.h2sAlerts;
+  }
+  if (data.source === "litter_level") {
+    return settings.notifications.litterLevelWarnings;
+  }
+
+  return settings.notifications.healthAlerts;
+};
+
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -118,6 +159,7 @@ export function NotificationProvider({
   children: React.ReactNode;
 }) {
   const { user, loading: authLoading } = useAuth();
+  const { settings } = useSettings();
   const userId = user?.uid ?? null;
   const [syncState, setSyncState] = useState<NotificationSyncState>({
     userId: null,
@@ -137,7 +179,26 @@ export function NotificationProvider({
   }, [notifications]);
 
   useEffect(() => {
-    if (authLoading || !userId) return;
+    if (authLoading) return;
+
+    if (!userId) {
+      queueMicrotask(() => {
+        setSyncState({
+          userId: null,
+          notifications: [],
+          isLoading: false,
+        });
+      });
+      return;
+    }
+
+    queueMicrotask(() => {
+      setSyncState((current) => ({
+        userId,
+        notifications: current.userId === userId ? current.notifications : [],
+        isLoading: false,
+      }));
+    });
 
     const notifQuery = query(
       collection(db, "users", userId, "notifications"),
@@ -173,18 +234,21 @@ export function NotificationProvider({
   const addNotification = useCallback(
     async (data: NewNotificationData) => {
       if (!user) return;
+      if (!isNotificationAllowed(data, settings)) return;
+
       await addDoc(collection(db, "users", user.uid, "notifications"), {
         ...buildNotificationSyncPayload(data),
         createdAt: serverTimestamp(),
         isRead: false,
       });
     },
-    [user]
+    [settings, user]
   );
 
   const upsertNotification = useCallback(
     async (data: UpsertNotificationData) => {
       if (!user) return;
+      if (!isNotificationAllowed(data, settings)) return;
 
       const notificationId = getNotificationDocId(data.abnormalKey);
       const notificationRef = doc(db, "users", user.uid, "notifications", notificationId);
@@ -209,7 +273,7 @@ export function NotificationProvider({
 
       await updateDoc(notificationRef, updates);
     },
-    [user],
+    [settings, user],
   );
 
   const markAsRead = useCallback(
@@ -246,11 +310,15 @@ export function NotificationProvider({
 
   const clearAll = useCallback(async () => {
     if (!user || notifications.length === 0) return;
-    const batch = writeBatch(db);
-    notifications.forEach((n) => {
-      batch.delete(doc(db, "users", user.uid, "notifications", n.id));
-    });
-    await batch.commit();
+
+    const chunkSize = 450;
+    for (let index = 0; index < notifications.length; index += chunkSize) {
+      const batch = writeBatch(db);
+      notifications.slice(index, index + chunkSize).forEach((n) => {
+        batch.delete(doc(db, "users", user.uid, "notifications", n.id));
+      });
+      await batch.commit();
+    }
   }, [user, notifications]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;

@@ -38,8 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="font-body antialiased bg-litter-bg text-litter-text transition-colors duration-300">
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body
+        className="font-body antialiased bg-litter-bg text-litter-text transition-colors duration-300"
+        suppressHydrationWarning
+      >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <DeleteRequestProvider>

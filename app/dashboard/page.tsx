@@ -15,26 +15,37 @@
 import Image from "next/image";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, Timer, Wind, BarChart2, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  CloudFog,
+  Droplets,
+  Gauge,
+  Radio,
+  Timer,
+} from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
 import { useCats } from "@/lib/contexts/CatContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { SessionTimelineCard } from "@/components/dashboard/SessionTimelineCard";
+import { CatBehaviorTrends } from "@/components/dashboard/CatBehaviorTrends";
 import { CatChip } from "@/components/cats/CatChip";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import { formatDuration } from "@/lib/utils/formatters";
+import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import {
-  getLiveAirQualityStatus,
   getLiveRfidStatus,
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
-import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
+import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import type { Cat } from "@/lib/interfaces/Cat";
+import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { CatStats } from "@/lib/interfaces/CatStats";
 import type { Session } from "@/lib/interfaces/Session";
+import type { CatTrendPoint } from "@/lib/contexts/CatContext";
 
 const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
@@ -169,16 +180,160 @@ type RecentVisit = {
   readonly session: Session;
 };
 
+const normalizeRfidTag = (value: string) =>
+  value.toLowerCase().replace(/[^a-f0-9]/g, "");
+
+const hexToDec = (hex: string) => {
+  const n = Number.parseInt(hex, 16);
+  return Number.isNaN(n) ? "" : n.toString();
+};
+
+const rfidMatches = (
+  details: CatDetails | undefined,
+  card: string,
+  hex: string,
+) => {
+  const tag = normalizeRfidTag(details?.rfidTag ?? "");
+  if (!tag) return false;
+
+  const normalizedCard = normalizeRfidTag(card);
+  const normalizedHex = normalizeRfidTag(hex);
+  return (
+    tag === normalizedCard ||
+    tag === normalizedHex ||
+    tag === hexToDec(card) ||
+    tag === hexToDec(hex)
+  );
+};
+
+const getSessionStartedAt = (session: Session) => {
+  if (session.startedAt) {
+    const parsed = Date.parse(session.startedAt);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+
+  if (session.endedAt) {
+    const endedAt = Date.parse(session.endedAt);
+    if (!Number.isNaN(endedAt)) {
+      return endedAt - Math.max(0, session.durationSecs) * 1000;
+    }
+  }
+
+  return getSessionSortValue(session);
+};
+
+const getSessionTimelineSortValue = (session: Session) =>
+  Math.max(getSessionSortValue(session), getSessionStartedAt(session));
+
+const buildLiveSessionVisit = (
+  sensorData: DeviceSensors | null,
+  cats: Cat[],
+  getDetailsByCatId: (id: string) => CatDetails | undefined,
+): RecentVisit | null => {
+  if (!sensorData?.sessionActive) return null;
+
+  const activeCard = sensorData.activeRfidCard || sensorData.rfidCard;
+  const activeHex = sensorData.activeRfidHex || sensorData.rfidHex;
+  if (!activeCard && !activeHex) return null;
+
+  const cat = cats.find((candidate) =>
+    rfidMatches(getDetailsByCatId(candidate.id), activeCard, activeHex),
+  );
+  if (!cat) return null;
+
+  const nowMs = Date.now();
+  const durationMs =
+    sensorData.activeSessionDurationMs ??
+    (sensorData.activeSessionStartMs
+      ? nowMs - sensorData.activeSessionStartMs
+      : 0);
+  const startedMs =
+    sensorData.activeSessionStartMs ??
+    nowMs - Math.max(1000, durationMs);
+  const startedAt = new Date(startedMs);
+
+  return {
+    cat,
+    session: {
+      id: `live-rfid-${cat.id}-${startedMs}`,
+      catId: cat.id,
+      date: getLocalDateKey(startedAt),
+      time: startedAt.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      startedAt: startedAt.toISOString(),
+      durationSecs: Math.max(1, Math.round(durationMs / 1000)),
+      mq135Delta: 0,
+      mq136Delta: 0,
+      anomaly: false,
+      anomalyType: null,
+      sessionStatus: "IN_PROGRESS",
+    },
+  };
+};
+
+const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) => {
+  const liveStartedAt = getSessionStartedAt(liveSession);
+
+  return sessions.some((session) => {
+    if (session.catId !== liveSession.catId) return false;
+    if (session.sessionStatus === "IN_PROGRESS" || !session.endedAt) return true;
+
+    const startedAt = getSessionStartedAt(session);
+    return Math.abs(startedAt - liveStartedAt) < 30_000;
+  });
+};
+
 const getRecentVisits = (
   sessions: Session[],
   getCatById: (id: string) => Cat | undefined,
-): RecentVisit[] =>
-  sessions
+  liveVisit: RecentVisit | null,
+): RecentVisit[] => {
+  const storedVisits = sessions
     .flatMap((session) => {
       const cat = getCatById(session.catId);
       return cat ? [{ session, cat }] : [];
-    })
+    });
+
+  const mergedVisits =
+    liveVisit && !hasOverlappingLiveSession(sessions, liveVisit.session)
+      ? [liveVisit, ...storedVisits]
+      : storedVisits;
+
+  return mergedVisits
+    .sort(
+      (a, b) =>
+        getSessionTimelineSortValue(b.session) -
+        getSessionTimelineSortValue(a.session),
+    )
     .slice(0, 5);
+};
+
+const getReadingStatus = (
+  reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
+) => (reading.online ? reading.status : "offline");
+
+const getReadingStatusLabel = (
+  reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
+) => {
+  if (!reading.online) return "Offline";
+  if (reading.status === "alert") return "Alert";
+  if (reading.status === "watch") return "Watch";
+  return "Normal";
+};
+
+const getLitterLevelStatus = (level: number) => {
+  if (level <= 10) return "alert";
+  if (level <= 25) return "watch";
+  return "normal";
+};
+
+const getLitterLevelLabel = (level: number) => {
+  if (level <= 10) return "Critical";
+  if (level <= 25) return "Low";
+  return "Normal";
+};
 
 function CatAvatar({
   cat,
@@ -286,8 +441,9 @@ function PopulatedDashboardState({
   hasAnomaly,
   abnormalCat,
   isDismissedAbnormalReady,
-  airQualityStatus,
+  airQualityReadings,
   rfidStatus,
+  trendData,
   recentVisits,
   onSelectCat,
   onViewAbnormalDetails,
@@ -303,8 +459,9 @@ function PopulatedDashboardState({
   readonly hasAnomaly: boolean;
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
-  readonly airQualityStatus: SensorDisplayStatus;
+  readonly airQualityReadings: AirQualityReadings;
   readonly rfidStatus: SensorDisplayStatus;
+  readonly trendData: CatTrendPoint[] | null;
   readonly recentVisits: RecentVisit[];
   readonly onSelectCat: (catId: string) => void;
   readonly onViewAbnormalDetails: () => void;
@@ -402,10 +559,19 @@ function PopulatedDashboardState({
       </div>
 
       <div className="lg:pt-6">
+        {selectedCat && (
+          <CatBehaviorTrends
+            catName={selectedCat.name}
+            todayVisits={stats?.visits ?? 0}
+            todayAvgDuration={stats?.avgDuration || "--"}
+            trendData={trendData}
+          />
+        )}
+
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
-              {selectedCat?.name}&apos;s Stats
+              Cat Stats
             </h2>
             <CatStatusBadge
               status={selectedCat?.status}
@@ -429,18 +595,46 @@ function PopulatedDashboardState({
               statusLabel={getDurationLabel(stats?.avgDuration || "")}
             />
             <StatCard
-              icon={Wind}
-              value={airQualityStatus.value}
-              label="Air Quality"
-              status={airQualityStatus.status}
-              statusLabel={airQualityStatus.label}
-            />
-            <StatCard
-              icon={BarChart2}
+              icon={Radio}
               value={rfidStatus.value}
               label="RFID Reader"
               status={rfidStatus.status}
               statusLabel={rfidStatus.label}
+            />
+          </div>
+        </section>
+
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
+              Litter Box Environment
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <StatCard
+              icon={Droplets}
+              value={`${airQualityReadings.ammonia.ppm.toFixed(1)} ppm`}
+              label="Urine Odor"
+              subtitle="Ammonia (NH3)"
+              status={getReadingStatus(airQualityReadings.ammonia)}
+              statusLabel={getReadingStatusLabel(airQualityReadings.ammonia)}
+            />
+            <StatCard
+              icon={CloudFog}
+              value={`${airQualityReadings.h2s.ppm.toFixed(1)} ppm`}
+              label="Stool Odor"
+              subtitle="Hydrogen Sulfide (H2S)"
+              status={getReadingStatus(airQualityReadings.h2s)}
+              statusLabel={getReadingStatusLabel(airQualityReadings.h2s)}
+            />
+            <StatCard
+              icon={Gauge}
+              value={`${stats?.litterLevel ?? 0}%`}
+              label="Litter Level"
+              subtitle="Ultrasonic Sensor"
+              status={getLitterLevelStatus(stats?.litterLevel ?? 0)}
+              statusLabel={getLitterLevelLabel(stats?.litterLevel ?? 0)}
             />
           </div>
         </section>
@@ -458,27 +652,11 @@ function PopulatedDashboardState({
           {recentVisits.length > 0 ? (
             <div className="space-y-3">
               {recentVisits.map(({ cat, session }) => (
-                <div
+                <SessionTimelineCard
                   key={session.id}
-                  className="flex items-center gap-3 p-4 bg-litter-card rounded-xl border border-litter-border shadow-sm"
-                >
-                  <CatAvatar
-                    cat={cat}
-                    size={40}
-                    className="w-10 h-10 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0 overflow-hidden"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-body text-litter-text font-semibold text-sm leading-snug">
-                      {cat.name} RFID visit recorded
-                    </p>
-                    <p className="font-body text-litter-muted text-xs mt-0.5">
-                      {formatDuration(session.durationSecs)}
-                    </p>
-                  </div>
-                  <span className="font-body text-litter-muted text-xs">
-                    {formatSessionTimeLabel(session)}
-                  </span>
-                </div>
+                  cat={cat}
+                  session={session}
+                />
               ))}
             </div>
           ) : (
@@ -501,13 +679,21 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
-  const { cats, getCatById, getStatsByCatId, sessions } = useCats();
+  const {
+    cats,
+    getCatById,
+    getDetailsByCatId,
+    getStatsByCatId,
+    getTrendData,
+    sessions,
+  } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
   const {
     data: sensorData,
     isLoading: sensorsLoading,
     error: sensorsError,
   } = useDeviceSensors();
+  const airQualityReadings = useAirQualityReadings();
 
   // ── Notification permission hook — MUST be inside the component ──
   const {
@@ -521,6 +707,7 @@ export default function DashboardPage() {
 
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
+  const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
 
   const abnormalCats = useMemo(
     () => cats.filter((cat) => cat.status === "abnormal"),
@@ -592,18 +779,14 @@ export default function DashboardPage() {
     }
   }, [hasAnomaly, triggerOnAnomaly]);
 
-  const airQualityStatus = getLiveAirQualityStatus({
-    sensorData,
-    sensorsLoading,
-    sensorsError,
-  });
   const rfidStatus = getLiveRfidStatus({
     sensorData,
     sensorsLoading,
     sensorsError,
   });
   const isEmpty = cats.length === 0;
-  const recentVisits = getRecentVisits(sessions, getCatById);
+  const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
+  const recentVisits = getRecentVisits(sessions, getCatById, liveVisit);
   const greeting = getGreeting();
   const todayDate = formatDate();
   const userFirstName = getUserFirstName(user?.displayName);
@@ -627,8 +810,9 @@ export default function DashboardPage() {
             hasAnomaly={hasAnomaly}
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
-            airQualityStatus={airQualityStatus}
+            airQualityReadings={airQualityReadings}
             rfidStatus={rfidStatus}
+            trendData={trendData}
             recentVisits={recentVisits}
             onSelectCat={setSelectedCatId}
             onViewAbnormalDetails={handleViewAbnormalDetails}
