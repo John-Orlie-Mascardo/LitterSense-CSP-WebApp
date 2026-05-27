@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Playback",
+  title: "Live",
 };
 
-export default function PlaybackLayout({
+export default function LiveLayout({
   children,
 }: {
   children: React.ReactNode;

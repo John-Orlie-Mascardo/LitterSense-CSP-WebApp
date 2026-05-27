@@ -462,6 +462,15 @@ async function handleSensorSync(
       configToken,
       recordedEvents,
       ignoredEvents: normalized.ignored,
+      liveSensors:
+        typeof body === "object" && body !== null
+          ? {
+              mq135: "mq135" in body ? body.mq135 : undefined,
+              mq136: "mq136" in body ? body.mq136 : undefined,
+              mq135Raw: "mq135Raw" in body ? body.mq135Raw : undefined,
+              mq136Raw: "mq136Raw" in body ? body.mq136Raw : undefined,
+            }
+          : undefined,
       previous: existingSensorSnapshot?.data ?? {},
       now: serverNow,
     });

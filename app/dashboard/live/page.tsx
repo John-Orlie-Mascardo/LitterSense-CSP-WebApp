@@ -319,7 +319,7 @@ function RecordingRow({
   );
 }
 
-function PlaybackHeader({
+function LiveHeader({
   activeTab,
   onActiveTabChange,
 }: {
@@ -329,7 +329,7 @@ function PlaybackHeader({
   return (
     <section className="mb-5">
       <h1 className="font-display text-2xl sm:text-3xl font-bold text-litter-text mb-1">
-        Playback
+        Live
       </h1>
       <p className="text-[#6B7280] text-sm">
         {SHOW_RECORDINGS_UI
@@ -435,7 +435,7 @@ function DeviceGate({
   );
 }
 
-function PlaybackViewer({
+function LiveViewer({
   activeView,
   selectedRecording,
   onStreamStateChange,
@@ -462,7 +462,7 @@ function RecordingDeviceInfo({ selectedRecording }: { readonly selectedRecording
         <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="w-2 h-2 rounded-full bg-litter-primary" />
-          <span className="text-sm text-litter-primary font-medium">Playback</span>
+          <span className="text-sm text-litter-primary font-medium">Live</span>
           <span className="text-theme-muted text-sm">·</span>
           <span className="text-sm text-theme-muted">{selectedRecording.timestamp}</span>
         </div>
@@ -628,7 +628,7 @@ function RecordingHistory({
   );
 }
 
-function ConnectedPlaybackView({
+function ConnectedLiveView({
   activeTab,
   selectedRecording,
   selectedDate,
@@ -669,7 +669,7 @@ function ConnectedPlaybackView({
 
   return (
     <div>
-      <PlaybackViewer
+      <LiveViewer
         activeView={activeView}
         selectedRecording={selectedRecording}
         onStreamStateChange={onStreamStateChange}
@@ -710,7 +710,7 @@ function ConnectedPlaybackView({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function PlaybackPage() {
+export default function LivePage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("live");
   const [recordings, setRecordings] = useState<RecordingEvent[]>(MOCK_RECORDINGS);
   const [selectedRecording, setSelectedRecording] = useState<RecordingEvent | null>(MOCK_RECORDINGS[0]);
@@ -777,14 +777,14 @@ export default function PlaybackPage() {
   const visibleRecordings = getVisibleRecordings(filteredRecordings, showAllRecordings);
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 max-w-lg mx-auto">
-        <PlaybackHeader activeTab={activeTab} onActiveTabChange={setActiveTab} />
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg lg:max-w-4xl mx-auto">
+        <LiveHeader activeTab={activeTab} onActiveTabChange={setActiveTab} />
 
         {deviceConnected ? (
-          <ConnectedPlaybackView
+          <ConnectedLiveView
             activeTab={activeTab}
             selectedRecording={selectedRecording}
             selectedDate={selectedDate}
