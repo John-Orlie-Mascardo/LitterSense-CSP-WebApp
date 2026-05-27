@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, profileLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-litter-bg">
         <svg className="animate-spin h-8 w-8 text-litter-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

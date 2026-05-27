@@ -137,8 +137,8 @@ export default function ReportsPage() {
     addToast("CSV exported successfully", "success");
   };
 
-  const handleDeletePastReport = (id: string) => {
-    deleteReport(id);
+  const handleDeletePastReport = async (id: string) => {
+    await deleteReport(id);
     setDeleteConfirmId(null);
     addToast("Report deleted", "info");
   };

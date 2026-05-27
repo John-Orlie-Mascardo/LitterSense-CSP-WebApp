@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RfidVisitBridge } from "@/components/dashboard/RfidVisitBridge";
+import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 
 export const metadata: Metadata = {
   title: {
@@ -16,8 +17,10 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <RfidVisitBridge />
-      {children}
+      <OnboardingGate>
+        <RfidVisitBridge />
+        {children}
+      </OnboardingGate>
     </ProtectedRoute>
   );
 }

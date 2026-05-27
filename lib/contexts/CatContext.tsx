@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import type {
   Cat,
@@ -446,6 +447,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
     const unsubCats = onSnapshot(
       collection(db, "users", uid, "cats"),
+      { includeMetadataChanges: true },
       (snapshot) => {
         const loaded: Cat[] = [];
         snapshot.forEach((catDoc) => {
@@ -459,7 +461,14 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           });
         });
         setRawCats(loaded);
-        setIsLoading(false);
+        if (
+          shouldFinishInitialCatsLoad({
+            catCount: loaded.length,
+            fromCache: snapshot.metadata.fromCache,
+          })
+        ) {
+          setIsLoading(false);
+        }
       },
       (error) => {
         console.error("Failed to sync cats:", error);

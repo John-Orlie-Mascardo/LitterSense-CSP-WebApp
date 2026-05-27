@@ -16,7 +16,7 @@ const defaultSettings: UserSettings = {
     litterLevelWarnings: true,
     ammoniaAlerts: true,
     h2sAlerts: true,
-    rfidVisitAlerts: true,
+    rfidVisitAlerts: false,
     dailySummary: false,
     alertSensitivity: "medium",
     quietHours: {
@@ -139,7 +139,7 @@ export function useSettings() {
   }, [settings, isLoaded]);
 
   useEffect(() => {
-    if (!uid) return undefined;
+    if (!uid || !isLoaded) return undefined;
 
     return onSnapshot(
       doc(db, "users", uid, "settings", "notifications"),
@@ -165,7 +165,22 @@ export function useSettings() {
         console.error("Failed to sync notification settings:", error);
       },
     );
-  }, [uid]);
+  }, [uid, isLoaded]);
+
+  const persistNotificationSettings = useCallback(
+    async (notifications: UserSettings["notifications"]) => {
+      if (!uid) return;
+      await setDoc(
+        doc(db, "users", uid, "settings", "notifications"),
+        {
+          ...notifications,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    },
+    [uid],
+  );
 
   const updateNotificationSetting = useCallback(
     <K extends keyof UserSettings["notifications"]>(
@@ -203,8 +218,12 @@ export function useSettings() {
           quietHours: { ...prev.notifications.quietHours, ...patch },
         },
       }));
+      void persistNotificationSettings({
+        ...settings.notifications,
+        quietHours: { ...settings.notifications.quietHours, ...patch },
+      });
     },
-    []
+    [persistNotificationSettings, settings.notifications]
   );
 
   // Update a single cat's notification prefs
@@ -219,8 +238,14 @@ export function useSettings() {
           ),
         },
       }));
+      void persistNotificationSettings({
+        ...settings.notifications,
+        perCat: settings.notifications.perCat.map((c) =>
+          c.catId === catId ? { ...c, ...patch } : c,
+        ),
+      });
     },
-    []
+    [persistNotificationSettings, settings.notifications]
   );
 
   const updateDeviceSetting = useCallback(
