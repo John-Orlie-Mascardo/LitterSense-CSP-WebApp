@@ -631,7 +631,7 @@ function PopulatedDashboardState({
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard
               icon={Droplets}
-              value={`${airQualityReadings.ammonia.ppm.toFixed(1)} ppm`}
+              value={airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
               subtitle="Ammonia (NH3)"
               status={getReadingStatus(airQualityReadings.ammonia)}
@@ -639,7 +639,7 @@ function PopulatedDashboardState({
             />
             <StatCard
               icon={CloudFog}
-              value={`${airQualityReadings.h2s.ppm.toFixed(1)} ppm`}
+              value={airQualityReadings.h2s.displayValue}
               label="Stool Odor"
               subtitle="Hydrogen Sulfide (H2S)"
               status={getReadingStatus(airQualityReadings.h2s)}
@@ -711,7 +711,11 @@ export default function DashboardPage() {
     isLoading: sensorsLoading,
     error: sensorsError,
   } = useDeviceSensors();
-  const airQualityReadings = useAirQualityReadings();
+  const airQualityReadings = useAirQualityReadings(
+    sensorData,
+    sensorsLoading,
+    sensorsError,
+  );
 
   // ── Notification permission hook — MUST be inside the component ──
   const {

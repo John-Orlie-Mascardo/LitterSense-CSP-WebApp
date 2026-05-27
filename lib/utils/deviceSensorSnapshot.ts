@@ -41,6 +41,12 @@ interface BuildDeviceSensorSnapshotInput {
   configToken: string;
   recordedEvents: NormalizedSensorSyncEvent[];
   ignoredEvents: IgnoredSensorSyncEvent[];
+  liveSensors?: {
+    mq135?: unknown;
+    mq136?: unknown;
+    mq135Raw?: unknown;
+    mq136Raw?: unknown;
+  };
   previous?: Partial<DeviceSensorSnapshot>;
   now?: Date;
 }
@@ -56,6 +62,23 @@ const DEFAULT_NO_EXIT_TIMEOUT_MS = 900000;
 const toIntOrNull = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+const toSensorLabel = (value: unknown, previous: unknown, fallback: string) =>
+  typeof value === "string" && value.trim()
+    ? value.trim()
+    : typeof previous === "string"
+      ? previous
+      : fallback;
+
+const toSensorRaw = (value: unknown, previous: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return toIntOrNull(previous);
+};
+
 const isFreshSnapshotTimestamp = (
   updatedAt: string,
   now: Date,
@@ -70,6 +93,7 @@ export function buildDeviceSensorSnapshot({
   configToken,
   recordedEvents,
   ignoredEvents,
+  liveSensors = {},
   previous = {},
   now = new Date(),
 }: BuildDeviceSensorSnapshotInput): DeviceSensorSnapshot {
@@ -89,10 +113,10 @@ export function buildDeviceSensorSnapshot({
   return {
     online: true,
     connectedSsid: typeof previous.connectedSsid === "string" ? previous.connectedSsid : "",
-    mq135: typeof previous.mq135 === "string" ? previous.mq135 : "Clear",
-    mq136: typeof previous.mq136 === "string" ? previous.mq136 : "Clear",
-    mq135Raw: toIntOrNull(previous.mq135Raw),
-    mq136Raw: toIntOrNull(previous.mq136Raw),
+    mq135: toSensorLabel(liveSensors.mq135, previous.mq135, "Clear"),
+    mq136: toSensorLabel(liveSensors.mq136, previous.mq136, "Clear"),
+    mq135Raw: toSensorRaw(liveSensors.mq135Raw, previous.mq135Raw),
+    mq136Raw: toSensorRaw(liveSensors.mq136Raw, previous.mq136Raw),
     rfidHex: lastRecordedEvent?.rfidHex ?? (typeof previous.rfidHex === "string" ? previous.rfidHex : ""),
     rfidCard: lastRecordedEvent?.rfidCard ?? (typeof previous.rfidCard === "string" ? previous.rfidCard : ""),
     lastRfidMs: lastRecordedEvent ? Date.parse(lastRecordedEvent.endedAt) || null : toIntOrNull(previous.lastRfidMs),
