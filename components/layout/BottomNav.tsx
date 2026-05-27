@@ -9,7 +9,7 @@ const navItems = [
   { icon: Home, label: "Home", href: "/dashboard" },
   { icon: Cat, label: "My Cats", href: "/dashboard/cats" },
   { icon: BarChart3, label: "Reports", href: "/dashboard/reports" },
-  { icon: Video, label: "Playback", href: "/dashboard/playback" },
+  { icon: Video, label: "Live", href: "/dashboard/live" },
   { icon: Settings, label: "Settings", href: "/dashboard/settings" },
 ];
 
@@ -17,10 +17,10 @@ export function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-pb">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-pb lg:hidden">
       {/* Frosted glass container */}
       <div
-        className="mx-4 mb-4 rounded-2xl border border-litter-border shadow-2xl overflow-hidden"
+        className="mx-2 mb-4 rounded-2xl border border-litter-border shadow-2xl overflow-hidden sm:mx-4"
         style={{
           background: "var(--color-card)",
           backdropFilter: "blur(24px) saturate(180%)",
@@ -29,7 +29,7 @@ export function BottomNav() {
             "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.08)",
         }}
       >
-        <div className="flex items-center justify-around px-2 py-2">
+        <div className="grid grid-cols-5 items-center gap-1 px-1.5 py-2 sm:px-2">
           {navItems.map((item) => {
             const isActive =
               item.href === "/dashboard"
@@ -44,7 +44,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 prefetch={true}
-                className="relative flex flex-col items-center gap-0.5 py-1.5 px-4 rounded-xl min-w-14 group"
+                className="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 group sm:px-2"
                 aria-current={isActive ? "page" : undefined}
               >
                 {/* Sliding background pill */}
@@ -110,7 +110,7 @@ export function BottomNav() {
                     fontWeight: isActive ? 600 : 500,
                   }}
                   transition={{ duration: 0.15 }}
-                  className="font-body text-[10px] leading-tight font-medium tracking-wide"
+                  className="font-body max-w-full truncate text-[10px] leading-tight font-medium tracking-wide"
                 >
                   {item.label}
                 </motion.span>

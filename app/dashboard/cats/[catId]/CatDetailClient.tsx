@@ -369,7 +369,7 @@ export default function CatDetailClient() {
   const statusLabel = getStatusLabel(cat.status);
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 

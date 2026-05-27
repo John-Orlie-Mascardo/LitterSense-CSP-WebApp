@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { AlertTriangle, Bell, Check, Download, Settings, Trash2, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Cat, Check, Download, Home, Settings, Trash2, Video, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -17,10 +17,18 @@ const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/cats": "My Cats",
   "/dashboard/reports": "Reports",
-  "/dashboard/playback": "Playback",
+  "/dashboard/live": "Live",
   "/dashboard/settings": "Settings",
   "/dashboard/notifications": "Notifications",
 };
+
+const navItems = [
+  { icon: Home, label: "Home", href: "/dashboard" },
+  { icon: Cat, label: "My Cats", href: "/dashboard/cats" },
+  { icon: BarChart3, label: "Reports", href: "/dashboard/reports" },
+  { icon: Video, label: "Live", href: "/dashboard/live" },
+  { icon: Settings, label: "Settings", href: "/dashboard/settings" },
+];
 
 export function TopBar() {
   const { isInstallable, triggerInstall } = usePWAInstall();
@@ -90,7 +98,7 @@ export function TopBar() {
           "0 1px 0 rgba(255,255,255,0.05), 0 4px 24px rgba(0,0,0,0.08)",
       }}
     >
-      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
         <motion.div
           whileHover={{ scale: 1.03 }}
@@ -125,6 +133,34 @@ export function TopBar() {
           </div>
         </motion.div>
 
+        <nav className="hidden lg:flex items-center gap-1 rounded-2xl border border-litter-border bg-litter-bg/70 p-1">
+          {navItems.map((item) => {
+            const isActive =
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
+                : pathname === item.href ||
+                  (item.href !== "/dashboard" && pathname?.startsWith(`${item.href}/`));
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={true}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? "bg-litter-card text-litter-primary shadow-sm"
+                    : "text-theme-muted hover:bg-litter-card hover:text-litter-text"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
         {/* Center: Page breadcrumb */}
         <AnimatePresence mode="wait">
           <motion.div
@@ -133,7 +169,7 @@ export function TopBar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+            className="hidden sm:flex lg:hidden items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
             style={{
               background: "var(--color-primary)",
               color: "white",

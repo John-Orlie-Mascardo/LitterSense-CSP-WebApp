@@ -156,7 +156,7 @@ export default function ReportsPage() {
 
   return (
     <div
-      className="reports-print-page min-h-screen bg-litter-bg pb-24"
+      className="reports-print-page min-h-screen bg-litter-bg pb-24 lg:pb-10"
       data-print-ready={currentReport ? "true" : "false"}
     >
       <TopBar />

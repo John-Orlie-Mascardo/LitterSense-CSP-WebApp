@@ -20,7 +20,6 @@ import {
   Clock,
   CloudFog,
   Droplets,
-  Gauge,
   Loader2,
   Radio,
   Timer,
@@ -324,18 +323,6 @@ const getReadingStatusLabel = (
   return "Normal";
 };
 
-const getLitterLevelStatus = (level: number) => {
-  if (level <= 10) return "alert";
-  if (level <= 25) return "watch";
-  return "normal";
-};
-
-const getLitterLevelLabel = (level: number) => {
-  if (level <= 10) return "Critical";
-  if (level <= 25) return "Low";
-  return "Normal";
-};
-
 function CatAvatar({
   cat,
   size,
@@ -596,7 +583,7 @@ function PopulatedDashboardState({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <StatCard
               icon={Clock}
               value={stats?.visits ?? "--"}
@@ -644,14 +631,6 @@ function PopulatedDashboardState({
               subtitle="Hydrogen Sulfide (H2S)"
               status={getReadingStatus(airQualityReadings.h2s)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s)}
-            />
-            <StatCard
-              icon={Gauge}
-              value={`${stats?.litterLevel ?? 0}%`}
-              label="Litter Level"
-              subtitle="Ultrasonic Sensor"
-              status={getLitterLevelStatus(stats?.litterLevel ?? 0)}
-              statusLabel={getLitterLevelLabel(stats?.litterLevel ?? 0)}
             />
           </div>
         </section>
@@ -814,7 +793,7 @@ export default function DashboardPage() {
   const userFirstName = getUserFirstName(user?.displayName);
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">

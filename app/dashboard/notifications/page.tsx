@@ -197,7 +197,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <header className="sticky top-0 z-40 border-b border-litter-border bg-litter-card/95 backdrop-blur">
         <div className="mx-auto max-w-lg px-4">
           <div className="flex h-16 items-center justify-between">

@@ -12,7 +12,6 @@ import {
   Upload,
   Loader2,
   Activity,
-  Trash2,
   ChevronDown,
   Download,
   XSquare,
@@ -114,7 +113,6 @@ const buildExportHtml = (payload: ExportAllPayload) => {
           <td>${escapeHtml(details?.rfidTag)}</td>
           <td>${escapeHtml(stats?.visits ?? 0)}</td>
           <td>${escapeHtml(stats?.avgDuration ?? "--")}</td>
-          <td>${escapeHtml(stats?.litterLevel ?? "")}</td>
         </tr>
       `;
     })
@@ -152,9 +150,9 @@ const buildExportHtml = (payload: ExportAllPayload) => {
         <h2>Cats</h2>
         <table>
           <thead>
-            <tr><th>Name</th><th>Status</th><th>RFID</th><th>Visits</th><th>Avg Duration</th><th>Litter Level</th></tr>
+            <tr><th>Name</th><th>Status</th><th>RFID</th><th>Visits</th><th>Avg Duration</th></tr>
           </thead>
-          <tbody>${catRows || "<tr><td colspan=\"6\">No cats</td></tr>"}</tbody>
+          <tbody>${catRows || "<tr><td colspan=\"5\">No cats</td></tr>"}</tbody>
         </table>
         <h2>Sessions</h2>
         <table>
@@ -175,7 +173,7 @@ const buildExportCsv = (payload: ExportAllPayload) => {
     ["Exported At", payload.exportedAt],
     [],
     ["Cats"],
-    ["ID", "Name", "Status", "RFID", "Visits", "Avg Duration", "Litter Level"],
+    ["ID", "Name", "Status", "RFID", "Visits", "Avg Duration"],
     ...payload.cats.map((cat) => [
       cat.id,
       cat.name,
@@ -183,7 +181,6 @@ const buildExportCsv = (payload: ExportAllPayload) => {
       payload.catDetails[cat.id]?.rfidTag ?? "",
       payload.catStats[cat.id]?.visits ?? 0,
       payload.catStats[cat.id]?.avgDuration ?? "",
-      payload.catStats[cat.id]?.litterLevel ?? "",
     ]),
     [],
     ["Sessions"],
@@ -544,7 +541,7 @@ export default function SettingsPage() {
   const passwordStrength = getPasswordStrength(passwordForm.new);
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
@@ -630,18 +627,6 @@ export default function SettingsPage() {
                 />
               }
             />
-            <div className="border-t border-litter-border">
-              <SettingsRow
-                icon={Trash2}
-                label="Litter Level Warnings"
-                control={
-                  <Toggle
-                    checked={settings.notifications.litterLevelWarnings}
-                    onChange={(v) => updateNotificationSetting("litterLevelWarnings", v)}
-                  />
-                }
-              />
-            </div>
             <div className="border-t border-litter-border">
               <SettingsRow
                 icon={Droplets}

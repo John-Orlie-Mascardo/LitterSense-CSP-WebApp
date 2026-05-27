@@ -255,7 +255,7 @@ export default function CatsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24">
+    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
