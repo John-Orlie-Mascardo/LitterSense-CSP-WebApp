@@ -26,7 +26,7 @@ const ESP32_SENSOR_URL =
   process.env.ESP32_SENSOR_URL ??
   `${process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL}/sensors`;
 
-const SENSOR_REQUEST_TIMEOUT_MS = 2500;
+const SENSOR_REQUEST_TIMEOUT_MS = 8000;
 const CONFIG_TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,}$/;
 
 const NO_STORE_HEADERS = {
@@ -228,7 +228,7 @@ export async function GET() {
       error instanceof Error &&
       (error.name === "AbortError" || message.toLowerCase().includes("aborted"));
 
-    const storedSnapshot = await getStoredSnapshot({ forceOffline: true });
+    const storedSnapshot = await getStoredSnapshot();
     if (storedSnapshot) {
       return Response.json(storedSnapshot, {
         headers: {
