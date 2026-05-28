@@ -67,10 +67,9 @@ const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
-type ExportAllFormat = "pdf" | "csv" | "doc" | "json";
+type ExportAllFormat = "pdf" | "csv" | "doc";
 
 type ExportAllPayload = {
-  settings: UserSettings;
   cats: ReturnType<typeof useCats>["cats"];
   catStats: ReturnType<typeof useCats>["catStats"];
   catDetails: ReturnType<typeof useCats>["catDetails"];
@@ -141,7 +140,6 @@ const buildExportHtml = (payload: ExportAllPayload) => {
           table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px; }
           th, td { border: 1px solid #d9e4e1; padding: 8px; text-align: left; vertical-align: top; }
           th { background: #eef8f5; }
-          pre { white-space: pre-wrap; border: 1px solid #d9e4e1; padding: 12px; background: #f8faf9; }
         </style>
       </head>
       <body>
@@ -161,8 +159,6 @@ const buildExportHtml = (payload: ExportAllPayload) => {
           </thead>
           <tbody>${sessionRows || "<tr><td colspan=\"6\">No sessions</td></tr>"}</tbody>
         </table>
-        <h2>Settings</h2>
-        <pre>${escapeHtml(JSON.stringify(payload.settings, null, 2))}</pre>
       </body>
     </html>`;
 };
@@ -257,6 +253,7 @@ export default function SettingsPage() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showWifiPassword, setShowWifiPassword] = useState(false);
   const [isSendingDeviceProvisioning, setIsSendingDeviceProvisioning] = useState(false);
+  const [exportPrintHtml, setExportPrintHtml] = useState<string | null>(null);
 
   // Data Retention dropdown
   const [showRetentionDropdown, setShowRetentionDropdown] = useState(false);
@@ -299,6 +296,12 @@ export default function SettingsPage() {
       }));
     }
   }, [user]);
+
+  useEffect(() => {
+    const handleAfterPrint = () => setExportPrintHtml(null);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
 
   // Password form
   const [passwordForm, setPasswordForm] = useState({
@@ -367,7 +370,6 @@ export default function SettingsPage() {
   };
 
   const buildExportPayload = (): ExportAllPayload => ({
-    settings,
     cats,
     catStats,
     catDetails,
@@ -391,25 +393,10 @@ export default function SettingsPage() {
         `${baseName}.doc`,
       );
       addToast("DOC export downloaded", "success");
-    } else if (format === "json") {
-      downloadBlob(
-        JSON.stringify(payload, null, 2),
-        "application/json",
-        `${baseName}.json`,
-      );
-      addToast("JSON export downloaded", "success");
     } else {
-      const popup = window.open("", "_blank", "noopener,noreferrer");
-      if (!popup) {
-        addToast("Allow pop-ups to export as PDF", "error");
-        return;
-      }
-
-      popup.document.write(buildExportHtml(payload));
-      popup.document.close();
-      popup.focus();
-      popup.print();
+      setExportPrintHtml(buildExportHtml(payload));
       addToast("Choose Save as PDF in the print dialog", "info");
+      setTimeout(() => window.print(), 100);
     }
 
     setShowExportSheet(false);
@@ -541,9 +528,18 @@ export default function SettingsPage() {
   const passwordStrength = getPasswordStrength(passwordForm.new);
 
   return (
-    <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
+    <div
+      className="settings-export-page min-h-screen bg-litter-bg pb-24 lg:pb-10"
+      data-export-print-ready={exportPrintHtml ? "true" : "false"}
+    >
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
+      {exportPrintHtml && (
+        <div
+          className="settings-export-print-document hidden"
+          dangerouslySetInnerHTML={{ __html: exportPrintHtml }}
+        />
+      )}
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
 
@@ -934,11 +930,6 @@ export default function SettingsPage() {
               format: "doc" as const,
               label: "DOC",
               description: "Download a Word-compatible document.",
-            },
-            {
-              format: "json" as const,
-              label: "JSON",
-              description: "Download the complete structured export.",
             },
           ].map((option) => (
             <button

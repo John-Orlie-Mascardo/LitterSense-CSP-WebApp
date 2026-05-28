@@ -19,6 +19,7 @@ import {
 } from "../data/data";
 import { generateId } from "../utils/formatters";
 import { normalizePastReport, sortPastReports } from "@/lib/utils/reportHistory";
+import { getReportConcernCount } from "@/lib/utils/reportAssessment";
 import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
@@ -171,10 +172,16 @@ export function useReports() {
     const unsubscribe = onSnapshot(
       collection(db, "users", user.uid, "reports"),
       (snapshot) => {
-        const loaded = snapshot.docs.map((reportDoc) =>
-          normalizePastReport(reportDoc.id, reportDoc.data()),
-        );
+        const nextArchive: Record<string, ReportData> = {};
+        const loaded = snapshot.docs.map((reportDoc) => {
+          const data = reportDoc.data();
+          if (data.report && typeof data.report === "object") {
+            nextArchive[reportDoc.id] = data.report as ReportData;
+          }
+          return normalizePastReport(reportDoc.id, data);
+        });
         setPastReports(sortPastReports(loaded));
+        setReportArchive(nextArchive);
       },
       (error) => {
         console.error("Failed to sync previous reports:", error);
@@ -256,10 +263,7 @@ export function useReports() {
     const avgDuration = `${Math.floor(avgDurationSecs / 60)}m ${(
       avgDurationSecs % 60
     ).toString().padStart(2, "0")}s`;
-    const anomaliesDetected = filteredSessions.reduce(
-      (sum, session) => sum + (session.anomaly ? getVisitCount(session) : 0),
-      0,
-    );
+    const anomaliesDetected = getReportConcernCount(filteredSessions);
 
     let overallStatus: "normal" | "abnormal" = "normal";
     let statusMessage = "No concerning patterns detected";
@@ -316,6 +320,7 @@ export function useReports() {
     if (user) {
       await setDoc(doc(db, "users", user.uid, "reports", newPastReport.id), {
         ...newPastReport,
+        report: JSON.parse(JSON.stringify(report)) as ReportData,
         createdAt: serverTimestamp(),
       });
     } else {

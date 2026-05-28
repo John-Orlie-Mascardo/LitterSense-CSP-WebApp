@@ -32,6 +32,7 @@ import {
   getStatusColor,
   generateId,
 } from "@/lib/utils/formatters";
+import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
 
 type DateRangeValue = "1" | "3" | "7" | "14" | "21" | "30";
 
@@ -123,7 +124,7 @@ export default function ReportsPage() {
             csvCell(s.durationSecs),
             csvCell(s.mq135Delta),
             csvCell(s.mq136Delta),
-            csvCell(s.anomaly ? "Yes" : "No"),
+            csvCell(isReportSessionConcern(s) ? "Yes" : "No"),
           ].join(",")
       )
       .join("\n");
@@ -152,6 +153,19 @@ export default function ReportsPage() {
     setTimeout(() => {
       reportRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
+  };
+
+  const handleDownloadPastReport = (id: string) => {
+    if (!viewReport(id)) {
+      addToast("This report file is no longer available. Generate it again to export.", "info");
+      return;
+    }
+
+    addToast("Opening print dialog. Choose Save as PDF to export.", "info");
+    setTimeout(() => {
+      reportRef.current?.scrollIntoView({ behavior: "smooth" });
+      window.print();
+    }, 150);
   };
 
   return (
@@ -326,7 +340,7 @@ export default function ReportsPage() {
                   report={report}
                   isLast={idx === visibleReports.length - 1}
                   onDelete={() => setDeleteConfirmId(report.id)}
-                  onDownload={() => addToast(`Downloading ${report.filename}...`, "info")}
+                  onDownload={() => handleDownloadPastReport(report.id)}
                   onView={() => handleViewPastReport(report.id)}
                 />
               ))}
@@ -448,32 +462,35 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </tr>
             </thead>
             <tbody>
-              {report.sessions.slice(0, 10).map((session) => (
-                <tr key={session.id} className={session.anomaly ? "bg-status-abnormal" : ""}>
-                  {showCatColumn && (
-                    <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
-                  )}
-                  <td className="py-1.5 text-litter-text">{session.date}</td>
-                  <td className="py-1.5 text-litter-text">
-                    {formatSessionTimeLabel(session) || "--"}
-                  </td>
-                  <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
-                  <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
-                  <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
-                  <td className="py-1.5 text-litter-text">{session.mq136Delta}%</td>
-                  <td className="py-1.5">
-                    {session.summaryVisits ? (
-                      <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
-                        Summary
-                      </span>
-                    ) : session.anomaly ? (
-                      <span className="text-litter-muted text-xs">
-                        {formatDuration(session.durationSecs)}
-                      </span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
+              {report.sessions.slice(0, 10).map((session) => {
+                const isConcern = isReportSessionConcern(session);
+                return (
+                  <tr key={session.id} className={isConcern ? "bg-status-abnormal" : ""}>
+                    {showCatColumn && (
+                      <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
+                    )}
+                    <td className="py-1.5 text-litter-text">{session.date}</td>
+                    <td className="py-1.5 text-litter-text">
+                      {formatSessionTimeLabel(session) || "--"}
+                    </td>
+                    <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
+                    <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
+                    <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
+                    <td className="py-1.5 text-litter-text">{session.mq136Delta}%</td>
+                    <td className="py-1.5">
+                      {session.summaryVisits ? (
+                        <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
+                          Summary
+                        </span>
+                      ) : isConcern ? (
+                        <span className="text-litter-muted text-xs">
+                          {session.anomalyType || formatDuration(session.durationSecs)}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

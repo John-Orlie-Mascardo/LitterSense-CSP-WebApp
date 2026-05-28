@@ -41,6 +41,7 @@ import {
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
+import { getFallbackAverageDuration } from "@/lib/utils/dashboardBehaviorMetrics";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { CatStats } from "@/lib/interfaces/CatStats";
@@ -180,6 +181,12 @@ type RecentVisit = {
   readonly session: Session;
 };
 
+type RecentVisitGroup = {
+  readonly dateKey: string;
+  readonly dateLabel: string;
+  readonly visits: RecentVisit[];
+};
+
 const normalizeRfidTag = (value: string) =>
   value.toLowerCase().replace(/[^a-f0-9]/g, "");
 
@@ -224,6 +231,61 @@ const getSessionStartedAt = (session: Session) => {
 
 const getSessionTimelineSortValue = (session: Session) =>
   Math.max(getSessionSortValue(session), getSessionStartedAt(session));
+
+const getSessionActivityDateKey = (session: Session) => {
+  const exactDateCandidates = [session.endedAt, session.startedAt];
+
+  for (const candidate of exactDateCandidates) {
+    if (!candidate) continue;
+    const parsed = new Date(candidate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(session.date)) {
+    return session.date;
+  }
+
+  const parsedDate = new Date(session.date);
+  return Number.isNaN(parsedDate.getTime())
+    ? getLocalDateKey(new Date(getSessionTimelineSortValue(session)))
+    : getLocalDateKey(parsedDate);
+};
+
+const getRecentActivityDateLabel = (dateKey: string, today = new Date()) => {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  if (dateKey === getLocalDateKey(today)) return "Today";
+  if (dateKey === getLocalDateKey(yesterday)) return "Yesterday";
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const groupRecentVisitsByDate = (visits: RecentVisit[]): RecentVisitGroup[] =>
+  visits.reduce<RecentVisitGroup[]>((groups, visit) => {
+    const dateKey = getSessionActivityDateKey(visit.session);
+    const currentGroup = groups.at(-1);
+
+    if (currentGroup?.dateKey === dateKey) {
+      currentGroup.visits.push(visit);
+      return groups;
+    }
+
+    groups.push({
+      dateKey,
+      dateLabel: getRecentActivityDateLabel(dateKey),
+      visits: [visit],
+    });
+    return groups;
+  }, []);
 
 const buildLiveSessionVisit = (
   sensorData: DeviceSensors | null,
@@ -306,8 +368,7 @@ const getRecentVisits = (
       (a, b) =>
         getSessionTimelineSortValue(b.session) -
         getSessionTimelineSortValue(a.session),
-    )
-    .slice(0, 5);
+    );
 };
 
 const getReadingStatus = (
@@ -451,6 +512,7 @@ function PopulatedDashboardState({
   rfidStatus,
   trendData,
   recentVisits,
+  displayAvgDuration,
   onSelectCat,
   onViewAbnormalDetails,
   onDismissAbnormal,
@@ -469,10 +531,26 @@ function PopulatedDashboardState({
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
   readonly recentVisits: RecentVisit[];
+  readonly displayAvgDuration: string;
   readonly onSelectCat: (catId: string) => void;
   readonly onViewAbnormalDetails: () => void;
   readonly onDismissAbnormal: () => void;
 }) {
+  const [showAllRecentActivity, setShowAllRecentActivity] = useState(false);
+  const visibleRecentVisits = useMemo(
+    () => (
+      showAllRecentActivity
+        ? recentVisits
+        : recentVisits.slice(0, 3)
+    ),
+    [recentVisits, showAllRecentActivity],
+  );
+  const recentActivityGroups = useMemo(
+    () => groupRecentVisitsByDate(visibleRecentVisits),
+    [visibleRecentVisits],
+  );
+  const canToggleRecentActivity = recentVisits.length > 3;
+
   return (
     <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
       <div className="lg:sticky lg:top-24 lg:pt-6">
@@ -569,7 +647,7 @@ function PopulatedDashboardState({
           <CatBehaviorTrends
             catName={selectedCat.name}
             todayVisits={stats?.visits ?? 0}
-            todayAvgDuration={stats?.avgDuration || "--"}
+            todayAvgDuration={displayAvgDuration}
             trendData={trendData}
           />
         )}
@@ -595,10 +673,10 @@ function PopulatedDashboardState({
             />
             <StatCard
               icon={Timer}
-              value={stats?.avgDuration || "--"}
+              value={displayAvgDuration}
               label="Avg Duration"
-              status={getDurationStatus(stats?.avgDuration || "")}
-              statusLabel={getDurationLabel(stats?.avgDuration || "")}
+              status={getDurationStatus(displayAvgDuration)}
+              statusLabel={getDurationLabel(displayAvgDuration)}
             />
             <StatCard
               icon={Radio}
@@ -642,19 +720,35 @@ function PopulatedDashboardState({
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Recent Activity
             </h2>
-            <span className="text-litter-primary text-xs font-semibold">
-              Realtime
-            </span>
+            {canToggleRecentActivity ? (
+              <button
+                onClick={() => setShowAllRecentActivity((prev) => !prev)}
+                className="text-sm font-semibold text-litter-primary hover:underline"
+              >
+                {showAllRecentActivity ? "SHOW LESS" : "VIEW ALL"}
+              </button>
+            ) : (
+              <span className="text-litter-primary text-xs font-semibold">
+                Realtime
+              </span>
+            )}
           </div>
 
           {recentVisits.length > 0 ? (
-            <div className="space-y-3">
-              {recentVisits.map(({ cat, session }) => (
-                <SessionTimelineCard
-                  key={session.id}
-                  cat={cat}
-                  session={session}
-                />
+            <div className="space-y-5">
+              {recentActivityGroups.map((group) => (
+                <div key={group.dateKey} className="space-y-3">
+                  <h3 className="text-xs font-semibold text-litter-muted">
+                    {group.dateLabel}
+                  </h3>
+                  {group.visits.map(({ cat, session }) => (
+                    <SessionTimelineCard
+                      key={session.id}
+                      cat={cat}
+                      session={session}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
           ) : (
@@ -711,6 +805,16 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const displayAvgDuration = useMemo(
+    () =>
+      getFallbackAverageDuration(
+        stats?.avgDuration,
+        trendData,
+        sessions,
+        activeCatId,
+      ),
+    [activeCatId, sessions, stats?.avgDuration, trendData],
+  );
 
   const abnormalCats = useMemo(
     () => cats.filter((cat) => cat.status === "abnormal"),
@@ -819,6 +923,7 @@ export default function DashboardPage() {
             rfidStatus={rfidStatus}
             trendData={trendData}
             recentVisits={recentVisits}
+            displayAvgDuration={displayAvgDuration}
             onSelectCat={setSelectedCatId}
             onViewAbnormalDetails={handleViewAbnormalDetails}
             onDismissAbnormal={handleDismissAbnormal}
