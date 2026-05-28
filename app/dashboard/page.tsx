@@ -25,7 +25,10 @@ import {
   Timer,
 } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { useNotifications } from "@/lib/contexts/NotificationContext";
+import {
+  useNotifications,
+  type AppNotification,
+} from "@/lib/contexts/NotificationContext";
 import { useCats } from "@/lib/contexts/CatContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -335,6 +338,145 @@ const buildLiveSessionVisit = (
   };
 };
 
+const buildCompletedLiveSessionVisit = (
+  sensorData: DeviceSensors | null,
+  cats: Cat[],
+  getDetailsByCatId: (id: string) => CatDetails | undefined,
+): RecentVisit | null => {
+  if (!sensorData?.online || sensorData.sessionActive) return null;
+
+  const status = sensorData.lastSessionStatus;
+  if (
+    sensorData.completedSessionCount === null ||
+    sensorData.completedSessionCount <= 0 ||
+    (status !== "NORMAL" &&
+      status !== "ABNORMAL" &&
+      status !== "SHORT_SESSION" &&
+      status !== "NO_EXIT_TIMEOUT")
+  ) {
+    return null;
+  }
+
+  const activeCard = sensorData.activeRfidCard || sensorData.rfidCard;
+  const activeHex = sensorData.activeRfidHex || sensorData.rfidHex;
+  if (!activeCard && !activeHex) return null;
+
+  const cat = cats.find((candidate) =>
+    rfidMatches(getDetailsByCatId(candidate.id), activeCard, activeHex),
+  );
+  if (!cat) return null;
+
+  const endedMs = sensorData.lastSessionEndMs ?? Date.now();
+  const durationMs =
+    sensorData.lastSessionDurationMs ??
+    sensorData.activeSessionDurationMs ??
+    1000;
+  const durationSecs = Math.max(1, Math.round(durationMs / 1000));
+  const endedAt = new Date(endedMs);
+
+  return {
+    cat,
+    session: {
+      id: `completed-rfid-${cat.id}-${sensorData.completedSessionCount}-${endedMs}`,
+      catId: cat.id,
+      date: getLocalDateKey(endedAt),
+      time: endedAt.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      startedAt: new Date(endedAt.getTime() - durationSecs * 1000).toISOString(),
+      endedAt: endedAt.toISOString(),
+      durationSecs,
+      mq135Delta: 0,
+      mq136Delta: 0,
+      anomaly: status !== "NORMAL",
+      anomalyType:
+        status === "NO_EXIT_TIMEOUT"
+          ? "No exit timeout"
+          : status === "SHORT_SESSION"
+            ? "Short session"
+            : status === "ABNORMAL"
+              ? "Extended duration"
+              : null,
+      sessionStatus: status,
+    },
+  };
+};
+
+const parseDurationFromNotification = (message: string) => {
+  const minuteMatch = message.match(/(\d+)m\s*(\d+)s/);
+  if (minuteMatch) {
+    const minutes = Number.parseInt(minuteMatch[1], 10);
+    const seconds = Number.parseInt(minuteMatch[2], 10);
+    if (Number.isFinite(minutes) && Number.isFinite(seconds)) {
+      return Math.max(1, minutes * 60 + seconds);
+    }
+  }
+
+  const secondMatch = message.match(/(\d+)\s*s/);
+  if (secondMatch) {
+    const seconds = Number.parseInt(secondMatch[1], 10);
+    if (Number.isFinite(seconds)) {
+      return Math.max(1, seconds);
+    }
+  }
+
+  return 1;
+};
+
+const buildNotificationRecentVisits = (
+  notifications: AppNotification[],
+  cats: Cat[],
+): RecentVisit[] => {
+  if (notifications.length === 0 || cats.length === 0) return [];
+
+  const visits: RecentVisit[] = [];
+
+  for (const notification of notifications) {
+    if (
+      notification.type !== "cat_visit" ||
+      notification.source !== "rfid_visit" ||
+      typeof notification.catId !== "string" ||
+      typeof notification.title !== "string" ||
+      !notification.title.toLowerCase().includes("left the litter box") ||
+      typeof notification.message !== "string" ||
+      typeof notification.createdAt?.toDate !== "function"
+    ) {
+      continue;
+    }
+
+    const cat = cats.find((candidate) => candidate.id === notification.catId);
+    if (!cat) continue;
+
+    const endedAt = notification.createdAt.toDate();
+    if (Number.isNaN(endedAt.getTime())) continue;
+    const durationSecs = parseDurationFromNotification(notification.message);
+
+    visits.push({
+      cat,
+      session: {
+        id: `live-notification-${cat.id}-${endedAt.getTime()}`,
+        catId: cat.id,
+        date: getLocalDateKey(endedAt),
+        time: endedAt.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        startedAt: new Date(endedAt.getTime() - durationSecs * 1000).toISOString(),
+        endedAt: endedAt.toISOString(),
+        durationSecs,
+        mq135Delta: 0,
+        mq136Delta: 0,
+        anomaly: false,
+        anomalyType: null,
+        sessionStatus: durationSecs < 30 ? "SHORT_SESSION" : "NORMAL",
+      },
+    });
+  }
+
+  return visits;
+};
+
 const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) => {
   const liveStartedAt = getSessionStartedAt(liveSession);
 
@@ -347,10 +489,23 @@ const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) =>
   });
 };
 
+const hasOverlappingRecentVisit = (sessions: Session[], candidate: Session) => {
+  const candidateTime = getSessionTimelineSortValue(candidate);
+
+  return sessions.some((session) => {
+    if (session.catId !== candidate.catId) return false;
+
+    const sessionTime = getSessionTimelineSortValue(session);
+    return Math.abs(sessionTime - candidateTime) < 30_000;
+  });
+};
+
 const getRecentVisits = (
   sessions: Session[],
   getCatById: (id: string) => Cat | undefined,
   liveVisit: RecentVisit | null,
+  completedLiveVisit: RecentVisit | null,
+  notificationVisits: RecentVisit[],
 ): RecentVisit[] => {
   const storedVisits = sessions
     .flatMap((session) => {
@@ -362,6 +517,35 @@ const getRecentVisits = (
     liveVisit && !hasOverlappingLiveSession(sessions, liveVisit.session)
       ? [liveVisit, ...storedVisits]
       : storedVisits;
+
+  if (
+    completedLiveVisit &&
+    !storedVisits.some(
+      (visit) =>
+        visit.session.catId === completedLiveVisit.session.catId &&
+        visit.session.sessionStatus === completedLiveVisit.session.sessionStatus &&
+        visit.session.durationSecs === completedLiveVisit.session.durationSecs &&
+        visit.session.endedAt === completedLiveVisit.session.endedAt,
+    )
+  ) {
+    mergedVisits.unshift(completedLiveVisit);
+  }
+
+  if (notificationVisits.length > 0) {
+    const dedupedNotifications = notificationVisits.filter(
+      (visit, index, list) =>
+        !list
+          .slice(0, index)
+          .some((prior) => hasOverlappingRecentVisit([prior.session], visit.session)),
+    );
+
+    for (const notificationVisit of dedupedNotifications) {
+      if (hasOverlappingRecentVisit(mergedVisits.map((visit) => visit.session), notificationVisit.session)) {
+        continue;
+      }
+      mergedVisits.unshift(notificationVisit);
+    }
+  }
 
   return mergedVisits
     .sort(
@@ -770,7 +954,11 @@ function PopulatedDashboardState({
 export default function DashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { isLoading: notificationsLoading, upsertNotification } = useNotifications();
+  const {
+    isLoading: notificationsLoading,
+    upsertNotification,
+    notifications,
+  } = useNotifications();
   const {
     cats,
     getCatById,
@@ -893,7 +1081,19 @@ export default function DashboardPage() {
   });
   const isEmpty = !catsLoading && cats.length === 0;
   const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
-  const recentVisits = getRecentVisits(sessions, getCatById, liveVisit);
+  const completedLiveVisit = buildCompletedLiveSessionVisit(
+    sensorData,
+    cats,
+    getDetailsByCatId,
+  );
+  const notificationRecentVisits = buildNotificationRecentVisits(notifications, cats);
+  const recentVisits = getRecentVisits(
+    sessions,
+    getCatById,
+    liveVisit,
+    completedLiveVisit,
+    notificationRecentVisits,
+  );
   const greeting = getGreeting();
   const todayDate = formatDate();
   const userFirstName = getUserFirstName(user?.displayName);

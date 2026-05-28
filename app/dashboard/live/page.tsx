@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -19,8 +19,7 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-const ESP32_STREAM_URL = "/api/stream";
-const FASTAPI_URL = "http://localhost:8000";
+const ESP32_STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "http://192.168.68.131:81/stream";
 const SHOW_RECORDINGS_UI = false;
 
 type LiveStreamState = "unknown" | "connected" | "error";
@@ -107,25 +106,6 @@ const MOCK_RECORDINGS: RecordingEvent[] = [
     thumbnailColor: "#D4EDE8",
   },
 ];
-
-function hasDvrError(dvrStatus: string) {
-  return dvrStatus === "error" || dvrStatus.startsWith("error");
-}
-
-function getStatusLabel(liveStreamState: LiveStreamState, dvrStatus: string) {
-  if (liveStreamState === "connected") return "Connected";
-  if (dvrStatus === "recording") return "Recording";
-  if (dvrStatus === "waiting") return "Waiting";
-  if (liveStreamState === "error" || hasDvrError(dvrStatus)) return "Error";
-  return "Connecting";
-}
-
-function getStatusColor(liveStreamState: LiveStreamState, dvrStatus: string) {
-  if (liveStreamState === "connected") return "bg-green-500";
-  if (dvrStatus === "recording") return "bg-red-500";
-  if (liveStreamState === "error" || hasDvrError(dvrStatus)) return "bg-yellow-500";
-  return "bg-green-500";
-}
 
 function getFilteredRecordings(
   recordings: RecordingEvent[],
@@ -636,7 +616,6 @@ function ConnectedLiveView({
   filteredRecordings,
   visibleRecordings,
   showAllRecordings,
-  dvrStatus,
   liveStreamState,
   onStreamStateChange,
   onDisconnect,
@@ -653,7 +632,6 @@ function ConnectedLiveView({
   readonly filteredRecordings: RecordingEvent[];
   readonly visibleRecordings: RecordingEvent[];
   readonly showAllRecordings: boolean;
-  readonly dvrStatus: string;
   readonly liveStreamState: LiveStreamState;
   readonly onStreamStateChange: (state: LiveStreamState) => void;
   readonly onDisconnect: () => void;
@@ -664,8 +642,18 @@ function ConnectedLiveView({
   readonly onDeleteRecording: (id: string) => void;
 }) {
   const activeView: ActiveView = SHOW_RECORDINGS_UI ? activeTab : "live";
-  const statusLabel = getStatusLabel(liveStreamState, dvrStatus);
-  const statusColor = getStatusColor(liveStreamState, dvrStatus);
+  const statusLabel =
+    liveStreamState === "connected"
+      ? "Connected"
+      : liveStreamState === "error"
+        ? "Error"
+        : "Connecting";
+  const statusColor =
+    liveStreamState === "connected"
+      ? "bg-green-500"
+      : liveStreamState === "error"
+        ? "bg-yellow-500"
+        : "bg-green-500";
 
   return (
     <div>
@@ -719,50 +707,18 @@ export default function LivePage() {
   const [showAllRecordings, setShowAllRecordings] = useState(false);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [dvrStatus, setDvrStatus] = useState("idle");
   const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("unknown");
 
-  // Poll DVR status every 3 seconds while connected
-  useEffect(() => {
-    if (deviceConnected) {
-      const interval = setInterval(async () => {
-        try {
-          const res = await fetch(`${FASTAPI_URL}/dvr/status`);
-          if (!res.ok) {
-            throw new Error("DVR status unavailable");
-          }
-          const { status } = await res.json();
-          setDvrStatus(status);
-        } catch {
-          setDvrStatus("error");
-        }
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [deviceConnected]);
-
-  const handleConnect = async () => {
+  const handleConnect = () => {
     setIsConnecting(true);
     setLiveStreamState("unknown");
-    try {
-      await fetch(`${FASTAPI_URL}/dvr/start`, { method: "POST" });
-      setDeviceConnected(true);
-    } catch {
-      // FastAPI unreachable — still show UI for stream testing
-      setDeviceConnected(true);
-    } finally {
-      setIsConnecting(false);
-    }
+    setDeviceConnected(true);
+    setIsConnecting(false);
   };
 
-  const handleDisconnect = async () => {
-    try {
-      await fetch(`${FASTAPI_URL}/dvr/stop`, { method: "POST" });
-    } finally {
-      setDeviceConnected(false);
-      setDvrStatus("idle");
-      setLiveStreamState("unknown");
-    }
+  const handleDisconnect = () => {
+    setDeviceConnected(false);
+    setLiveStreamState("unknown");
   };
 
   const handleDelete = (id: string) => {
@@ -792,7 +748,6 @@ export default function LivePage() {
             filteredRecordings={filteredRecordings}
             visibleRecordings={visibleRecordings}
             showAllRecordings={showAllRecordings}
-            dvrStatus={dvrStatus}
             liveStreamState={liveStreamState}
             onStreamStateChange={setLiveStreamState}
             onDisconnect={handleDisconnect}
