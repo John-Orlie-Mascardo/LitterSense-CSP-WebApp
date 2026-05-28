@@ -425,6 +425,8 @@ button, a, [role="button"] { min-height: 44px; min-width: 44px; }
     --color-border: #D1D5DB;
     --color-divider: #E5E7EB;
     --color-overlay: #F3F4F6;
+    --color-abnormal-bg: #FEE2E2;
+    --color-abnormal-text: #991B1B;
     min-height: 0 !important;
     padding: 0 !important;
     background: #fff !important;
@@ -498,11 +500,17 @@ button, a, [role="button"] { min-height: 44px; min-width: 44px; }
     page-break-inside: avoid;
   }
 
+  .reports-print-page[data-print-ready="true"] .reports-print-document tr.bg-status-abnormal {
+    background: var(--color-abnormal-bg) !important;
+    color: var(--color-abnormal-text) !important;
+  }
+
   .reports-print-page[data-print-ready="true"] .reports-print-document th,
   .reports-print-page[data-print-ready="true"] .reports-print-document td {
     padding: 4px 6px !important;
     border-bottom: 1px solid #E5E7EB;
     vertical-align: top;
+    color: #111827 !important;
   }
 
   .reports-print-page[data-print-ready="true"] .reports-print-document svg {
@@ -511,5 +519,21 @@ button, a, [role="button"] { min-height: 44px; min-width: 44px; }
 
   .reports-print-page[data-print-ready="true"] .reports-print-document [class*="rounded"] {
     border-radius: 6px !important;
+  }
+
+  .settings-export-page[data-export-print-ready="true"] > :not(.settings-export-print-document) {
+    display: none !important;
+  }
+
+  .settings-export-page[data-export-print-ready="true"] {
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .settings-export-page[data-export-print-ready="true"] .settings-export-print-document {
+    display: block !important;
+    color: #111827 !important;
+    background: #fff !important;
   }
 }

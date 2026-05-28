@@ -11,6 +11,12 @@ const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   minute: "2-digit",
 };
 
+const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
+
 const getSessionDate = (value: string | undefined) => {
   if (!value) return null;
   const date = new Date(value);
@@ -29,6 +35,16 @@ const getStartedAt = (session: Session) => {
 
 const formatTime = (date: Date | null) =>
   date ? date.toLocaleTimeString("en-US", TIME_FORMAT_OPTIONS) : "--";
+
+const formatActivityDate = (date: Date | null, fallbackDate?: string) => {
+  if (date) return date.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
+  if (!fallbackDate) return "--";
+
+  const parsed = new Date(`${fallbackDate}T00:00:00`);
+  return Number.isNaN(parsed.getTime())
+    ? fallbackDate
+    : parsed.toLocaleDateString("en-US", DATE_FORMAT_OPTIONS);
+};
 
 const isInProgress = (session: Session) =>
   session.sessionStatus === "IN_PROGRESS" || !session.endedAt;
@@ -66,6 +82,7 @@ export function SessionTimelineCard({
   const endedAt = getSessionDate(session.endedAt);
   const inProgress = isInProgress(session);
   const shortSession = isShortSession(session);
+  const activityDate = formatActivityDate(endedAt ?? startedAt, session.date);
 
   return (
     <div className="bg-litter-card rounded-xl border border-litter-border shadow-sm p-4">
@@ -84,6 +101,9 @@ export function SessionTimelineCard({
                 Short Session
               </span>
             )}
+            <span className="text-xs font-medium text-litter-muted">
+              Recorded {activityDate}
+            </span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-litter-bg px-3 py-2">

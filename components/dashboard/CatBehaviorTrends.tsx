@@ -11,22 +11,13 @@ import {
 } from "recharts";
 import { Activity, Clock, TrendingUp } from "lucide-react";
 import type { CatTrendPoint } from "@/lib/contexts/CatContext";
+import { getBehaviorTrendLabel } from "@/lib/utils/dashboardBehaviorMetrics";
 
 const formatDuration = (seconds: number) => {
   if (seconds <= 0) return "--";
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
-};
-
-const getBehaviorTrend = (trendData: CatTrendPoint[] | null) => {
-  if (!trendData || trendData.length < 2) return "No trend yet";
-
-  const first = trendData[0];
-  const last = trendData[trendData.length - 1];
-  if (last.visits > first.visits) return "More active";
-  if (last.visits < first.visits) return "Less active";
-  return "Stable";
 };
 
 function SummaryCard({
@@ -80,7 +71,7 @@ export function CatBehaviorTrends({
         <SummaryCard
           icon={TrendingUp}
           label="Behavior Trend"
-          value={getBehaviorTrend(trendData)}
+          value={getBehaviorTrendLabel(trendData)}
         />
       </div>
 
