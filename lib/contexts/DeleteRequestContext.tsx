@@ -18,7 +18,7 @@ import {
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/configs/firebase";
+import { db, auth } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import type { DeleteRequest } from "@/lib/data/mockData";
 
@@ -34,6 +34,7 @@ interface DeleteRequestContextType {
   ) => Promise<void>;
   approveRequest: (id: string) => Promise<void>;
   rejectRequest: (id: string) => Promise<void>;
+  deleteApprovedAccount: (requestId: string, userId: string) => Promise<void>;
 }
 
 const DeleteRequestContext = createContext<DeleteRequestContextType>({
@@ -43,6 +44,7 @@ const DeleteRequestContext = createContext<DeleteRequestContextType>({
   submitRequest: async () => {},
   approveRequest: async () => {},
   rejectRequest: async () => {},
+  deleteApprovedAccount: async () => {},
 });
 
 export const useDeleteRequest = () => useContext(DeleteRequestContext);
@@ -141,6 +143,24 @@ export function DeleteRequestProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  async function deleteApprovedAccount(
+    requestId: string,
+    userId: string,
+  ): Promise<void> {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error("Not signed in.");
+    const idToken = await currentUser.getIdToken();
+
+    const res = await fetch("/api/admin/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, userId, requestId }),
+    });
+
+    const data = (await res.json()) as { error?: string };
+    if (!res.ok) throw new Error(data.error ?? "Failed to delete account.");
+  }
+
   const visibleRequests = user ? requests : [];
   const visibleIsLoading = user ? isLoading : false;
 
@@ -153,6 +173,7 @@ export function DeleteRequestProvider({ children }: { children: ReactNode }) {
         submitRequest,
         approveRequest,
         rejectRequest,
+        deleteApprovedAccount,
       }}
     >
       {children}

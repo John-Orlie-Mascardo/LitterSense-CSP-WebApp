@@ -6,6 +6,10 @@
 /* Tailwind CSS */
 @import "tailwindcss";
 
+/* Enable class-based dark mode (.dark on <html>) so dark: utilities respond
+   to the ThemeProvider toggle, not just the OS preference. */
+@variant dark (&:is(.dark *));
+
 /* ===================================================
    LitterSense Design Tokens
    All theming is done via CSS variables.
@@ -55,6 +59,12 @@
   --color-nav-bg:        #FFFFFF;
   --color-nav-border:    #E8E2D9;
   --color-nav-inactive:  #6B7280;
+
+  /* Warning / amber state */
+  --color-warning:       #F59E0B;
+  --color-warning-bg:    #FFFBEB;
+  --color-warning-text:  #92400E;
+  --color-warning-border:#FDE68A;
 }
 
 .dark {
@@ -99,6 +109,12 @@
   --color-nav-bg:        #141414;
   --color-nav-border:    #2D2D2D;
   --color-nav-inactive:  #6B7280;
+
+  /* Warning / amber state */
+  --color-warning:       #FBBF24;
+  --color-warning-bg:    #1C1200;
+  --color-warning-text:  #FDE68A;
+  --color-warning-border:#78350F;
 }
 
 /* ===================================================
@@ -128,8 +144,18 @@
   --color-litter-border:        var(--color-border);
   --color-litter-divider:       var(--color-divider);
   --color-litter-normal:        var(--color-normal);
+  --color-litter-normal-bg:     var(--color-normal-bg);
+  --color-litter-normal-text:   var(--color-normal-text);
   --color-litter-abnormal:      var(--color-abnormal);
+  --color-litter-abnormal-bg:   var(--color-abnormal-bg);
+  --color-litter-abnormal-text: var(--color-abnormal-text);
   --color-litter-danger:        var(--color-danger);
+  --color-litter-danger-bg:     var(--color-danger-bg);
+  --color-litter-danger-text:   var(--color-danger-text);
+  --color-litter-warning:       var(--color-warning);
+  --color-litter-warning-bg:    var(--color-warning-bg);
+  --color-litter-warning-text:  var(--color-warning-text);
+  --color-litter-warning-border:var(--color-warning-border);
   --color-litter-overlay:       var(--color-overlay);
 }
 
@@ -162,6 +188,9 @@
 .text-status-abnormal  { color: var(--color-abnormal-text); }
 .bg-status-danger    { background-color: var(--color-danger-bg); }
 .text-status-danger  { color: var(--color-danger-text); }
+.bg-status-warning   { background-color: var(--color-warning-bg); }
+.text-status-warning { color: var(--color-warning-text); }
+.border-status-warning { border-color: var(--color-warning-border); }
 
 /* Hover-compatible theme utilities */
 .theme-row-hover { cursor: pointer; transition: background-color 0.15s ease; }

@@ -129,7 +129,7 @@ function NotificationRow({
           event.stopPropagation();
           onDelete();
         }}
-        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-muted transition-colors hover:bg-red-50 hover:text-red-500"
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-theme-muted transition-colors hover:bg-litter-danger-bg hover:text-litter-danger"
         aria-label="Delete notification"
       >
         <Trash2 className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function NotificationsPage() {
                       </button>
                       <button
                         onClick={handleClearAll}
-                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-red-500 transition-colors hover:bg-red-50"
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-litter-danger transition-colors hover:bg-litter-danger-bg"
                       >
                         <Trash2 className="h-4 w-4" />
                         Clear all

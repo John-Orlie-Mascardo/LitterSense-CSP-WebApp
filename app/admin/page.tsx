@@ -265,7 +265,7 @@ export default function AdminOverviewPage() {
                   Delete Requests
                 </p>
                 {agg.pendingDeletes > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 leading-none">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-litter-danger-bg text-litter-danger-text leading-none">
                     {agg.pendingDeletes}
                   </span>
                 )}
