@@ -44,10 +44,12 @@ import {
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
-import { getFallbackAverageDuration } from "@/lib/utils/dashboardBehaviorMetrics";
+import {
+  getDisplayTodayStats,
+  getFallbackAverageDuration,
+} from "@/lib/utils/dashboardBehaviorMetrics";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
-import type { CatStats } from "@/lib/interfaces/CatStats";
 import type { Session } from "@/lib/interfaces/Session";
 import type { CatTrendPoint } from "@/lib/contexts/CatContext";
 
@@ -704,7 +706,12 @@ function PopulatedDashboardState({
   readonly cats: Cat[];
   readonly activeCatId: string;
   readonly selectedCat: Cat | undefined;
-  readonly stats: CatStats | undefined;
+  readonly stats:
+    | {
+        readonly visits: number;
+        readonly avgDuration: string;
+      }
+    | undefined;
   readonly greeting: string;
   readonly userFirstName: string;
   readonly todayDate: string;
@@ -993,16 +1000,6 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
-  const displayAvgDuration = useMemo(
-    () =>
-      getFallbackAverageDuration(
-        stats?.avgDuration,
-        trendData,
-        sessions,
-        activeCatId,
-      ),
-    [activeCatId, sessions, stats?.avgDuration, trendData],
-  );
 
   const abnormalCats = useMemo(
     () => cats.filter((cat) => cat.status === "abnormal"),
@@ -1094,6 +1091,26 @@ export default function DashboardPage() {
     completedLiveVisit,
     notificationRecentVisits,
   );
+  const displayStats = useMemo(
+    () =>
+      getDisplayTodayStats(
+        stats,
+        recentVisits.map((visit) => visit.session),
+        activeCatId,
+        getLocalDateKey(),
+      ),
+    [activeCatId, recentVisits, stats],
+  );
+  const displayAvgDuration = useMemo(
+    () =>
+      getFallbackAverageDuration(
+        displayStats?.avgDuration,
+        trendData,
+        sessions,
+        activeCatId,
+      ),
+    [activeCatId, displayStats?.avgDuration, sessions, trendData],
+  );
   const greeting = getGreeting();
   const todayDate = formatDate();
   const userFirstName = getUserFirstName(user?.displayName);
@@ -1112,7 +1129,7 @@ export default function DashboardPage() {
             cats={cats}
             activeCatId={activeCatId}
             selectedCat={selectedCat}
-            stats={stats}
+            stats={displayStats}
             greeting={greeting}
             userFirstName={userFirstName}
             todayDate={todayDate}

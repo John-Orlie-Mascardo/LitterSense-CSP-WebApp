@@ -20,6 +20,12 @@ import {
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
+import {
+  getLocalDateKey,
+  getSessionActivityDateKey,
+  getSessionLocalDateKey,
+  toIsoStringFromDateLike,
+} from "@/lib/utils/sessionDate";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import type {
   Cat,
@@ -93,13 +99,6 @@ const emptyStats: CatStats = {
   lastVisit: "",
 };
 
-const getLocalDateKey = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
 const formatLocalTime = (date = new Date()) =>
   date.toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -145,16 +144,24 @@ const inferSessionStartedAt = (endedAt: string, durationSecs: number) => {
 };
 
 const normalizeSession = (id: string, data: FirestoreData): Session => {
-  const endedAt = parseString(data.endedAt) || parseString(data.createdAt);
+  const endedAt =
+    toIsoStringFromDateLike(data.endedAt) ||
+    toIsoStringFromDateLike(data.createdAt);
   const durationSecs = parseNumber(data.durationSecs);
   const startedAt =
-    parseString(data.startedAt) || inferSessionStartedAt(endedAt, durationSecs);
+    toIsoStringFromDateLike(data.startedAt) ||
+    inferSessionStartedAt(endedAt, durationSecs);
   const eventDate = endedAt ? new Date(endedAt) : new Date();
 
   return {
     id,
     catId: parseString(data.catId),
-    date: parseString(data.date) || getLocalDateKey(eventDate),
+    date:
+      getSessionLocalDateKey({
+        date: data.date,
+        endedAt: data.endedAt,
+        createdAt: data.createdAt,
+      }) || getLocalDateKey(eventDate),
     time: parseString(data.time) || formatLocalTime(eventDate),
     startedAt,
     endedAt,
@@ -270,6 +277,23 @@ const deriveStatsForCat = (
   localStats: Record<string, CatStats>,
   today = getLocalDateKey(),
 ): CatStats => {
+  const todaySessions = sessions.filter(
+    (session) =>
+      session.catId === catId &&
+      getSessionActivityDateKey(session) === today,
+  );
+  if (todaySessions.length > 0) {
+    return statsFromTotals(
+      todaySessions.length,
+      todaySessions.reduce((sum, session) => sum + session.durationSecs, 0),
+      todaySessions[0]?.date
+        ? new Date(
+          getSessionSortValue(todaySessions[0]),
+        ).toISOString()
+        : "",
+    );
+  }
+
   const firebaseStats = firebaseCatStats[catId];
   if (firebaseStats?.date === today) {
     return statsFromTotals(
@@ -288,21 +312,6 @@ const deriveStatsForCat = (
     );
   }
 
-  const todaySessions = sessions.filter(
-    (session) => session.catId === catId && session.date === today,
-  );
-  if (todaySessions.length > 0) {
-    return statsFromTotals(
-      todaySessions.length,
-      todaySessions.reduce((sum, session) => sum + session.durationSecs, 0),
-      todaySessions[0]?.date
-        ? new Date(
-          getSessionSortValue(todaySessions[0]),
-        ).toISOString()
-        : "",
-    );
-  }
-
   return localStats[catId] ?? emptyStats;
 };
 
@@ -314,7 +323,9 @@ const deriveLiveStatus = (
 ): Cat["status"] => {
   let status = cat.status;
   const todaySessions = sessions.filter(
-    (session) => session.catId === cat.id && session.date === today,
+    (session) =>
+      session.catId === cat.id &&
+      getSessionActivityDateKey(session) === today,
   );
 
   if (stats.visits > 8) {
@@ -360,16 +371,20 @@ const buildTrendData = (
   if (!hasAnyData) return null;
 
   return days.map((day) => {
-    const daySessions = catSessions.filter((session) => session.date === day.key);
+    const daySessions = catSessions.filter(
+      (session) => getSessionActivityDateKey(session) === day.key,
+    );
     const dailySummary = dailyStats.find((stats) => stats.date === day.key);
     const visits =
-      dailySummary?.visits ?? daySessions.length;
+      daySessions.length > 0 ? daySessions.length : dailySummary?.visits ?? 0;
     const totalDuration = daySessions.reduce(
       (sum, session) => sum + session.durationSecs,
       0,
     );
     const summaryTotalDuration =
-      dailySummary?.totalDurationSecs ?? totalDuration;
+      daySessions.length > 0
+        ? totalDuration
+        : dailySummary?.totalDurationSecs ?? totalDuration;
     const avgDuration =
       visits > 0 ? Math.round(summaryTotalDuration / visits) : 0;
     const mq135Delta =
