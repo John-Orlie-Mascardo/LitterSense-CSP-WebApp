@@ -40,13 +40,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, loading: authLoading, isAdmin } = useAuth();
+  const { user, loading: authLoading, profileLoading, isAdmin } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && !profileLoading && user) {
       router.push(isAdmin ? "/admin" : "/dashboard");
     }
-  }, [user, authLoading, isAdmin, router]);
+  }, [user, authLoading, profileLoading, isAdmin, router]);
 
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -54,8 +54,8 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Redirect is handled by the useEffect above once AuthContext resolves
-      // isAdmin from Firestore — don't push here or we'll use stale isAdmin state.
+      // Redirect is handled by the useEffect above once AuthContext resolves.
+      // Wait for profileLoading so we don't read the default false isAdmin value.
     } catch (error) {
       let errorMessage = "Failed to sign in.";
       if (error instanceof FirebaseError) {
@@ -91,8 +91,8 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      // Redirect is handled by the useEffect above once AuthContext resolves
-      // isAdmin from Firestore — don't push here or we'll use stale isAdmin state.
+      // Redirect is handled by the useEffect above once AuthContext resolves.
+      // Wait for profileLoading so we don't read the default false isAdmin value.
     } catch (error) {
       const message = error instanceof FirebaseError ? error.message : "Failed to sign in with Google.";
       setError(message);

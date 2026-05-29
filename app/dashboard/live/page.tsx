@@ -19,7 +19,7 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-const ESP32_STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "http://192.168.68.131:81/stream";
+const ESP32_STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "/api/stream";
 const SHOW_RECORDINGS_UI = false;
 
 type LiveStreamState = "unknown" | "connected" | "error";

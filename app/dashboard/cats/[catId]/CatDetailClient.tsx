@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -60,6 +60,47 @@ import {
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 
 const AVATAR_PREVIEW_SIZE = 128;
+
+const normalizeRfidTag = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, "");
+
+const hexToDec = (hex: string) => {
+  const n = Number.parseInt(hex, 16);
+  return Number.isNaN(n) ? "" : n.toString();
+};
+
+const rfidMatches = (
+  details: CatDetails | undefined,
+  card: string,
+  hex: string,
+) => {
+  const tag = details?.rfidTag ? normalizeRfidTag(details.rfidTag) : "";
+  if (!tag) return false;
+
+  const normalizedCard = normalizeRfidTag(card);
+  const normalizedHex = normalizeRfidTag(hex);
+  return (
+    tag === normalizedCard ||
+    tag === normalizedHex ||
+    tag === hexToDec(card) ||
+    tag === hexToDec(hex)
+  );
+};
+
+const isCompletedLiveSession = (
+  sensorData: ReturnType<typeof useDeviceSensors>["data"],
+) => {
+  if (!sensorData?.online || sensorData.sessionActive) return false;
+
+  const status = sensorData.lastSessionStatus;
+  return (
+    sensorData.completedSessionCount !== null &&
+    sensorData.completedSessionCount > 0 &&
+    (status === "NORMAL" ||
+      status === "ABNORMAL" ||
+      status === "SHORT_SESSION" ||
+      status === "NO_EXIT_TIMEOUT")
+  );
+};
 
 interface PhotoOffset {
   x: number;
@@ -743,16 +784,7 @@ interface OverviewTabProps {
         readonly avgDuration: string;
       }
     | undefined;
-  readonly details: {
-    readonly healthInsight: string;
-    readonly baseline: {
-      readonly avgVisitsPerDay: number;
-      readonly avgDurationSecs: number;
-      readonly mq135DeltaPercent: number;
-      readonly mq136DeltaPercent: number;
-      readonly lastUpdated: string;
-    };
-  } | null;
+  readonly details: CatDetails | null;
   readonly sessions: readonly Session[];
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
   readonly sensorsLoading: boolean;
@@ -760,6 +792,35 @@ interface OverviewTabProps {
 }
 
 function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: Readonly<OverviewTabProps>) {
+  const displayedStats = useMemo(() => {
+    const baseStats = stats ?? { visits: 0, avgDuration: "--" };
+    if (!isCompletedLiveSession(sensorData)) return baseStats;
+
+    const activeCard = sensorData?.activeRfidCard || sensorData?.rfidCard;
+    const activeHex = sensorData?.activeRfidHex || sensorData?.rfidHex;
+    if (!rfidMatches(details ?? undefined, activeCard ?? "", activeHex ?? "")) {
+      return baseStats;
+    }
+
+    const endedAt = sensorData?.lastSessionEndMs
+      ? new Date(sensorData.lastSessionEndMs).toISOString()
+      : "";
+    const durationSecs = Math.max(
+      1,
+      Math.round((sensorData?.lastSessionDurationMs ?? 0) / 1000),
+    );
+    const hasPersistedSession = sessions.some(
+      (session) =>
+        session.sessionStatus !== "DAILY_SUMMARY" &&
+        session.endedAt === endedAt &&
+        session.durationSecs === durationSecs,
+    );
+
+    return hasPersistedSession
+      ? baseStats
+      : { ...baseStats, visits: baseStats.visits + 1 };
+  }, [details, sessions, sensorData, stats]);
+
   const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
   const airQualityStatus = getLiveAirQualityStatus({
     sensorData,
@@ -793,7 +854,7 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Clock}
-            value={stats?.visits || 0}
+            value={displayedStats.visits}
             label="Visits Today"
             status="normal"
           />
