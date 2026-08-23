@@ -1,15 +1,17 @@
 /**
  * Login Page (03.01.01)
  *
- * Split-screen on desktop (branding left, form right).
- * Teal branded header on mobile, form below.
- * Auth is email/password + Google OAuth via Firebase Auth (03.02.01).
- * Currently using mock navigation — replace handleSubmit with Firebase signIn.
+ * Signs owners in with email/password or Google using the dark/teal auth shell.
+ *
+ * DONE: request locking, inline progress, privacy-safe errors, success toast, role redirect
+ * PLACEHOLDER: none
+ *
+ * NEXT: authentication owners should add emulator-backed interaction coverage.
  */
 
 "use client";
 
-import { useState, useEffect, type SyntheticEvent } from "react";
+import { useState, useEffect, useRef, type SyntheticEvent } from "react";
 import {
   Mail,
   Lock,
@@ -26,11 +28,16 @@ import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import {
+  getEmailLoginErrorMessage,
+  getGoogleLoginErrorMessage,
+} from "@/lib/presentation/loginFeedback";
 
 const features = [
   { icon: Activity, text: "Real-time litter monitoring" },
   { icon: Users, text: "Individual cat profiles" },
-  { icon: FileText, text: "Vet-ready health reports" },
+  { icon: FileText, text: "Vet-ready activity reports" },
 ];
 
 export default function LoginPage() {
@@ -39,43 +46,63 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [authSucceeded, setAuthSucceeded] = useState(false);
+  const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
+  const redirectScheduled = useRef(false);
   const router = useRouter();
   const { user, loading: authLoading, profileLoading, isAdmin } = useAuth();
 
   useEffect(() => {
-    if (!authLoading && !profileLoading && user) {
-      router.push(isAdmin ? "/admin" : "/dashboard");
+    if (
+      authLoading ||
+      profileLoading ||
+      !user ||
+      (isLoading && !authSucceeded) ||
+      redirectScheduled.current
+    ) return;
+
+    if (!authSucceeded) {
+      router.replace(isAdmin ? "/admin" : "/dashboard");
+      return;
     }
-  }, [user, authLoading, profileLoading, isAdmin, router]);
+
+    redirectScheduled.current = true;
+    const redirectTimer = setTimeout(() => {
+      router.replace(isAdmin ? "/admin" : "/dashboard");
+    }, 700);
+
+    return () => clearTimeout(redirectTimer);
+  }, [user, authLoading, profileLoading, authSucceeded, isLoading, isAdmin, router]);
+
+  const addSuccessToast = () => {
+    setToasts((previous) => [
+      ...previous,
+      {
+        id: `login-success-${Date.now()}`,
+        message: "Signed in successfully",
+        type: "success",
+      },
+    ]);
+  };
 
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Redirect is handled by the useEffect above once AuthContext resolves.
-      // Wait for profileLoading so we don't read the default false isAdmin value.
-    } catch (error) {
-      let errorMessage = "Failed to sign in.";
-      if (error instanceof FirebaseError) {
-        if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-          errorMessage = "Account not registered or invalid credentials. Please sign up if you don't have an account.";
-        } else if (error.code === "auth/too-many-requests") {
-          errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts.";
-        } else if (error.code === "auth/invalid-email") {
-          errorMessage = "Please enter a valid email address.";
-        } else {
-          errorMessage = error.message || "Failed to sign in.";
-        }
-      }
-      setError(errorMessage);
-    } finally {
+      setAuthSucceeded(true);
+      addSuccessToast();
+    } catch (caughtError) {
+      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
+      setError(getEmailLoginErrorMessage(code));
       setIsLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    if (isLoading) return;
     try {
       setIsLoading(true);
       setError("");
@@ -91,18 +118,21 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
-      // Redirect is handled by the useEffect above once AuthContext resolves.
-      // Wait for profileLoading so we don't read the default false isAdmin value.
-    } catch (error) {
-      const message = error instanceof FirebaseError ? error.message : "Failed to sign in with Google.";
-      setError(message);
-    } finally {
+      setAuthSucceeded(true);
+      addSuccessToast();
+    } catch (caughtError) {
+      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
+      setError(getGoogleLoginErrorMessage(code));
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="dark min-h-screen flex flex-col lg:flex-row">
+      <ToastContainer
+        toasts={toasts}
+        onClose={(id) => setToasts((previous) => previous.filter((toast) => toast.id !== id))}
+      />
       {/* Left Panel - Branding (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-litter-primary relative overflow-hidden">
         <div className="absolute inset-0 flex flex-col justify-center px-16 py-12 z-10">
@@ -124,7 +154,7 @@ export default function LoginPage() {
 
           {/* Tagline */}
           <p className="text-white/80 text-lg italic font-light mb-10">
-            Early detection. Healthier cats.
+            Earlier awareness. Better-informed care.
           </p>
 
           {/* Feature Pills */}
@@ -175,7 +205,7 @@ export default function LoginPage() {
             <span className="font-display font-bold text-lg text-white">LitterSense</span>
           </div>
           <h2 className="font-display font-bold text-2xl text-white mt-1">
-            Early detection. Healthier cats.
+              Earlier awareness. Better-informed care.
           </h2>
         </div>
 
@@ -186,7 +216,7 @@ export default function LoginPage() {
               Welcome back
             </h1>
             <p className="text-litter-muted">
-              Monitor your cat&apos;s health from anywhere.
+              Monitor litter box activity from anywhere.
             </p>
           </div>
 
@@ -309,7 +339,8 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 flex items-center justify-center gap-3"
+            disabled={isLoading}
+            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path

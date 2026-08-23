@@ -1,3 +1,14 @@
+/**
+ * Root application layout.
+ *
+ * Provides global metadata, theming, authentication, cats, notifications, and PWA state.
+ *
+ * DONE: behavior-focused metadata and global provider composition
+ * PLACEHOLDER: none
+ *
+ * NEXT: platform owners maintain global metadata and provider ordering.
+ */
+
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
@@ -13,7 +24,7 @@ export const metadata: Metadata = {
     default: "Login | LitterSense",
     template: "%s | LitterSense",
   },
-  description: "IoT-enabled feline health monitoring for Filipino cat owners. Early detection, healthier cats.",
+  description: "IoT-enabled litter box activity monitoring for Filipino cat owners. Earlier awareness, better-informed care.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192x192.svg",

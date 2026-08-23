@@ -1,3 +1,14 @@
+/**
+ * globals.css
+ *
+ * Global LitterSense theme tokens, utilities, base styles, and print layout.
+ *
+ * DONE: light/dark theming, six behavior-state colors, responsive app and print foundations
+ * PLACEHOLDER: none
+ *
+ * NEXT: frontend owners should add shared visual tokens here before using new hardcoded colors.
+ */
+
 /* Google Fonts Import - Must be first */
 /* Outfit: Modern geometric display font — engaging & entertaining for headings */
 /* Poppins: Friendly rounded sans-serif — highly readable for body text on mobile */
@@ -47,6 +58,18 @@
   --color-abnormal:      #EF4444;
   --color-abnormal-bg:   #FEF2F2;
   --color-abnormal-text: #B91C1C;
+  --color-watch:         #EAB308;
+  --color-watch-bg:      #FEFCE8;
+  --color-watch-text:    #854D0E;
+  --color-insufficient:  #3B82F6;
+  --color-insufficient-bg:#EFF6FF;
+  --color-insufficient-text:#1D4ED8;
+  --color-incomplete:    #6B7280;
+  --color-incomplete-bg: #F3F4F6;
+  --color-incomplete-text:#4B5563;
+  --color-unattributed:  #A855F7;
+  --color-unattributed-bg:#FAF5FF;
+  --color-unattributed-text:#7E22CE;
   --color-danger:        #EF4444;
   --color-danger-bg:     #FEF2F2;
   --color-danger-text:   #B91C1C;
@@ -97,6 +120,18 @@
   --color-abnormal:      #F87171;
   --color-abnormal-bg:   #1C0000;
   --color-abnormal-text: #FCA5A5;
+  --color-watch:         #FACC15;
+  --color-watch-bg:      #2A2100;
+  --color-watch-text:    #FDE047;
+  --color-insufficient:  #60A5FA;
+  --color-insufficient-bg:#0B1F3A;
+  --color-insufficient-text:#93C5FD;
+  --color-incomplete:    #9CA3AF;
+  --color-incomplete-bg: #27272A;
+  --color-incomplete-text:#D1D5DB;
+  --color-unattributed:  #C084FC;
+  --color-unattributed-bg:#2E1065;
+  --color-unattributed-text:#D8B4FE;
   --color-danger:        #F87171;
   --color-danger-bg:     #1C0000;
   --color-danger-text:   #FCA5A5;
@@ -149,6 +184,10 @@
   --color-litter-abnormal:      var(--color-abnormal);
   --color-litter-abnormal-bg:   var(--color-abnormal-bg);
   --color-litter-abnormal-text: var(--color-abnormal-text);
+  --color-litter-watch:         var(--color-watch);
+  --color-litter-insufficient:  var(--color-insufficient);
+  --color-litter-incomplete:    var(--color-incomplete);
+  --color-litter-unattributed:  var(--color-unattributed);
   --color-litter-danger:        var(--color-danger);
   --color-litter-danger-bg:     var(--color-danger-bg);
   --color-litter-danger-text:   var(--color-danger-text);
@@ -186,6 +225,14 @@
 .text-status-normal { color: var(--color-normal-text); }
 .bg-status-abnormal    { background-color: var(--color-abnormal-bg); }
 .text-status-abnormal  { color: var(--color-abnormal-text); }
+.bg-status-watch       { background-color: var(--color-watch-bg); }
+.text-status-watch     { color: var(--color-watch-text); }
+.bg-status-insufficient { background-color: var(--color-insufficient-bg); }
+.text-status-insufficient { color: var(--color-insufficient-text); }
+.bg-status-incomplete  { background-color: var(--color-incomplete-bg); }
+.text-status-incomplete { color: var(--color-incomplete-text); }
+.bg-status-unattributed { background-color: var(--color-unattributed-bg); }
+.text-status-unattributed { color: var(--color-unattributed-text); }
 .bg-status-danger    { background-color: var(--color-danger-bg); }
 .text-status-danger  { color: var(--color-danger-text); }
 .bg-status-warning   { background-color: var(--color-warning-bg); }
@@ -482,6 +529,26 @@ button, a, [role="button"] { min-height: 44px; min-width: 44px; }
 
   .reports-print-page[data-print-ready="true"] .reports-print-document .overflow-x-auto {
     overflow: visible !important;
+  }
+
+  .reports-print-page[data-print-ready="true"] .reports-accordion-content,
+  .reports-print-page[data-print-ready="true"] .reports-session-table {
+    display: block !important;
+  }
+
+  .reports-print-page[data-print-ready="true"] .reports-session-mobile,
+  .reports-print-page[data-print-ready="true"] .reports-accordion-chevron {
+    display: none !important;
+  }
+
+  .reports-print-page[data-print-ready="true"] .reports-session-group {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .reports-print-page[data-print-ready="true"] .reports-accordion-trigger {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 
   .reports-print-page[data-print-ready="true"] .reports-print-document table {

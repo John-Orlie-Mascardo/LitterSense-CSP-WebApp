@@ -1,9 +1,12 @@
 /**
  * Forgot Password — Step 1 (03.01.03)
  *
- * User enters email to request a password reset link.
- * Currently mocks the request — replace with Firebase sendPasswordResetEmail.
- * On submit, navigates to check-email page with email as query param.
+ * Requests a Firebase password-reset email in the shared dark/teal auth shell.
+ *
+ * DONE: real reset request, request locking, safe errors, matching auth styling
+ * PLACEHOLDER: none
+ *
+ * NEXT: authentication owners should add Firebase emulator coverage.
  */
 
 "use client";
@@ -32,6 +35,7 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError("");
     
@@ -40,19 +44,28 @@ export default function ForgotPasswordPage() {
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );
-    } catch (error) {
-      const message = error instanceof FirebaseError ? error.message : "Failed to send reset email.";
-      setError(message);
+    } catch (caughtError) {
+      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
+      if (code === "auth/invalid-email") {
+        setError("Enter a valid email address.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many reset requests. Please wait a moment and try again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("We couldn’t reach LitterSense. Check your connection and try again.");
+      } else {
+        setError("We couldn’t send the reset link. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-litter-bg flex items-center justify-center px-6 py-12">
+    <div className="dark min-h-screen bg-litter-bg flex items-center justify-center px-6 py-12 relative overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-litter-primary/20 to-transparent" />
       <div className="w-full max-w-md">
         {/* Card */}
-        <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border/50 px-6 py-8">
+        <div className="relative bg-litter-card rounded-2xl shadow-2xl shadow-black/30 border border-litter-border px-6 py-8">
           {/* Back arrow + Title */}
           <div className="flex items-center gap-4 mb-8">
             <Link

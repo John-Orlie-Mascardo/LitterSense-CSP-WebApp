@@ -1,3 +1,17 @@
+/**
+ * Reports page.
+ *
+ * Generates activity reports from existing records and renders printable per-cat logs.
+ *
+ * DONE: exports, activity naming, shared state key, grouped session preview, archive actions
+ * PLACEHOLDER: none
+ *
+ * NEXT: report owners should add server-side PDF generation if browser printing is replaced.
+ *
+ * NOTE(manuscript): User-facing report ranges, state copy, and report labels must
+ * remain aligned with the capstone paper.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -9,8 +23,6 @@ import {
   ChevronDown,
   Loader2,
   FileSpreadsheet,
-  AlertTriangle,
-  CheckCircle,
   Wind,
   Timer,
   Clock,
@@ -22,21 +34,31 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { BehaviorStateLegend } from "@/components/behavior/BehaviorStateLegend";
+import { SessionAccordion } from "@/components/reports/SessionAccordion";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { PastReport } from "@/lib/data/mockData";
 import { useReports, type ReportData } from "@/lib/hooks/useReports";
-import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 import {
-  formatDuration,
   formatDate,
-  getStatusColor,
   generateId,
 } from "@/lib/utils/formatters";
 import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
+import {
+  BEHAVIOR_STATE_BY_ID,
+  formatMetricValue,
+  getMostSevereState,
+} from "@/lib/presentation/behaviorStates";
+import {
+  buildReportSessionGroups,
+  type ReportCatSnapshot,
+} from "@/lib/presentation/reportSessionGroups";
 
 type DateRangeValue = "1" | "3" | "7" | "14" | "21" | "30";
 
 const dateRanges: { value: DateRangeValue; label: string }[] = [
+  // NOTE(manuscript): These visible period numbers must match the report ranges in the paper.
   { value: "1", label: "Last 1 Day" },
   { value: "3", label: "Last 3 Days" },
   { value: "7", label: "Last 7 Days" },
@@ -181,12 +203,12 @@ export default function ReportsPage() {
         />
       </div>
 
-      <main className="reports-print-shell pt-20 px-4 max-w-lg mx-auto">
+      <main className="reports-print-shell pt-20 px-4 max-w-6xl mx-auto">
 
         {/* ── Page Header ── */}
         <div className="reports-screen-only flex items-start justify-between pt-4 mb-5">
           <div>
-            <h1 className="text-xl font-bold text-litter-text">Health Reports</h1>
+            <h1 className="text-xl font-bold text-litter-text">Litter Box Activity Reports</h1>
             <p className="text-sm text-theme-muted mt-0.5">
               Generate and export behavior reports
             </p>
@@ -228,7 +250,7 @@ export default function ReportsPage() {
             </div>
             {!catsLoading && !hasCats && (
               <p className="text-xs text-theme-muted mt-2">
-                Add a cat first so reports can use your saved sessions and health logs.
+                Add a cat first so reports can use your saved sessions and owner notes.
               </p>
             )}
           </div>
@@ -372,10 +394,25 @@ interface ReportPreviewProps {
   readonly report: ReportData;
 }
 
+function getReportCatSnapshots(report: ReportData): ReportCatSnapshot[] {
+  if (report.cats && report.cats.length > 0) return report.cats;
+  if (report.catId === "all") return [];
+
+  return [{
+    id: report.catId,
+    name: report.catName,
+    avatar: null,
+    baselineEstablished: false,
+  }];
+}
+
 function ReportPreview({ report }: ReportPreviewProps) {
-  const statusColors = getStatusColor(report.summary.overallStatus);
   const trendData = report.trendData;
-  const showCatColumn = report.catId === "all";
+  const reportCats = getReportCatSnapshots(report);
+  const sessionGroups = buildReportSessionGroups(report.sessions, reportCats);
+  const hasReportData = report.sessions.length > 0;
+  const reportState = getMostSevereState(sessionGroups.map((group) => group.state));
+  const reportStateDefinition = BEHAVIOR_STATE_BY_ID[reportState];
 
   return (
     <div className="reports-print-document bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
@@ -390,7 +427,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
           </div>
           <div>
             <p className="font-bold text-litter-primary">LitterSense</p>
-            <p className="text-xs text-theme-muted">Health Report</p>
+            <p className="text-xs text-theme-muted">Litter Box Activity Report</p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -418,87 +455,41 @@ function ReportPreview({ report }: ReportPreviewProps) {
         <p className="font-semibold text-litter-text text-sm mb-3">Summary</p>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-theme-overlay rounded-xl p-3">
-            <p className="text-xl font-bold text-litter-text">{report.summary.totalSessions}</p>
+            <p className="text-xl font-bold text-litter-text">
+              {formatMetricValue(report.summary.totalSessions, hasReportData)}
+            </p>
             <p className="text-xs text-theme-muted">Total Sessions</p>
           </div>
           <div className="bg-theme-overlay rounded-xl p-3">
-            <p className="text-xl font-bold text-litter-text">{report.summary.avgSessionsPerDay}</p>
+            <p className="text-xl font-bold text-litter-text">
+              {formatMetricValue(report.summary.avgSessionsPerDay, hasReportData)}
+            </p>
             <p className="text-xs text-theme-muted">Avg/Day</p>
           </div>
           <div className="bg-theme-overlay rounded-xl p-3">
-            <p className="text-xl font-bold text-litter-text">{report.summary.avgDuration}</p>
+            <p className="text-xl font-bold text-litter-text">
+              {formatMetricValue(report.summary.avgDuration, hasReportData)}
+            </p>
             <p className="text-xs text-theme-muted">Avg Duration</p>
           </div>
           <div className="bg-theme-overlay rounded-xl p-3">
-            <p className="text-xl font-bold text-litter-text">{report.summary.anomaliesDetected}</p>
+            <p className="text-xl font-bold text-litter-text">
+              {formatMetricValue(report.summary.anomaliesDetected, hasReportData)}
+            </p>
             <p className="text-xs text-theme-muted">Anomalies</p>
           </div>
         </div>
-        <div className={`p-3 rounded-xl ${statusColors.bg} ${statusColors.text} flex items-center gap-2`}>
-          {report.summary.overallStatus === "normal" ? (
-            <CheckCircle className="w-4 h-4 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 shrink-0" />
-          )}
-          <span className="text-sm font-medium">{report.summary.statusMessage}</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-theme-overlay p-3">
+          <BehaviorStateBadge state={reportState} />
+          <span className="text-sm text-theme-secondary">{reportStateDefinition.description}</span>
         </div>
       </div>
 
       {/* Session Log */}
       <div className="reports-print-section reports-print-section--table p-5 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Session Log</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-theme-muted border-b border-litter-border">
-                {showCatColumn && <th className="pb-2 font-medium">Cat</th>}
-                <th className="pb-2 font-medium">Date</th>
-                <th className="pb-2 font-medium">Time</th>
-                <th className="pb-2 font-medium">Visits</th>
-                <th className="pb-2 font-medium">Duration</th>
-                <th className="pb-2 font-medium">MQ-135 Δ</th>
-                <th className="pb-2 font-medium">MQ-136 Δ</th>
-                <th className="pb-2 font-medium">Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.sessions.slice(0, 10).map((session) => {
-                const isConcern = isReportSessionConcern(session);
-                return (
-                  <tr key={session.id} className={isConcern ? "bg-status-abnormal" : ""}>
-                    {showCatColumn && (
-                      <td className="py-1.5 pr-2 text-litter-text">{session.catName}</td>
-                    )}
-                    <td className="py-1.5 text-litter-text">{session.date}</td>
-                    <td className="py-1.5 text-litter-text">
-                      {formatSessionTimeLabel(session) || "--"}
-                    </td>
-                    <td className="py-1.5 text-litter-text">{session.summaryVisits ?? 1}</td>
-                    <td className="py-1.5 text-litter-text">{formatDuration(session.durationSecs)}</td>
-                    <td className="py-1.5 text-litter-text">{session.mq135Delta}%</td>
-                    <td className="py-1.5 text-litter-text">{session.mq136Delta}%</td>
-                    <td className="py-1.5">
-                      {session.summaryVisits ? (
-                        <span className="px-1.5 py-0.5 bg-theme-overlay text-theme-muted text-xs rounded-full">
-                          Summary
-                        </span>
-                      ) : isConcern ? (
-                        <span className="text-litter-muted text-xs">
-                          {session.anomalyType || formatDuration(session.durationSecs)}
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {report.sessions.length > 10 && (
-          <p className="reports-screen-only text-xs text-theme-muted mt-2">
-            Full log included in export ({report.sessions.length - 10} more entries)
-          </p>
-        )}
+        <BehaviorStateLegend compact className="mb-3" />
+        <SessionAccordion key={report.id} sessions={report.sessions} cats={reportCats} />
       </div>
 
       {/* Trend Charts */}

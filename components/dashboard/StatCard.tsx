@@ -1,17 +1,30 @@
 /**
  * Stat Card (03.01.06)
  *
- * Displays a single health metric with icon, value, label, and color-coded status bar.
+ * Displays a single activity metric with icon, value, label, and color-coded status bar.
  * Used in a 2x2 grid on mobile, 4-column row on desktop.
  *
  * Status colors:
  * - normal: metric is within range
  * - abnormal: metric needs attention
+ *
+ * DONE: activity values and all behavior/no-data visual states
+ * PLACEHOLDER: none
+ *
+ * NEXT: use semantic status values supplied by presentation helpers.
  */
 "use client";
 import { LucideIcon } from "lucide-react";
 
-type StatCardStatus = "normal" | "watch" | "alert" | "offline" | "abnormal";
+type StatCardStatus =
+  | "normal"
+  | "watch"
+  | "alert"
+  | "offline"
+  | "abnormal"
+  | "insufficient"
+  | "incomplete"
+  | "unattributed";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -27,6 +40,9 @@ const iconColors = {
   alert: "text-red-500",
   offline: "text-slate-400",
   abnormal: "text-red-500",
+  insufficient: "text-blue-500",
+  incomplete: "text-slate-400",
+  unattributed: "text-purple-500",
 };
 const statusBarColors = {
   normal:  "bg-litter-primary",
@@ -34,6 +50,9 @@ const statusBarColors = {
   alert: "bg-red-500",
   offline: "bg-slate-300",
   abnormal: "bg-red-500",
+  insufficient: "bg-blue-500",
+  incomplete: "bg-slate-400",
+  unattributed: "bg-purple-500",
 };
 const statusLabelColors = {
   normal:  "text-litter-primary",
@@ -41,6 +60,9 @@ const statusLabelColors = {
   alert: "text-red-500",
   offline: "text-slate-400",
   abnormal: "text-red-500",
+  insufficient: "text-blue-500",
+  incomplete: "text-slate-400",
+  unattributed: "text-purple-500",
 };
 export function StatCard({
   icon: Icon,

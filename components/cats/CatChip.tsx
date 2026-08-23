@@ -2,27 +2,33 @@
  * Cat Selector Chip (03.01.05)
  *
  * Displays a single cat as a selectable pill/chip in the dashboard cat selector row.
- * Shows avatar (initial or photo), name, and health status dot.
- * Active state uses teal background; inactive is white with gray border.
+ * Shows avatar (initial or photo), name, and behavior-state dot.
+ * Active state uses teal background; inactive uses the current theme surface.
+ *
+ * DONE: selection styling and shared six-state display dot
+ * PLACEHOLDER: none
+ *
+ * NEXT: callers must derive display state from real cat evidence and baseline data.
  */
 
 "use client";
 
 import Image from "next/image";
-import { Cat } from "@/lib/data/data";
+import type { Cat } from "@/lib/data/data";
+import {
+  BEHAVIOR_STATE_BY_ID,
+  type BehaviorStateId,
+} from "@/lib/presentation/behaviorStates";
 
 interface CatChipProps {
   cat: Cat;
   isActive: boolean;
+  displayState: BehaviorStateId;
   onClick: () => void;
 }
 
-const statusColors = {
-  normal: "bg-green-500",
-  abnormal: "bg-red-500",
-};
-
-export function CatChip({ cat, isActive, onClick }: CatChipProps) {
+export function CatChip({ cat, isActive, displayState, onClick }: CatChipProps) {
+  const stateDefinition = BEHAVIOR_STATE_BY_ID[displayState];
   return (
     <button
       onClick={onClick}
@@ -56,7 +62,8 @@ export function CatChip({ cat, isActive, onClick }: CatChipProps) {
         <div
           className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${
             isActive ? "border-litter-primary" : "border-white"
-          } ${statusColors[cat.status]}`}
+          } ${stateDefinition.dotClass}`}
+          aria-label={stateDefinition.label}
         />
       </div>
 
