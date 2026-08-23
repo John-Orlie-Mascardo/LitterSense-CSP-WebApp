@@ -83,6 +83,7 @@ export function useDeviceSensors() {
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: number;
     const controller = new AbortController();
 
     const pollSensors = async () => {
@@ -100,16 +101,19 @@ export function useDeviceSensors() {
               ? error.message
               : "Unable to read device sensors",
         }));
+      } finally {
+        if (isMounted) {
+          timeoutId = window.setTimeout(pollSensors, POLL_INTERVAL_MS);
+        }
       }
     };
 
     pollSensors();
-    const intervalId = window.setInterval(pollSensors, POLL_INTERVAL_MS);
 
     return () => {
       isMounted = false;
       controller.abort();
-      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
     };
   }, []);
 
