@@ -49,10 +49,12 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { SessionLogSummary } from "@/components/cats/SessionLogSummary";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
+import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import type { Session } from "@/lib/interfaces/Session";
 import {
   calculateAge,
@@ -223,6 +225,7 @@ export default function CatDetailClient() {
     getStatsByCatId,
     getSessionsByCatId,
     getHealthLogsByCatId,
+    getSessionLogByCatId,
     getTrendData,
     updateCat,
     updateDetails,
@@ -237,6 +240,7 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
+  const sessionLog = getSessionLogByCatId(catId);
   const trendData = getTrendData(catId);
   const trendBaseline = getTrendBaseline(details ?? null);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
@@ -733,6 +737,7 @@ export default function CatDetailClient() {
                   sessions={sessions}
                   displayState={displayState}
                   hasData={hasData}
+                  sessionLog={sessionLog}
                   sensorData={sensorData}
                   sensorsLoading={sensorsLoading}
                   sensorsError={sensorsError}
@@ -790,6 +795,7 @@ interface OverviewTabProps {
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
   readonly hasData: boolean;
+  readonly sessionLog: CatSessionLog | undefined;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
   readonly sensorsLoading: boolean;
   readonly sensorsError: string | null;
@@ -801,6 +807,7 @@ function OverviewTab({
   sessions,
   displayState,
   hasData,
+  sessionLog,
   sensorData,
   sensorsLoading,
   sensorsError,
@@ -897,6 +904,9 @@ function OverviewTab({
           />
         </div>
       </div>
+
+      {/* Session Log Summary */}
+      <SessionLogSummary log={sessionLog} />
 
       {/* Baseline Profile */}
       {details && hasEstablishedBaseline(details) ? (

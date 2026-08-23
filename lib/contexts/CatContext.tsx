@@ -34,6 +34,8 @@ import type {
   HealthLog,
   Session,
 } from "@/lib/data/mockData";
+import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
+import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
 
 interface FirebaseCatStatsDoc {
   catId?: string;
@@ -63,6 +65,7 @@ interface CatContextType {
   catDetails: Record<string, CatDetails>;
   sessions: Session[];
   healthLogs: HealthLog[];
+  catSessionLogs: Record<string, CatSessionLog>;
   addCat: (cat: Cat, stats?: CatStats, details?: CatDetails) => Promise<void>;
   removeCat: (id: string) => Promise<void>;
   updateCat: (id: string, updates: Partial<Cat>) => Promise<void>;
@@ -72,6 +75,7 @@ interface CatContextType {
   getDetailsByCatId: (id: string) => CatDetails | undefined;
   getSessionsByCatId: (id: string) => Session[];
   getHealthLogsByCatId: (id: string) => HealthLog[];
+  getSessionLogByCatId: (id: string) => CatSessionLog | undefined;
   getTrendData: (id: string) => CatTrendPoint[] | null;
   addHealthLog: (
     catId: string,
@@ -433,6 +437,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const [catDetails, setCatDetails] = useState<Record<string, CatDetails>>({});
   const [sessions, setSessions] = useState<Session[]>([]);
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([]);
+  const [catSessionLogs, setCatSessionLogs] = useState<Record<string, CatSessionLog>>({});
   const [firebaseCatStats, setFirebaseCatStats] = useState<
     Record<string, FirebaseCatStatsDoc>
   >({});
@@ -451,6 +456,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         setCatDetails({});
         setSessions([]);
         setHealthLogs([]);
+        setCatSessionLogs({});
         setFirebaseCatStats({});
         setCatDailyStats({});
         setIsLoading(false);
@@ -563,12 +569,27 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
+    const unsubSessionLogs = onSnapshot(
+      collection(db, "users", uid, "catSessionLog"),
+      (snapshot) => {
+        const loaded: Record<string, CatSessionLog> = {};
+        snapshot.forEach((logDoc) => {
+          loaded[logDoc.id] = logDoc.data() as CatSessionLog;
+        });
+        setCatSessionLogs(loaded);
+      },
+      (error) => {
+        console.error("Failed to sync cat session logs:", error);
+      },
+    );
+
     return () => {
       unsubCats();
       unsubDetails();
       unsubCatStats();
       unsubSessions();
       unsubHealthLogs();
+      unsubSessionLogs();
     };
   }, [uid, authLoading]);
 
@@ -615,6 +636,46 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
   }, [uid, rawCats]);
+
+  // Recompute and persist session log counts whenever sessions or details change.
+  useEffect(() => {
+    if (!uid || rawCats.length === 0) return;
+
+    const writeSessionLogs = async () => {
+      for (const cat of rawCats) {
+        const catSessions = buildSessionsWithDailySummaries(
+          cat.id,
+          sessions,
+          catDailyStats[cat.id] ?? [],
+        );
+        const details = catDetails[cat.id];
+        const baselineEstablished = Boolean(
+          details?.baseline &&
+          (details.baseline.avgVisitsPerDay ?? 0) > 0 &&
+          (details.baseline.avgDurationSecs ?? 0) > 0 &&
+          details.baseline.lastUpdated?.trim(),
+        );
+        const counts = deriveSessionLogCounts(catSessions, baselineEstablished);
+        const logDoc = {
+          catId: cat.id,
+          ...counts,
+          updatedAt: new Date().toISOString(),
+        } satisfies CatSessionLog;
+
+        try {
+          await setDoc(
+            doc(db, "users", uid, "catSessionLog", cat.id),
+            logDoc,
+          );
+        } catch (err) {
+          console.error(`Failed to write session log for ${cat.id}:`, err);
+        }
+      }
+    };
+
+    void writeSessionLogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, sessions, catDailyStats, catDetails]);
 
   const getStatsByCatId = useCallback(
     (id: string): CatStats | undefined =>
@@ -667,6 +728,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     await deleteDoc(doc(db, "users", user.uid, "catDetails", id));
     await deleteDoc(doc(db, "users", user.uid, "catStats", id));
     await deleteDoc(doc(db, "users", user.uid, "dailyCatStats", today, "cats", id));
+    await deleteDoc(doc(db, "users", user.uid, "catSessionLog", id));
 
     setCatStats((prev) => {
       const updated = { ...prev };
@@ -806,6 +868,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     [catDailyStats, sessions],
   );
 
+  const getSessionLogByCatId = useCallback(
+    (id: string): CatSessionLog | undefined => catSessionLogs[id],
+    [catSessionLogs],
+  );
+
   return (
     <CatContext.Provider
       value={{
@@ -814,6 +881,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         catDetails,
         sessions,
         healthLogs,
+        catSessionLogs,
         addCat,
         removeCat,
         updateCat,
@@ -823,6 +891,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         getDetailsByCatId,
         getSessionsByCatId,
         getHealthLogsByCatId,
+        getSessionLogByCatId,
         getTrendData,
         addHealthLog,
         removeHealthLog,
