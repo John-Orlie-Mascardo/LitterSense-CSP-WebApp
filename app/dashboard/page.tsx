@@ -597,6 +597,7 @@ function CatAvatar({
           height={size}
           unoptimized
           className="w-full h-full object-cover"
+          style={{ width: "100%", height: "100%" }}
         />
       ) : (
         cat.name.charAt(0).toUpperCase()

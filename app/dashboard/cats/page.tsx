@@ -648,6 +648,7 @@ function CatCard({ cat, catDetails, stats, sessions }: CatCardProps) {
                   height={56}
                   unoptimized
                   className="w-full h-full rounded-full object-cover"
+                  style={{ width: "100%", height: "100%" }}
                 />
               ) : (
                 cat.name.charAt(0).toUpperCase()

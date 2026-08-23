@@ -76,6 +76,7 @@ function Avatar({ cat }: { readonly cat: Cat }) {
           height={40}
           unoptimized
           className="h-full w-full object-cover"
+          style={{ width: "100%", height: "100%" }}
         />
       ) : (
         cat.name.charAt(0).toUpperCase()

@@ -448,6 +448,7 @@ export default function CatDetailClient() {
                     height={96}
                     unoptimized
                     className="w-full h-full rounded-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   cat.name.charAt(0).toUpperCase()
@@ -492,6 +493,7 @@ export default function CatDetailClient() {
                       height={128}
                       unoptimized
                       className="w-full h-full object-cover cursor-grab touch-none active:cursor-grabbing"
+                      style={{ width: "100%", height: "100%" }}
                       draggable={false}
                       onLoad={(event) => {
                         setEditPhotoSize({
