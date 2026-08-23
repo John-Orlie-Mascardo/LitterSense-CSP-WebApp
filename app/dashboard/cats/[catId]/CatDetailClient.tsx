@@ -1,3 +1,14 @@
+/**
+ * CatDetailClient.tsx
+ *
+ * Detailed cat profile, activity history, trends, notes, and report entry point.
+ *
+ * DONE: profile editing, real-session tabs, evidence-aware state and no-data summaries
+ * PLACEHOLDER: none
+ *
+ * NEXT: device/data owners should keep profile evidence synchronized with recorded sessions.
+ */
+
 "use client";
 
 import { useMemo, useRef, useState } from "react";
@@ -37,14 +48,13 @@ import { SparklineChart } from "@/components/charts/SparklineChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
 import type { Session } from "@/lib/interfaces/Session";
 import {
-  getStatusColor,
-  getStatusLabel,
   calculateAge,
   formatDuration,
   formatDate,
@@ -58,6 +68,21 @@ import {
   getLiveRfidStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
+import {
+  formatMetricValue,
+  getCatDisplayState,
+  hasEstablishedBaseline,
+  hasRecordedCatData,
+  BEHAVIOR_STATE_BY_ID,
+  type BehaviorStateId,
+} from "@/lib/presentation/behaviorStates";
+import {
+  BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
+  BASELINE_DURATION_DEVIATION_SECS,
+  BASELINE_ODOR_DEVIATION_PERCENT,
+  BASELINE_PERIOD_DAYS,
+  BASELINE_VISIT_DEVIATION_COUNT,
+} from "@/lib/configs/behaviorThresholds";
 
 const AVATAR_PREVIEW_SIZE = 128;
 
@@ -168,38 +193,8 @@ const getTrendBaseline = (
         };
       }
     | null,
-  trendData:
-    | Array<{
-        visits: number;
-        avgDuration: number;
-        mq135Delta: number;
-      }>
-    | null,
 ) => {
-  if (details?.baseline) return details.baseline;
-
-  const activeDays = trendData?.filter((day) => day.visits > 0) ?? [];
-  if (activeDays.length === 0) {
-    return {
-      avgVisitsPerDay: 1,
-      avgDurationSecs: 120,
-      mq135DeltaPercent: 0,
-    };
-  }
-
-  return {
-    avgVisitsPerDay: Math.round(
-      activeDays.reduce((sum, day) => sum + day.visits, 0) / activeDays.length,
-    ),
-    avgDurationSecs: Math.round(
-      activeDays.reduce((sum, day) => sum + day.avgDuration, 0) /
-        activeDays.length,
-    ),
-    mq135DeltaPercent: Math.round(
-      activeDays.reduce((sum, day) => sum + day.mq135Delta, 0) /
-        activeDays.length,
-    ),
-  };
+  return details?.baseline ?? null;
 };
 
 interface EditFormData {
@@ -243,7 +238,14 @@ export default function CatDetailClient() {
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
   const trendData = getTrendData(catId);
-  const trendBaseline = getTrendBaseline(details ?? null, trendData);
+  const trendBaseline = getTrendBaseline(details ?? null);
+  const hasData = hasRecordedCatData({ sessions, stats, trendData });
+  const baselineEstablished = hasEstablishedBaseline(details);
+  const displayState = getCatDisplayState({
+    persistedStatus: cat?.status,
+    hasData,
+    baselineEstablished,
+  });
 
   const requestedTab = searchParams.get("tab");
   const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
@@ -406,9 +408,6 @@ export default function CatDetailClient() {
     );
   }
 
-  const statusColors = getStatusColor(cat.status);
-  const statusLabel = getStatusLabel(cat.status);
-
   return (
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
@@ -473,9 +472,7 @@ export default function CatDetailClient() {
               RFID: {details?.rfidTag || "—"}
             </span>
 
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusColors.bg} ${statusColors.text}`}>
-              {statusLabel}
-            </span>
+            <BehaviorStateBadge state={displayState} />
           </div>
         </section>
 
@@ -731,6 +728,8 @@ export default function CatDetailClient() {
                   stats={stats}
                   details={details ?? null}
                   sessions={sessions}
+                  displayState={displayState}
+                  hasData={hasData}
                   sensorData={sensorData}
                   sensorsLoading={sensorsLoading}
                   sensorsError={sensorsError}
@@ -786,12 +785,23 @@ interface OverviewTabProps {
     | undefined;
   readonly details: CatDetails | null;
   readonly sessions: readonly Session[];
+  readonly displayState: BehaviorStateId;
+  readonly hasData: boolean;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
   readonly sensorsLoading: boolean;
   readonly sensorsError: string | null;
 }
 
-function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sensorsError }: Readonly<OverviewTabProps>) {
+function OverviewTab({
+  stats,
+  details,
+  sessions,
+  displayState,
+  hasData,
+  sensorData,
+  sensorsLoading,
+  sensorsError,
+}: Readonly<OverviewTabProps>) {
   const displayedStats = useMemo(() => {
     const baseStats = stats ?? { visits: 0, avgDuration: "--" };
     if (!isCompletedLiveSession(sensorData)) return baseStats;
@@ -832,6 +842,8 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
     sensorsLoading,
     sensorsError,
   });
+  const hasDisplayedData = hasData || displayedStats.visits > 0;
+  const summaryDisplayState = hasDisplayedData ? displayState : "insufficient";
 
   return (
     <div className="space-y-6">
@@ -854,15 +866,17 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             icon={Clock}
-            value={displayedStats.visits}
+            value={formatMetricValue(displayedStats.visits, hasDisplayedData)}
             label="Visits Today"
-            status="normal"
+            status={summaryDisplayState}
+            statusLabel={BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
           />
           <StatCard
             icon={Timer}
-            value={stats?.avgDuration || "--"}
+            value={formatMetricValue(stats?.avgDuration, hasDisplayedData)}
             label="Avg Duration"
-            status="normal"
+            status={summaryDisplayState}
+            statusLabel={BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
           />
           <StatCard
             icon={Wind}
@@ -882,44 +896,46 @@ function OverviewTab({ stats, details, sessions, sensorData, sensorsLoading, sen
       </div>
 
       {/* Baseline Profile */}
-      {details ? (
+      {details && hasEstablishedBaseline(details) ? (
         <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
             <div className="group relative">
               <Info className="w-4 h-4 text-theme-muted cursor-help" />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                Baseline is recalculated every 7 days using a rolling average of
+                {/* NOTE(manuscript): This numeric baseline-period copy must match the capstone paper. */}
+                Baseline is recalculated every {BASELINE_PERIOD_DAYS} days using a rolling average of
                 recorded sessions.
               </div>
             </div>
           </div>
 
+          {/* NOTE(manuscript): All numeric baseline values below must match the capstone paper. */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Normal visits/day</p>
+              <p className="text-theme-muted">Usual visits/day</p>
               <p className="font-semibold text-litter-text">
-                {details.baseline.avgVisitsPerDay - 1}–
-                {details.baseline.avgVisitsPerDay + 1}
+                {details.baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT}–
+                {details.baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT}
               </p>
             </div>
             <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Normal duration</p>
+              <p className="text-theme-muted">Usual duration</p>
               <p className="font-semibold text-litter-text">
-                {formatDuration(details.baseline.avgDurationSecs - 30)} –{" "}
-                {formatDuration(details.baseline.avgDurationSecs + 30)}
+                {formatDuration(details.baseline.avgDurationSecs - BASELINE_DURATION_DEVIATION_SECS)} –{" "}
+                {formatDuration(details.baseline.avgDurationSecs + BASELINE_DURATION_DEVIATION_SECS)}
               </p>
             </div>
             <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Normal MQ-135 Δ</p>
+              <p className="text-theme-muted">Usual air quality change</p>
               <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq135DeltaPercent + 7}%
+                &lt; {details.baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT}%
               </p>
             </div>
             <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Normal MQ-136 Δ</p>
+              <p className="text-theme-muted">Usual odor level change</p>
               <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq136DeltaPercent + 5}%
+                &lt; {details.baseline.mq136DeltaPercent + BASELINE_ODOR_DEVIATION_PERCENT}%
               </p>
             </div>
           </div>
@@ -1095,6 +1111,7 @@ function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
 
   return (
     <div className="space-y-6">
+      {/* NOTE(manuscript): The visible 7-day period must match the capstone paper. */}
       {/* Visit Frequency */}
       <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
@@ -1130,7 +1147,7 @@ function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
         <div className="flex items-center gap-2 mb-3">
           <Wind className="w-5 h-5 text-litter-primary" />
           <h4 className="font-semibold text-litter-text">
-            MQ-135 Delta (7 days)
+            Air quality change (7 days)
           </h4>
         </div>
         <SparklineChart

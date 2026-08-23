@@ -1,9 +1,12 @@
 /**
  * Forgot Password — Step 2 (03.01.03)
  *
- * Confirmation screen after reset link is sent.
- * Displays the user's email (from URL query param) and offers resend option.
- * Currently mocks the resend — replace with Firebase sendPasswordResetEmail.
+ * Confirms a reset request and lets the owner resend it through Firebase.
+ *
+ * DONE: real resend, request locking, plain errors, matching dark/teal styling
+ * PLACEHOLDER: none
+ *
+ * NEXT: authentication owners should add Firebase emulator coverage.
  */
 
 "use client";
@@ -12,33 +15,56 @@ import { Suspense, useState } from "react";
 import { ArrowLeft, MailCheck, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { FirebaseError } from "firebase/app";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/configs/firebase";
 
 function CheckEmailContent() {
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "your email";
+  const email = searchParams.get("email");
   const [isResending, setIsResending] = useState(false);
   const [resent, setResent] = useState(false);
+  const [error, setError] = useState("");
 
   const handleResend = async () => {
+    if (isResending) return;
+    if (!email) {
+      setError("Return to the reset form and enter your email again.");
+      return;
+    }
+
     setIsResending(true);
-    // Mock delay — replace with Firebase Auth sendPasswordResetEmail later
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsResending(false);
-    setResent(true);
+    setError("");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResent(true);
+    } catch (caughtError) {
+      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
+      if (code === "auth/too-many-requests") {
+        setError("Too many reset requests. Please wait a moment and try again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("We couldn’t reach LitterSense. Check your connection and try again.");
+      } else {
+        setError("We couldn’t resend the reset link. Please try again.");
+      }
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-litter-card flex flex-col px-6 py-8">
+    <div className="dark min-h-screen bg-litter-bg flex flex-col px-6 py-8 relative overflow-hidden">
+      <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-litter-primary/20 to-transparent" />
       {/* Back arrow */}
       <Link
         href="/forgot-password"
-        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-litter-card-hover transition-colors self-start"
+        className="relative w-10 h-10 flex items-center justify-center rounded-full bg-litter-card border border-litter-border hover:bg-litter-card-hover transition-colors self-start"
       >
         <ArrowLeft className="w-5 h-5 text-litter-text" />
       </Link>
 
       {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full">
+      <div className="relative flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full bg-litter-card border border-litter-border rounded-2xl px-6 py-8 my-6 shadow-2xl shadow-black/30">
         {/* Email icon */}
         <div className="w-20 h-20 rounded-full bg-litter-primary-light flex items-center justify-center mb-8">
           <MailCheck className="w-10 h-10 text-litter-primary" />
@@ -66,7 +92,7 @@ function CheckEmailContent() {
         {/* Description */}
         <p className="text-litter-muted text-sm text-center leading-relaxed mb-8">
           We&apos;ve sent a password reset link to{" "}
-          <span className="font-semibold text-litter-text">{email}</span>. It may
+          <span className="font-semibold text-litter-text">{email || "your email"}</span>. It may
           take a few minutes.
         </p>
 
@@ -80,6 +106,11 @@ function CheckEmailContent() {
 
         {/* Resend */}
         <div className="text-center mt-6">
+          {error && (
+            <p className="mb-3 rounded-xl border border-red-400/30 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+              {error}
+            </p>
+          )}
           {resent ? (
             <p className="text-sm text-litter-normal font-medium">
               Reset link resent successfully!
@@ -131,8 +162,10 @@ export default function CheckEmailPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-litter-card flex items-center justify-center px-6">
+        <div className="dark min-h-screen bg-litter-bg flex items-center justify-center px-6">
+          <div className="rounded-2xl border border-litter-border bg-litter-card px-8 py-6">
           <p className="text-sm text-litter-muted">Loading...</p>
+          </div>
         </div>
       }
     >

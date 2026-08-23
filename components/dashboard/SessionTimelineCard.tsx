@@ -1,3 +1,14 @@
+/**
+ * SessionTimelineCard.tsx
+ *
+ * Recorded litter-box session card for the Home activity timeline.
+ *
+ * DONE: entry/exit times, recorded date, duration, in-progress and incomplete presentation
+ * PLACEHOLDER: live sessions may temporarily lack final sensor deltas until persistence completes
+ *
+ * NEXT: device integration owners should keep status values aligned with firmware output.
+ */
+
 "use client";
 
 import Image from "next/image";
@@ -5,6 +16,7 @@ import { Clock3, LogIn, LogOut } from "lucide-react";
 import { formatDuration } from "@/lib/utils/formatters";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { Session } from "@/lib/interfaces/Session";
+import { INCOMPLETE_SESSION_FLOOR_SECS } from "@/lib/configs/behaviorThresholds";
 
 const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
@@ -50,7 +62,8 @@ const isInProgress = (session: Session) =>
   session.sessionStatus === "IN_PROGRESS" || !session.endedAt;
 
 const isShortSession = (session: Session) =>
-  session.sessionStatus === "SHORT_SESSION" || session.durationSecs < 30;
+  session.sessionStatus === "SHORT_SESSION" ||
+  session.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS;
 
 function Avatar({ cat }: { readonly cat: Cat }) {
   return (

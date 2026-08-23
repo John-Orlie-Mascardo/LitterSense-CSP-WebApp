@@ -1,3 +1,14 @@
+/**
+ * AuthContext.tsx
+ *
+ * Synchronizes Firebase authentication, owner profiles, onboarding, and admin access.
+ *
+ * DONE: auth/profile synchronization and role-aware consumers
+ * PLACEHOLDER: admin authorization still uses an email allowlist
+ *
+ * NEXT: backend owners must replace the allowlist with verified custom claims.
+ */
+
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
@@ -6,17 +17,17 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/configs/firebase";
 import { resolveOnboardingComplete } from "@/lib/utils/onboardingState";
 
-// TEMP (DEV ONLY): hardcoded to true so all logged-in accounts can access the
-// admin page during UI/UX review. Remove this line and the DEV_ADMIN_OVERRIDE
-// branch below once the backend is ready.
+// TEMP (DEV ONLY): The override remains off; the branch is retained only for
+// local UI review and must not be enabled in the defense or production build.
 //
-// TODO (backend): to properly restrict admin access —
+// FIXME(defense): Replace the email allowlist with Firebase custom claims before
+// the Aug 26-28 defense; the steps below document the pending backend work.
 //   1. Use a Firebase Admin SDK Cloud Function to set a custom claim on the
 //      user's token: admin.auth().setCustomUserClaims(uid, { role: "admin" })
 //   2. The user must sign out and back in (or call getIdToken(true)) to refresh
 //      their token so the new claim is picked up.
-//   3. Delete the line below and set NEXT_PUBLIC_DEV_ADMIN=false (or remove it)
-//      so the real claim-check path below takes over.
+//   3. Delete the override and email allowlist so the verified claim is the
+//      only role source.
 const DEV_ADMIN_OVERRIDE = false;
 const ADMIN_EMAILS = ["maclaurenz.cultura@gmail.com"];
 

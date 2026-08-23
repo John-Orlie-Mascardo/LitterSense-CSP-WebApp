@@ -1,13 +1,14 @@
 /**
- * Dashboard / Home Page (03.01.04)
+ * Dashboard / Home Page
  *
- * Three states:
- * 1. Empty — no cats registered, shows onboarding prompt
- * 2. Normal - cats registered, no abnormal health banner
- * 3. Anomaly - at least one cat flagged, abnormal health banner visible
+ * Per-cat activity overview backed by Firebase sessions, stats, and live sensors.
  *
- * The cat selector switches per-cat data (visits, duration).
- * Visits come from Firebase catStats, updated by live RFID scans.
+ * DONE: evidence-aware badges, no-data values, state legend, cat selection,
+ * activity trends, live environment readings, and recent-session timeline
+ * PLACEHOLDER: live-only sessions use zero sensor deltas until persisted values arrive
+ *
+ * NEXT: device integration owners should replace temporary live-session deltas
+ * when the sensor payload supplies them.
  */
 
 "use client";
@@ -20,11 +21,9 @@ import {
   Clock,
   CloudFog,
   Droplets,
-  Loader2,
   Radio,
   Timer,
 } from "lucide-react";
-import { useAuth } from "@/lib/contexts/AuthContext";
 import {
   useNotifications,
   type AppNotification,
@@ -36,6 +35,9 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { SessionTimelineCard } from "@/components/dashboard/SessionTimelineCard";
 import { CatBehaviorTrends } from "@/components/dashboard/CatBehaviorTrends";
 import { CatChip } from "@/components/cats/CatChip";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { BehaviorStateLegend } from "@/components/behavior/BehaviorStateLegend";
+import { DashboardContentSkeleton } from "@/components/ui/AppLoadingSkeletons";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
 import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
@@ -52,6 +54,21 @@ import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { Session } from "@/lib/interfaces/Session";
 import type { CatTrendPoint } from "@/lib/contexts/CatContext";
+import {
+  BEHAVIOR_STATE_BY_ID,
+  formatMetricValue,
+  getCatDisplayState,
+  hasEstablishedBaseline,
+  hasRecordedCatData,
+  type BehaviorStateId,
+} from "@/lib/presentation/behaviorStates";
+import {
+  DASHBOARD_DURATION_UPPER_MINS,
+  DASHBOARD_DURATION_WARNING_MINS,
+  DASHBOARD_VISIT_UPPER_COUNT,
+  DASHBOARD_VISIT_WARNING_COUNT,
+  INCOMPLETE_SESSION_FLOOR_SECS,
+} from "@/lib/configs/behaviorThresholds";
 
 const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
@@ -90,21 +107,15 @@ const getAbnormalNotificationKey = (cat: { id: string; status: string }, dateKey
   `dashboard-abnormal:${dateKey}:${cat.id}:${cat.status}`;
 
 const buildAbnormalNotificationMessage = (visitCount: number, avgDuration: string) => {
+  // NOTE(manuscript): The state name in this owner notification must match the paper.
   const visitLabel = `${visitCount} visit${visitCount === 1 ? "" : "s"} logged`;
   const durationLabel = avgDuration && avgDuration !== "--"
     ? `avg duration ${avgDuration}`
     : "avg duration unavailable";
 
-  return `Abnormal litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
+  return `${BEHAVIOR_STATE_BY_ID.abnormal.label} litter box behavior detected today. ${visitLabel}, ${durationLabel}.`;
 };
 
-
-const getGreeting = () => {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-};
 
 const formatDate = () => {
   const options: Intl.DateTimeFormatOptions = {
@@ -116,48 +127,40 @@ const formatDate = () => {
   return new Date().toLocaleDateString("en-US", options);
 };
 
-const getUserFirstName = (displayName: string | null | undefined) => {
-  if (!displayName) return "User";
-  return displayName.split(" ")[0];
-};
-
-const getVisitsStatus = (visits: number) => {
-  if (visits > 6) return "abnormal";
+const getVisitsStatus = (
+  visits: number,
+  canClassify: boolean,
+): BehaviorStateId => {
+  if (!canClassify) return "insufficient";
+  if (visits > DASHBOARD_VISIT_WARNING_COUNT) return "abnormal";
   return "normal";
 };
 
-const getVisitsLabel = (visits: number) => {
-  if (visits > 8) return "Abnormal";
-  if (visits > 6) return "Abnormal";
-  return "Normal";
+const getVisitsLabel = (visits: number, canClassify: boolean) => {
+  if (!canClassify) return BEHAVIOR_STATE_BY_ID.insufficient.label;
+  if (visits > DASHBOARD_VISIT_UPPER_COUNT) return BEHAVIOR_STATE_BY_ID.abnormal.label;
+  if (visits > DASHBOARD_VISIT_WARNING_COUNT) return BEHAVIOR_STATE_BY_ID.abnormal.label;
+  return BEHAVIOR_STATE_BY_ID.normal.label;
 };
 
-const getDurationLabel = (duration: string) => {
-  const mins = Number.parseInt(duration);
-  if (mins >= 5) return "Abnormal";
-  if (mins >= 3) return "Abnormal";
-  return "Normal";
-};
-
-const getDurationStatus = (duration: string) => {
-  const mins = Number.parseInt(duration);
-  if (mins >= 3) return "abnormal";
-  return "normal";
-};
-
-const getStatusLabel = (status: string | undefined, includeIcon: boolean = false) => {
-  let baseLabel: string;
-  switch (status) {
-    case "normal":
-      baseLabel = "Normal";
-      break;
-    case "abnormal":
-      baseLabel = "Abnormal";
-      break;
-    default:
-      baseLabel = "Normal";
+const getDurationLabel = (duration: string, canClassify: boolean) => {
+  if (!canClassify || duration === "No data yet") {
+    return BEHAVIOR_STATE_BY_ID.insufficient.label;
   }
-  return includeIcon ? `● ${baseLabel}` : baseLabel;
+  const mins = Number.parseInt(duration);
+  if (mins >= DASHBOARD_DURATION_UPPER_MINS) return BEHAVIOR_STATE_BY_ID.abnormal.label;
+  if (mins >= DASHBOARD_DURATION_WARNING_MINS) return BEHAVIOR_STATE_BY_ID.abnormal.label;
+  return BEHAVIOR_STATE_BY_ID.normal.label;
+};
+
+const getDurationStatus = (
+  duration: string,
+  canClassify: boolean,
+): BehaviorStateId => {
+  if (!canClassify || duration === "No data yet") return "insufficient";
+  const mins = Number.parseInt(duration);
+  if (mins >= DASHBOARD_DURATION_WARNING_MINS) return "abnormal";
+  return "normal";
 };
 
 const useDismissedAbnormalKeys = (abnormalCats: { id: string; status: string }[]) => {
@@ -331,6 +334,8 @@ const buildLiveSessionVisit = (
       }),
       startedAt: startedAt.toISOString(),
       durationSecs: Math.max(1, Math.round(durationMs / 1000)),
+      // FIXME(defense): Live-only cards show zero gas deltas because the
+      // current device payload has no final per-session delta values.
       mq135Delta: 0,
       mq136Delta: 0,
       anomaly: false,
@@ -471,7 +476,10 @@ const buildNotificationRecentVisits = (
         mq136Delta: 0,
         anomaly: false,
         anomalyType: null,
-        sessionStatus: durationSecs < 30 ? "SHORT_SESSION" : "NORMAL",
+        sessionStatus:
+          durationSecs < INCOMPLETE_SESSION_FLOOR_SECS
+            ? "SHORT_SESSION"
+            : "NORMAL",
       },
     });
   }
@@ -597,28 +605,6 @@ function CatAvatar({
   );
 }
 
-function CatStatusBadge({
-  status,
-  includeIcon = false,
-  className = "",
-}: {
-  readonly status: Cat["status"] | undefined;
-  readonly includeIcon?: boolean;
-  readonly className?: string;
-}) {
-  return (
-    <span
-      className={`${className} ${
-        status === "normal"
-          ? "bg-status-normal text-status-normal"
-          : "bg-status-abnormal text-status-abnormal"
-      }`}
-    >
-      {getStatusLabel(status, includeIcon)}
-    </span>
-  );
-}
-
 function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
   return (
     <section className="flex flex-col items-center justify-center text-center py-20">
@@ -668,30 +654,18 @@ function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
 }
 
 function DashboardLoadingState() {
-  return (
-    <section className="flex flex-col items-center justify-center text-center py-20">
-      <div className="w-16 h-16 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-5">
-        <Loader2 className="w-8 h-8 text-litter-primary animate-spin" />
-      </div>
-      <h1 className="font-display text-2xl font-bold text-litter-text mb-2">
-        Loading your cats
-      </h1>
-      <p className="text-litter-muted text-sm max-w-xs">
-        Syncing your dashboard with Firebase.
-      </p>
-    </section>
-  );
+  return <DashboardContentSkeleton />;
 }
 
 function PopulatedDashboardState({
   cats,
   activeCatId,
   selectedCat,
+  catDisplayStates,
   stats,
-  greeting,
-  userFirstName,
   todayDate,
-  hasAnomaly,
+  selectedHasData,
+  selectedBaselineEstablished,
   abnormalCat,
   isDismissedAbnormalReady,
   airQualityReadings,
@@ -706,16 +680,16 @@ function PopulatedDashboardState({
   readonly cats: Cat[];
   readonly activeCatId: string;
   readonly selectedCat: Cat | undefined;
+  readonly catDisplayStates: Readonly<Record<string, BehaviorStateId>>;
   readonly stats:
     | {
         readonly visits: number;
         readonly avgDuration: string;
       }
     | undefined;
-  readonly greeting: string;
-  readonly userFirstName: string;
   readonly todayDate: string;
-  readonly hasAnomaly: boolean;
+  readonly selectedHasData: boolean;
+  readonly selectedBaselineEstablished: boolean;
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
   readonly airQualityReadings: AirQualityReadings;
@@ -741,19 +715,17 @@ function PopulatedDashboardState({
     [visibleRecentVisits],
   );
   const canToggleRecentActivity = recentVisits.length > 3;
+  const selectedDisplayState = selectedCat
+    ? catDisplayStates[selectedCat.id] ?? "insufficient"
+    : "insufficient";
+  const canClassifyMetrics = selectedHasData && selectedBaselineEstablished;
+  const displayVisits = formatMetricValue(stats?.visits ?? 0, selectedHasData);
+  const displayDuration = formatMetricValue(displayAvgDuration, selectedHasData);
 
   return (
     <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
       <div className="lg:sticky lg:top-24 lg:pt-6">
         <section className="mb-6 pt-6">
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold text-litter-text mb-1">
-            {greeting}, {userFirstName} <span className="inline-block">👋</span>
-          </h1>
-          <p className="text-litter-muted text-sm sm:text-base">
-            {hasAnomaly
-              ? "Everything looks mostly okay today."
-              : "Here\u2019s how your cats are doing today."}
-          </p>
           <p className="text-litter-primary text-xs sm:text-sm font-medium mt-1">
             {todayDate}
           </p>
@@ -766,6 +738,7 @@ function PopulatedDashboardState({
                 key={cat.id}
                 cat={cat}
                 isActive={activeCatId === cat.id}
+                displayState={catDisplayStates[cat.id] ?? "insufficient"}
                 onClick={() => onSelectCat(cat.id)}
               />
             ))}
@@ -773,6 +746,7 @@ function PopulatedDashboardState({
         </section>
 
         {isDismissedAbnormalReady && abnormalCat && (
+          /* NOTE(manuscript): Alert state names and owner guidance must match the capstone paper. */
           <div className="overflow-hidden mb-6">
             <div className="bg-status-warning border border-status-warning border-l-4 border-l-litter-warning rounded-r-2xl rounded-l-sm p-4">
               <div className="flex items-start gap-3 mb-3">
@@ -781,10 +755,10 @@ function PopulatedDashboardState({
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-status-warning font-bold text-sm">
-                    {abnormalCat.name} - Abnormal Behavior
+                    {abnormalCat.name} - {BEHAVIOR_STATE_BY_ID.abnormal.label} Behavior
                   </p>
                   <p className="text-litter-muted text-xs mt-1">
-                    Abnormal litter box behavior detected today. Consider
+                    {BEHAVIOR_STATE_BY_ID.abnormal.label} litter box behavior detected today. Consider
                     logging a vet visit if symptoms persist.
                   </p>
                 </div>
@@ -808,7 +782,7 @@ function PopulatedDashboardState({
         )}
 
         {selectedCat && (
-          <div className="hidden lg:flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
+          <div className="flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
             <div className="flex items-center gap-3">
               <CatAvatar
                 cat={selectedCat}
@@ -824,21 +798,20 @@ function PopulatedDashboardState({
                 </p>
               </div>
             </div>
-            <CatStatusBadge
-              status={selectedCat.status}
-              includeIcon
-              className="text-xs px-3 py-1.5 rounded-full font-semibold"
-            />
+            <BehaviorStateBadge state={selectedDisplayState} />
           </div>
         )}
+
+        <BehaviorStateLegend compact collapsible className="mb-6 lg:hidden" />
+        <BehaviorStateLegend compact className="mb-6 hidden lg:block" />
       </div>
 
       <div className="lg:pt-6">
         {selectedCat && (
           <CatBehaviorTrends
             catName={selectedCat.name}
-            todayVisits={stats?.visits ?? 0}
-            todayAvgDuration={displayAvgDuration}
+            todayVisits={displayVisits}
+            todayAvgDuration={String(displayDuration)}
             trendData={trendData}
           />
         )}
@@ -848,26 +821,22 @@ function PopulatedDashboardState({
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Cat Stats
             </h2>
-            <CatStatusBadge
-              status={selectedCat?.status}
-              className="lg:hidden text-xs px-2 py-1 rounded-full font-medium"
-            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <StatCard
               icon={Clock}
-              value={stats?.visits ?? "--"}
+              value={displayVisits}
               label="Today's Visits"
-              status={getVisitsStatus(stats?.visits ?? 0)}
-              statusLabel={getVisitsLabel(stats?.visits ?? 0)}
+              status={getVisitsStatus(stats?.visits ?? 0, canClassifyMetrics)}
+              statusLabel={getVisitsLabel(stats?.visits ?? 0, canClassifyMetrics)}
             />
             <StatCard
               icon={Timer}
-              value={displayAvgDuration}
+              value={displayDuration}
               label="Avg Duration"
-              status={getDurationStatus(displayAvgDuration)}
-              statusLabel={getDurationLabel(displayAvgDuration)}
+              status={getDurationStatus(String(displayDuration), canClassifyMetrics)}
+              statusLabel={getDurationLabel(String(displayDuration), canClassifyMetrics)}
             />
             <StatCard
               icon={Radio}
@@ -960,7 +929,6 @@ function PopulatedDashboardState({
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuth();
   const {
     isLoading: notificationsLoading,
     upsertNotification,
@@ -1000,6 +968,58 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const catPresentation = useMemo(
+    () =>
+      Object.fromEntries(
+        cats.map((cat) => {
+          const catSessions = sessions.filter((session) => session.catId === cat.id);
+          const catStats = getStatsByCatId(cat.id);
+          const catTrendData = getTrendData(cat.id);
+          const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
+          const hasData = hasRecordedCatData({
+            sessions: catSessions,
+            stats: catStats,
+            trendData: catTrendData,
+          });
+
+          return [
+            cat.id,
+            {
+              hasData,
+              baselineEstablished,
+              state: getCatDisplayState({
+                persistedStatus: cat.status,
+                hasData,
+                baselineEstablished,
+              }),
+            },
+          ];
+        }),
+      ) as Record<
+        string,
+        {
+          readonly hasData: boolean;
+          readonly baselineEstablished: boolean;
+          readonly state: BehaviorStateId;
+        }
+      >,
+    [cats, getDetailsByCatId, getStatsByCatId, getTrendData, sessions],
+  );
+  const catDisplayStates = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(catPresentation).map(([catId, presentation]) => [
+          catId,
+          presentation.state,
+        ]),
+      ),
+    [catPresentation],
+  );
+  const selectedPresentation = catPresentation[activeCatId] ?? {
+    hasData: false,
+    baselineEstablished: false,
+    state: "insufficient" as const,
+  };
 
   const abnormalCats = useMemo(
     () => cats.filter((cat) => cat.status === "abnormal"),
@@ -1111,9 +1131,7 @@ export default function DashboardPage() {
       ),
     [activeCatId, displayStats?.avgDuration, sessions, trendData],
   );
-  const greeting = getGreeting();
   const todayDate = formatDate();
-  const userFirstName = getUserFirstName(user?.displayName);
 
   return (
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
@@ -1129,11 +1147,11 @@ export default function DashboardPage() {
             cats={cats}
             activeCatId={activeCatId}
             selectedCat={selectedCat}
+            catDisplayStates={catDisplayStates}
             stats={displayStats}
-            greeting={greeting}
-            userFirstName={userFirstName}
             todayDate={todayDate}
-            hasAnomaly={hasAnomaly}
+            selectedHasData={selectedPresentation.hasData}
+            selectedBaselineEstablished={selectedPresentation.baselineEstablished}
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
             airQualityReadings={airQualityReadings}

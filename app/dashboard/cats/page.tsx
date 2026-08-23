@@ -1,3 +1,14 @@
+/**
+ * My Cats Page
+ *
+ * Cat profile creation and evidence-aware summary cards for registered cats.
+ *
+ * DONE: profile grid, add-cat form, photo crop, no-data metrics, six-state badges
+ * PLACEHOLDER: none; empty baselines are intentional until real sessions establish them
+ *
+ * NEXT: device/data owners should populate baseline fields from recorded sessions.
+ */
+
 "use client";
 
 import { useRef, useState } from "react";
@@ -27,11 +38,19 @@ import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { CatStats } from "@/lib/interfaces/CatStats";
 import {
-  getStatusColor,
   calculateAge,
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { CatGridSkeleton } from "@/components/ui/AppLoadingSkeletons";
+import {
+  formatMetricValue,
+  getCatDisplayState,
+  hasEstablishedBaseline,
+  hasRecordedCatData,
+} from "@/lib/presentation/behaviorStates";
+import type { Session } from "@/lib/interfaces/Session";
 
 const AVATAR_PREVIEW_SIZE = 128;
 
@@ -105,6 +124,7 @@ export default function CatsPage() {
     addCat,
     catDetails: contextCatDetails,
     getStatsByCatId,
+    getSessionsByCatId,
     isLoading: catsLoading,
   } = useCats();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -281,25 +301,13 @@ export default function CatsPage() {
         {/* Cats Grid */}
         <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {catsLoading ? (
-            <div className="col-span-full">
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-4">
-                  <Loader2 className="w-8 h-8 text-litter-primary animate-spin" />
-                </div>
-                <h3 className="font-display text-lg font-semibold text-litter-text mb-2">
-                  Loading your cats
-                </h3>
-                <p className="text-theme-muted max-w-xs">
-                  Syncing your cat profiles with Firebase.
-                </p>
-              </div>
-            </div>
+            <div className="col-span-full"><CatGridSkeleton /></div>
           ) : cats.length === 0 ? (
             <div className="col-span-full">
               <EmptyState
                 icon={CatIcon}
                 title="No cats yet"
-                description="Add your first cat to start monitoring their health."
+                description="Add your first cat to start recording litter box activity."
                 action={
                   <button
                     onClick={() => setIsModalOpen(true)}
@@ -318,6 +326,7 @@ export default function CatsPage() {
                 cat={cat}
                 catDetails={contextCatDetails}
                 stats={getStatsByCatId(cat.id)}
+                sessions={getSessionsByCatId(cat.id)}
               />
             ))
           )}
@@ -602,26 +611,26 @@ interface CatCardProps {
   cat: Cat;
   catDetails: Record<string, CatDetails>;
   stats?: CatStats;
+  sessions: Session[];
 }
 
-const badgeLabel: Record<string, string> = { normal: "NORMAL", abnormal: "ABNORMAL" };
-
-const formatLastVisit = (iso?: string) => {
-  if (!iso) return "--";
+const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
+  if (!hasData || !iso) return "No data yet";
   return new Date(iso).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
 };
 
-function CatCard({ cat, catDetails, stats }: CatCardProps) {
+function CatCard({ cat, catDetails, stats, sessions }: CatCardProps) {
   const details = catDetails[cat.id];
-  const statusColors = getStatusColor(cat.status);
-
-  const dotColor =
-    cat.status === "normal"
-      ? "bg-green-500"
-      : "bg-red-500";
+  const hasData = hasRecordedCatData({ sessions, stats });
+  const baselineEstablished = hasEstablishedBaseline(details);
+  const displayState = getCatDisplayState({
+    persistedStatus: cat.status,
+    hasData,
+    baselineEstablished,
+  });
 
   return (
     <div>
@@ -654,10 +663,7 @@ function CatCard({ cat, catDetails, stats }: CatCardProps) {
             </div>
 
             {/* Status badge */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${statusColors.bg} ${statusColors.text} shrink-0`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-              {badgeLabel[cat.status]}
-            </div>
+            <BehaviorStateBadge state={displayState} compact className="shrink-0" />
           </div>
 
           {/* Divider */}
@@ -667,15 +673,21 @@ function CatCard({ cat, catDetails, stats }: CatCardProps) {
           <div className="grid grid-cols-3 divide-x divide-litter-border px-5 py-4">
             <div className="pr-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
-              <p className="font-bold text-litter-text text-lg">{stats?.visits ?? 0}</p>
+              <p className="font-bold text-litter-text text-lg">
+                {formatMetricValue(stats?.visits ?? 0, hasData)}
+              </p>
             </div>
             <div className="px-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
-              <p className="font-bold text-litter-text text-lg">{stats?.avgDuration ?? "--"}</p>
+              <p className="font-bold text-litter-text text-lg">
+                {formatMetricValue(stats?.avgDuration, hasData)}
+              </p>
             </div>
             <div className="pl-4">
               <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
-              <p className="font-bold text-litter-text text-lg">{formatLastVisit(stats?.lastVisit)}</p>
+              <p className="font-bold text-litter-text text-lg">
+                {formatLastVisit(stats?.lastVisit, hasData)}
+              </p>
             </div>
           </div>
         </div>

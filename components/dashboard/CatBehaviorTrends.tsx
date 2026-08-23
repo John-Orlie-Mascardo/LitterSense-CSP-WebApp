@@ -1,3 +1,15 @@
+/**
+ * CatBehaviorTrends.tsx
+ *
+ * Per-cat activity summary and dual-axis visit/duration chart.
+ *
+ * DONE: no-data summaries and separate labeled axes for minutes and visit counts
+ * PLACEHOLDER: none
+ *
+ * NEXT: data owners should continue supplying duration values in seconds; this
+ * component converts them to minutes only for display.
+ */
+
 "use client";
 
 import {
@@ -47,11 +59,14 @@ export function CatBehaviorTrends({
   trendData,
 }: {
   readonly catName: string;
-  readonly todayVisits: number;
+  readonly todayVisits: string | number;
   readonly todayAvgDuration: string;
   readonly trendData: CatTrendPoint[] | null;
 }) {
-  const chartData = trendData ?? [];
+  const chartData = (trendData ?? []).map((point) => ({
+    ...point,
+    avgDurationMinutes: point.avgDuration / 60,
+  }));
 
   return (
     <section className="mb-8">
@@ -66,7 +81,7 @@ export function CatBehaviorTrends({
         <SummaryCard
           icon={Clock}
           label="Avg Duration"
-          value={todayAvgDuration || "--"}
+          value={todayAvgDuration || "No data yet"}
         />
         <SummaryCard
           icon={TrendingUp}
@@ -78,7 +93,7 @@ export function CatBehaviorTrends({
       <div className="h-56 rounded-xl border border-litter-border bg-litter-card p-3 shadow-sm">
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData} margin={{ top: 8, right: 0, left: -18, bottom: 0 }}>
+            <AreaChart data={chartData} margin={{ top: 8, right: 32, left: 32, bottom: 0 }}>
               <defs>
                 <linearGradient id="visitsFill" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="5%" stopColor="#1E6B5E" stopOpacity={0.28} />
@@ -91,19 +106,37 @@ export function CatBehaviorTrends({
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
               <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-              <YAxis yAxisId="visits" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
               <YAxis
                 yAxisId="duration"
-                orientation="right"
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 11 }}
-                tickFormatter={(value) => `${Math.round(Number(value) / 60)}m`}
+                tickFormatter={(value) => `${Number(value).toFixed(1)}m`}
+                label={{
+                  value: "Duration (minutes)",
+                  angle: -90,
+                  position: "insideLeft",
+                  style: { fontSize: 10 },
+                }}
+              />
+              <YAxis
+                yAxisId="visits"
+                orientation="right"
+                allowDecimals={false}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 11 }}
+                label={{
+                  value: "Visit count",
+                  angle: 90,
+                  position: "insideRight",
+                  style: { fontSize: 10 },
+                }}
               />
               <Tooltip
                 formatter={(value, name) =>
-                  name === "avgDuration"
-                    ? [formatDuration(Number(value)), "Avg Duration"]
+                  name === "avgDurationMinutes"
+                    ? [formatDuration(Math.round(Number(value) * 60)), "Avg Duration"]
                     : [value, "Visits"]
                 }
               />
@@ -118,7 +151,7 @@ export function CatBehaviorTrends({
               <Area
                 yAxisId="duration"
                 type="monotone"
-                dataKey="avgDuration"
+                dataKey="avgDurationMinutes"
                 stroke="#D97706"
                 fill="url(#durationFill)"
                 strokeWidth={2}

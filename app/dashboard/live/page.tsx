@@ -1,3 +1,14 @@
+/**
+ * Live litter-box view.
+ *
+ * Shows the configured device stream and an optional recording-browser surface.
+ *
+ * DONE: live stream controls and responsive player
+ * PLACEHOLDER: recording filters and recording events remain mock-only behind a feature flag
+ *
+ * NEXT: device/video owners must connect recording history before enabling that tab.
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -31,6 +42,8 @@ const RECORDING_PREVIEW_LIMIT = 3;
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
+// FIXME(defense): Recording filters and events are mock data. Keep the feature
+// disabled until real recording history is connected before the Aug 26-28 defense.
 type RecordingEvent = {
   id: string;
   type: "cat_visit" | "cleaning";

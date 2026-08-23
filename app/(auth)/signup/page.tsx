@@ -1,8 +1,12 @@
 /**
  * Sign Up Page (03.01.02)
  *
- * Same layout structure as login but with additional fields (name, confirm password).
- * Currently using mock navigation — replace handleSubmit with Firebase createUser.
+ * Registers owner accounts with email/password or Google in the dark/teal auth shell.
+ *
+ * DONE: Firebase registration, profile creation, behavior-focused product copy
+ * PLACEHOLDER: none
+ *
+ * NEXT: authentication owners maintain registration and onboarding behavior.
  */
 
 "use client";
@@ -83,6 +87,7 @@ export default function SignUpPage() {
         if (error.code === "auth/email-already-in-use") {
           errorMessage = "This email is already registered. Please log in.";
         } else if (error.code === "auth/weak-password") {
+          // NOTE(manuscript): The visible minimum password length must match the paper.
           errorMessage = "Password is too weak. Please use at least 6 characters.";
         } else if (error.code === "auth/invalid-email") {
           errorMessage = "Please enter a valid email address.";
@@ -124,7 +129,7 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="dark min-h-screen flex flex-col lg:flex-row">
       {/* Left Panel - Branding (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-litter-primary relative overflow-hidden">
         <div className="absolute inset-0 flex flex-col justify-center px-16 py-12 z-10">
@@ -146,7 +151,7 @@ export default function SignUpPage() {
 
           {/* Tagline */}
           <p className="text-white/80 text-lg italic font-light mb-10">
-            Early detection. Healthier cats.
+            Earlier awareness. Better-informed care.
           </p>
 
           {/* Feature Pills */}
@@ -154,7 +159,7 @@ export default function SignUpPage() {
             {[
               { text: "Real-time litter monitoring" },
               { text: "Individual cat profiles" },
-              { text: "Vet-ready health reports" },
+              { text: "Vet-ready activity reports" },
             ].map((feature, index) => (
               <div
                 key={index}
@@ -201,7 +206,7 @@ export default function SignUpPage() {
               <span className="font-display font-bold text-lg text-white">LitterSense</span>
             </div>
             <h2 className="font-display font-bold text-2xl text-white mt-1">
-              Early detection. Healthier cats.
+              Earlier awareness. Better-informed care.
             </h2>
           </div>
 
@@ -211,7 +216,7 @@ export default function SignUpPage() {
               Create your account
             </h1>
             <p className="text-litter-muted">
-              Monitor your cat&apos;s health from anywhere.
+              Monitor litter box activity from anywhere.
             </p>
           </div>
 

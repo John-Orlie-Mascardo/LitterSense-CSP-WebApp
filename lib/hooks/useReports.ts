@@ -1,3 +1,14 @@
+/**
+ * useReports.ts
+ *
+ * Builds and archives reports from the owner’s existing Firebase-backed records.
+ *
+ * DONE: real record filtering, Unattributed retention, cat snapshots, archive actions
+ * PLACEHOLDER: none
+ *
+ * NEXT: data owners should move long-running generation to a server job if needed.
+ */
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -23,6 +34,8 @@ import { getReportConcernCount } from "@/lib/utils/reportAssessment";
 import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
+import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
+import { UNATTRIBUTED_GROUP_NAME } from "@/lib/presentation/reportSessionGroups";
 
 export type ReportSession = Session & {
   catName: string;
@@ -153,6 +166,8 @@ export function useReports() {
   const { user } = useAuth();
   const {
     cats,
+    sessions: rawSessions,
+    getDetailsByCatId,
     getHealthLogsByCatId,
     getSessionsByCatId,
     getTrendData,
@@ -195,19 +210,7 @@ export function useReports() {
     setIsGenerating(true);
     setProgress(0);
 
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 20;
-      });
-    }, 400);
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    clearInterval(progressInterval);
-    setProgress(100);
+    setProgress(20);
 
     const cat = config.catId === "all"
       ? null
@@ -215,6 +218,7 @@ export function useReports() {
     const catName = cat?.name || "All Cats";
     const actualCatId = cat?.id || "all";
     const catNameById = new Map(cats.map((item) => [item.id, item.name]));
+    const knownCatIds = new Set(cats.map((item) => item.id));
     const { startDate, endDate, startKey, endKey } = getDateRange(config);
     const period = `${startDate.toLocaleDateString("en-US", {
       month: "short",
@@ -227,15 +231,20 @@ export function useReports() {
 
     const sourceSessions =
       actualCatId === "all"
-        ? cats.flatMap((item) => getSessionsByCatId(item.id))
+        ? [
+            ...cats.flatMap((item) => getSessionsByCatId(item.id)),
+            ...rawSessions.filter((session) => !knownCatIds.has(session.catId)),
+          ]
         : getSessionsByCatId(actualCatId);
     const filteredSessions = sourceSessions
       .filter((session) => session.date >= startKey && session.date <= endKey)
       .map<ReportSession>((session) => ({
         ...session,
-        catName: catNameById.get(session.catId) ?? "Unknown Cat",
+        catName: catNameById.get(session.catId) ?? UNATTRIBUTED_GROUP_NAME,
       }))
       .sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a));
+
+    setProgress(60);
 
     const sourceHealthLogs =
       actualCatId === "all"
@@ -289,6 +298,12 @@ export function useReports() {
         year: "numeric",
       }),
       ownerName: user?.displayName || user?.email || "LitterSense User",
+      cats: (actualCatId === "all" ? cats : cat ? [cat] : []).map((reportCat) => ({
+        id: reportCat.id,
+        name: reportCat.name,
+        avatar: reportCat.avatar,
+        baselineEstablished: hasEstablishedBaseline(getDetailsByCatId(reportCat.id)),
+      })),
       summary: {
         totalSessions,
         avgSessionsPerDay,
@@ -307,6 +322,7 @@ export function useReports() {
 
     setCurrentReport(report);
     setReportArchive((prev) => ({ ...prev, [report.id]: report }));
+    setProgress(100);
     setIsGenerating(false);
 
     const newPastReport: PastReport = {
@@ -328,7 +344,7 @@ export function useReports() {
     }
 
     return report;
-  }, [cats, getHealthLogsByCatId, getSessionsByCatId, getTrendData, user]);
+  }, [cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, rawSessions, user]);
 
   const deleteReport = useCallback(async (reportId: string) => {
     if (user) {

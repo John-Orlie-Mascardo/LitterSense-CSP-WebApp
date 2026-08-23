@@ -1,3 +1,14 @@
+/**
+ * AdminRoute.tsx
+ *
+ * Protects admin UI while authentication and role state resolve.
+ *
+ * DONE: loading gate and redirects for signed-out or non-admin visitors
+ * PLACEHOLDER: none; role-source migration is tracked in AuthContext.tsx
+ *
+ * NEXT: security owners keep this gate aligned with AuthContext role resolution.
+ */
+
 "use client";
 
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -13,9 +24,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
       if (!user) {
         router.push("/login");
       } else if (!isAdmin) {
-        // TODO (backend): this redirect enforces admin-only access.
-        // Once DEV_ADMIN_OVERRIDE is removed in AuthContext.tsx and custom
-        // claims are live, non-admin accounts will be correctly bounced here.
+        // AuthContext is the single role source; non-admin visitors return home.
         router.push("/dashboard");
       }
     }
