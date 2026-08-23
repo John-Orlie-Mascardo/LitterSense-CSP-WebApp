@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode, type SyntheticEvent } from "react";
+import { useCallback, useState, useEffect, type ReactNode, type SyntheticEvent } from "react";
 import {
   UserPlus, Trash2, Mail, ShieldAlert, Loader2, Key,
   Eye, EyeOff, Lock, X, CheckCircle,
@@ -291,16 +291,16 @@ export default function AddAdminPage() {
   // ── Toast state ────────────────────────────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" | "warning" }>>([]);
 
-  const showToast = (message: string, type: "success" | "error" | "info" | "warning" = "info") => {
+  const showToast = useCallback((message: string, type: "success" | "error" | "info" | "warning" = "info") => {
     const id = Date.now().toString();
     setToasts((prev) => [...prev, { id, message, type }]);
-  };
+  }, []);
 
   const dismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const fetchAdmins = async () => {
+  const fetchAdmins = useCallback(async () => {
     setFetchingAdmins(true);
     try {
       const snapshot = await getDocs(collection(db, "admins"));
@@ -319,9 +319,9 @@ export default function AddAdminPage() {
     } finally {
       setFetchingAdmins(false);
     }
-  };
+  }, [showToast]);
 
-  useEffect(() => { fetchAdmins(); }, []);
+  useEffect(() => { void fetchAdmins(); }, [fetchAdmins]);
 
   const handleAddAdmin = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
