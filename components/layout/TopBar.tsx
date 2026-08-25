@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { AlertTriangle, BarChart3, Bell, Cat, Check, Download, Home, Settings, Trash2, Video, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, BrainCircuit, Cat, Check, Download, Home, Settings, Trash2, Video, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,6 +15,7 @@ import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/dashboard/predictive-health": "Predictive Health Analysis",
   "/dashboard/cats": "My Cats",
   "/dashboard/reports": "Reports",
   "/dashboard/live": "Live",
@@ -198,6 +199,21 @@ export function TopBar() {
               <Download className="w-5 h-5" />
             </motion.button>
           )}
+
+          <Link
+            href="/dashboard/predictive-health"
+            prefetch={true}
+            aria-label="Predictive Health Analysis"
+            aria-current={pathname === "/dashboard/predictive-health" ? "page" : undefined}
+            title="Predictive Health Analysis"
+            className={`relative rounded-xl p-2 transition-colors hover:bg-litter-bg ${
+              pathname === "/dashboard/predictive-health"
+                ? "bg-litter-primary-light text-litter-primary"
+                : "text-litter-text"
+            }`}
+          >
+            <BrainCircuit className="h-5 w-5" />
+          </Link>
 
           {/* Notification bell + dropdown */}
           <div className="relative" ref={dropdownRef}>

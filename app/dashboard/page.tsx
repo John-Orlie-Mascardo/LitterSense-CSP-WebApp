@@ -814,7 +814,6 @@ function PopulatedDashboardState({
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
             trendData={trendData}
-            displayState={selectedDisplayState}
           />
         )}
 

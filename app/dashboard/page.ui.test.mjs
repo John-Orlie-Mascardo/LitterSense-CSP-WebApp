@@ -164,16 +164,3 @@ test("behavior chart orders the current week from Monday through Sunday", () => 
   assert.match(catContextSource, /getDay\(\) \+ 6\) % 7/);
   assert.match(catContextSource, /monday\.getDate\(\) \+ index/);
 });
-
-test("behavior chart is followed by predictive health analysis using the existing state", () => {
-  assert.match(chartSource, /BrainCircuit/);
-  assert.match(chartSource, /Predictive Health Analysis/);
-  assert.match(chartSource, /<BehaviorStateBadge state=\{displayState\}/);
-  assert.ok(
-    chartSource.indexOf("Predictive Health Analysis") >
-      chartSource.indexOf('className="h-56 rounded-xl'),
-  );
-  assert.match(source, /displayState=\{selectedDisplayState\}/);
-  assert.match(chartSource, /\bAnalyze\b/);
-  assert.match(chartSource, /\/api\/predictive-health/);
-});
