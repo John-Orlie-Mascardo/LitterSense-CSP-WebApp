@@ -243,6 +243,7 @@ export function useReports() {
         catName: catNameById.get(session.catId) ?? UNATTRIBUTED_GROUP_NAME,
       }))
       .sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a));
+    const containsDemoData = filteredSessions.some((session) => session.id.startsWith("demo-"));
 
     setProgress(60);
 
@@ -333,7 +334,7 @@ export function useReports() {
       generatedOn: new Date().toISOString().split("T")[0],
       filename: `LitterSense_${catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
     };
-    if (user) {
+    if (user && !containsDemoData) {
       await setDoc(doc(db, "users", user.uid, "reports", newPastReport.id), {
         ...newPastReport,
         report: JSON.parse(JSON.stringify(report)) as ReportData,

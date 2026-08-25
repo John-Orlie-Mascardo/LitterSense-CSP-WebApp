@@ -3,7 +3,7 @@
  *
  * Detailed cat profile, activity history, trends, notes, and report entry point.
  *
- * DONE: profile editing, real-session tabs, evidence-aware state and no-data summaries
+ * DONE: profile editing, per-cat session tabs, evidence-aware state and no-data summaries
  * PLACEHOLDER: none
  *
  * NEXT: device/data owners should keep profile evidence synchronized with recorded sessions.

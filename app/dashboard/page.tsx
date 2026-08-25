@@ -1,7 +1,7 @@
 /**
  * Dashboard / Home Page
  *
- * Per-cat activity overview backed by Firebase sessions, stats, and live sensors.
+ * Per-cat activity overview backed by Firebase, with display-only demo fallbacks.
  *
  * DONE: evidence-aware badges, no-data values, state legend, cat selection,
  * activity trends, live environment readings, and recent-session timeline
@@ -491,6 +491,7 @@ const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) =>
   const liveStartedAt = getSessionStartedAt(liveSession);
 
   return sessions.some((session) => {
+    if (session.id.startsWith("demo-")) return false;
     if (session.catId !== liveSession.catId) return false;
     if (session.sessionStatus === "IN_PROGRESS" || !session.endedAt) return true;
 
@@ -503,6 +504,7 @@ const hasOverlappingRecentVisit = (sessions: Session[], candidate: Session) => {
   const candidateTime = getSessionTimelineSortValue(candidate);
 
   return sessions.some((session) => {
+    if (session.id.startsWith("demo-")) return false;
     if (session.catId !== candidate.catId) return false;
 
     const sessionTime = getSessionTimelineSortValue(session);
@@ -939,9 +941,10 @@ export default function DashboardPage() {
     cats,
     getCatById,
     getDetailsByCatId,
+    getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
-    sessions,
+    isUsingDemoData,
     isLoading: catsLoading,
   } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
@@ -969,11 +972,15 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const displaySessions = useMemo(
+    () => cats.flatMap((cat) => getSessionsByCatId(cat.id)),
+    [cats, getSessionsByCatId],
+  );
   const catPresentation = useMemo(
     () =>
       Object.fromEntries(
         cats.map((cat) => {
-          const catSessions = sessions.filter((session) => session.catId === cat.id);
+          const catSessions = getSessionsByCatId(cat.id);
           const catStats = getStatsByCatId(cat.id);
           const catTrendData = getTrendData(cat.id);
           const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
@@ -1004,7 +1011,7 @@ export default function DashboardPage() {
           readonly state: BehaviorStateId;
         }
       >,
-    [cats, getDetailsByCatId, getStatsByCatId, getTrendData, sessions],
+    [cats, getDetailsByCatId, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
   const catDisplayStates = useMemo(
     () =>
@@ -1026,7 +1033,7 @@ export default function DashboardPage() {
     () => cats.filter((cat) => cat.status === "abnormal"),
     [cats],
   );
-  const hasAnomaly = abnormalCats.length > 0;
+  const hasRealAnomaly = abnormalCats.some((cat) => !isUsingDemoData(cat.id));
   const {
     dismissedAbnormalKeys,
     isDismissedAbnormalReady,
@@ -1039,7 +1046,7 @@ export default function DashboardPage() {
   const abnormalNotificationPayloads = useMemo(() => {
     const dateKey = getLocalDateKey();
 
-    return abnormalCats.map((cat) => {
+    return abnormalCats.filter((cat) => !isUsingDemoData(cat.id)).map((cat) => {
       const abnormalStats = getStatsByCatId(cat.id);
       const visitCount = abnormalStats?.visits ?? 0;
       const avgDuration = abnormalStats?.avgDuration ?? "--";
@@ -1057,7 +1064,7 @@ export default function DashboardPage() {
         avgDuration,
       };
     });
-  }, [abnormalCats, getStatsByCatId]);
+  }, [abnormalCats, getStatsByCatId, isUsingDemoData]);
 
   useEffect(() => {
     if (notificationsLoading || abnormalNotificationPayloads.length === 0) return;
@@ -1087,10 +1094,10 @@ export default function DashboardPage() {
 
   // ── Trigger permission prompt when anomaly is detected ──
   useEffect(() => {
-    if (hasAnomaly) {
+    if (hasRealAnomaly) {
       triggerOnAnomaly();
     }
-  }, [hasAnomaly, triggerOnAnomaly]);
+  }, [hasRealAnomaly, triggerOnAnomaly]);
 
   const rfidStatus = getLiveRfidStatus({
     sensorData,
@@ -1106,7 +1113,7 @@ export default function DashboardPage() {
   );
   const notificationRecentVisits = buildNotificationRecentVisits(notifications, cats);
   const recentVisits = getRecentVisits(
-    sessions,
+    displaySessions,
     getCatById,
     liveVisit,
     completedLiveVisit,
@@ -1127,10 +1134,10 @@ export default function DashboardPage() {
       getFallbackAverageDuration(
         displayStats?.avgDuration,
         trendData,
-        sessions,
+        displaySessions,
         activeCatId,
       ),
-    [activeCatId, displayStats?.avgDuration, sessions, trendData],
+    [activeCatId, displaySessions, displayStats?.avgDuration, trendData],
   );
   const todayDate = formatDate();
 

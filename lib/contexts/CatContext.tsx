@@ -27,6 +27,11 @@ import {
   toIsoStringFromDateLike,
 } from "@/lib/utils/sessionDate";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
+import {
+  buildDemoCatData,
+  shouldUseDemoCatData,
+  type DemoCatData,
+} from "@/lib/utils/demoCatData";
 import type {
   Cat,
   CatDetails,
@@ -73,6 +78,7 @@ interface CatContextType {
   getSessionsByCatId: (id: string) => Session[];
   getHealthLogsByCatId: (id: string) => HealthLog[];
   getTrendData: (id: string) => CatTrendPoint[] | null;
+  isUsingDemoData: (id: string) => boolean;
   addHealthLog: (
     catId: string,
     type: HealthLog["type"],
@@ -112,9 +118,7 @@ const parseNumber = (value: unknown, fallback = 0) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
 const parseStatus = (value: unknown): Cat["status"] =>
-  value === "abnormal"
-    ? "abnormal"
-    : "normal";
+  value === "abnormal" || value === "watch" ? value : "normal";
 
 const parseHealthLogType = (value: unknown): HealthLog["type"] => {
   if (
@@ -618,15 +622,48 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     };
   }, [uid, rawCats]);
 
+  const demoDataByCatId = useMemo(
+    () =>
+      Object.fromEntries(
+        rawCats.flatMap((cat, catIndex) => {
+          const storedStats = firebaseCatStats[cat.id];
+          const localStoredStats = catStats[cat.id];
+          const hasStoredStats =
+            (storedStats?.visits ?? 0) > 0 ||
+            (localStoredStats?.visits ?? 0) > 0 ||
+            Boolean(localStoredStats?.lastVisit?.trim()) ||
+            (catDailyStats[cat.id] ?? []).some((day) => day.visits > 0);
+          if (!shouldUseDemoCatData({
+            catId: cat.id,
+            sessions,
+            baseline: catDetails[cat.id]?.baseline,
+            hasStoredStats,
+          })) {
+            return [];
+          }
+          return [[cat.id, buildDemoCatData(cat.id, catIndex)]];
+        }),
+      ) as Record<string, DemoCatData>,
+    [catDailyStats, catDetails, catStats, firebaseCatStats, rawCats, sessions],
+  );
+
   const getStatsByCatId = useCallback(
     (id: string): CatStats | undefined =>
-      deriveStatsForCat(id, firebaseCatStats, sessions, catDailyStats, catStats),
-    [catDailyStats, catStats, firebaseCatStats, sessions],
+      deriveStatsForCat(
+        id,
+        firebaseCatStats,
+        demoDataByCatId[id]?.sessions ?? sessions,
+        catDailyStats,
+        catStats,
+      ),
+    [catDailyStats, catStats, demoDataByCatId, firebaseCatStats, sessions],
   );
 
   const cats = useMemo(
     () =>
       rawCats.map((cat) => {
+        const demoData = demoDataByCatId[cat.id];
+        if (demoData) return { ...cat, status: demoData.state };
         const stats = deriveStatsForCat(
           cat.id,
           firebaseCatStats,
@@ -639,7 +676,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           status: deriveLiveStatus(cat, stats, sessions),
         };
       }),
-    [catDailyStats, catStats, firebaseCatStats, rawCats, sessions],
+    [catDailyStats, catStats, demoDataByCatId, firebaseCatStats, rawCats, sessions],
   );
 
   const addCat = async (cat: Cat, stats?: CatStats, details?: CatDetails) => {
@@ -788,14 +825,21 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getDetailsByCatId = useCallback(
-    (id: string) => catDetails[id],
-    [catDetails],
+    (id: string) => {
+      const demoData = demoDataByCatId[id];
+      const storedDetails = catDetails[id];
+      if (!demoData) return storedDetails;
+      return storedDetails
+        ? { ...demoData.details, ...storedDetails, baseline: demoData.details.baseline }
+        : demoData.details;
+    },
+    [catDetails, demoDataByCatId],
   );
 
   const getSessionsByCatId = useCallback(
-    (id: string) =>
-      buildSessionsWithDailySummaries(id, sessions, catDailyStats[id] ?? []),
-    [catDailyStats, sessions],
+    (id: string) => demoDataByCatId[id]?.sessions
+      ?? buildSessionsWithDailySummaries(id, sessions, catDailyStats[id] ?? []),
+    [catDailyStats, demoDataByCatId, sessions],
   );
 
   const getHealthLogsByCatId = useCallback(
@@ -804,8 +848,17 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getTrendData = useCallback(
-    (id: string) => buildTrendData(id, sessions, catDailyStats[id] ?? []),
-    [catDailyStats, sessions],
+    (id: string) => buildTrendData(
+      id,
+      demoDataByCatId[id]?.sessions ?? sessions,
+      demoDataByCatId[id] ? [] : catDailyStats[id] ?? [],
+    ),
+    [catDailyStats, demoDataByCatId, sessions],
+  );
+
+  const isUsingDemoData = useCallback(
+    (id: string) => Boolean(demoDataByCatId[id]),
+    [demoDataByCatId],
   );
 
   return (
@@ -826,6 +879,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         getSessionsByCatId,
         getHealthLogsByCatId,
         getTrendData,
+        isUsingDemoData,
         addHealthLog,
         removeHealthLog,
         recordVisit,

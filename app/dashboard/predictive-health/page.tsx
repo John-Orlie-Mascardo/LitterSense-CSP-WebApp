@@ -36,9 +36,9 @@ export default function PredictiveHealthPage() {
   const { user } = useAuth();
   const {
     cats,
-    sessions,
     isLoading,
     getDetailsByCatId,
+    getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
   } = useCats();
@@ -68,8 +68,8 @@ export default function PredictiveHealthPage() {
   const details = getDetailsByCatId(activeCatId);
   const trendData = getTrendData(activeCatId);
   const selectedSessions = useMemo(
-    () => sessions.filter((session) => session.catId === activeCatId),
-    [activeCatId, sessions],
+    () => getSessionsByCatId(activeCatId),
+    [activeCatId, getSessionsByCatId],
   );
   const sessionCounts = useMemo(
     () => summarizePredictiveSessions(selectedSessions),
@@ -84,7 +84,7 @@ export default function PredictiveHealthPage() {
           const catTrendData = getTrendData(cat.id);
           const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
           const hasData = hasRecordedCatData({
-            sessions: sessions.filter((session) => session.catId === cat.id),
+            sessions: getSessionsByCatId(cat.id),
             stats: catStats,
             trendData: catTrendData,
           });
@@ -103,7 +103,7 @@ export default function PredictiveHealthPage() {
           ];
         }),
       ) as Record<string, CatPresentation>,
-    [cats, getDetailsByCatId, getStatsByCatId, getTrendData, sessions],
+    [cats, getDetailsByCatId, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
 
   const presentation = catPresentations[activeCatId] ?? {
@@ -115,7 +115,7 @@ export default function PredictiveHealthPage() {
   const averageDuration = getFallbackAverageDuration(
     stats?.avgDuration,
     trendData,
-    sessions,
+    selectedSessions,
     activeCatId,
   );
   const displayDuration = String(

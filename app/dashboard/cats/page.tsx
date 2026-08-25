@@ -4,7 +4,7 @@
  * Cat profile creation and evidence-aware summary cards for registered cats.
  *
  * DONE: profile grid, add-cat form, photo crop, no-data metrics, six-state badges
- * PLACEHOLDER: none; empty baselines are intentional until real sessions establish them
+ * PLACEHOLDER: cats without evidence receive shared display-only demo data
  *
  * NEXT: device/data owners should populate baseline fields from recorded sessions.
  */
@@ -123,6 +123,7 @@ export default function CatsPage() {
     cats,
     addCat,
     catDetails: contextCatDetails,
+    getDetailsByCatId,
     getStatsByCatId,
     getSessionsByCatId,
     isLoading: catsLoading,
@@ -324,7 +325,7 @@ export default function CatsPage() {
               <CatCard
                 key={cat.id}
                 cat={cat}
-                catDetails={contextCatDetails}
+                details={getDetailsByCatId(cat.id)}
                 stats={getStatsByCatId(cat.id)}
                 sessions={getSessionsByCatId(cat.id)}
               />
@@ -609,7 +610,7 @@ export default function CatsPage() {
 // ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
-  catDetails: Record<string, CatDetails>;
+  details?: CatDetails;
   stats?: CatStats;
   sessions: Session[];
 }
@@ -622,8 +623,7 @@ const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
   });
 };
 
-function CatCard({ cat, catDetails, stats, sessions }: CatCardProps) {
-  const details = catDetails[cat.id];
+function CatCard({ cat, details, stats, sessions }: CatCardProps) {
   const hasData = hasRecordedCatData({ sessions, stats });
   const baselineEstablished = hasEstablishedBaseline(details);
   const displayState = getCatDisplayState({
