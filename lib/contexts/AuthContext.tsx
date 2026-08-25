@@ -57,6 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profileLoading, setProfileLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(true);
+  const [, forceUserRefresh] = useState(0);
 
   const loadUserProfile = useCallback(async (currentUser: User) => {
     let profileOnboardingComplete = true;
@@ -109,7 +110,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshUser = async () => {
     if (auth.currentUser) {
       await auth.currentUser.reload();
-      setUser({ ...auth.currentUser });
+      setUser(auth.currentUser);
+      forceUserRefresh((revision) => revision + 1);
       await loadUserProfile(auth.currentUser);
     }
   };

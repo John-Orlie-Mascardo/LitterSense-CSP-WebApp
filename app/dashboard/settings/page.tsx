@@ -48,7 +48,8 @@ import {
 import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { auth } from "@/lib/configs/firebase";
+import { auth, db } from "@/lib/configs/firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   updateProfile,
   updatePassword,
@@ -58,6 +59,7 @@ import {
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
+import { getNationalPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phoneNumber";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -65,6 +67,16 @@ const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
+];
+
+const PHONE_COUNTRY_CODES = [
+  { code: "+63", label: "PH +63" },
+  { code: "+1", label: "US/CA +1" },
+  { code: "+61", label: "AU +61" },
+  { code: "+65", label: "SG +65" },
+  { code: "+81", label: "JP +81" },
+  { code: "+82", label: "KR +82" },
+  { code: "+44", label: "UK +44" },
 ];
 
 type ExportAllFormat = "pdf" | "csv" | "doc";
@@ -284,17 +296,35 @@ export default function SettingsPage() {
   const [editProfileForm, setEditProfileForm] = useState({
     displayName: user?.displayName || settings.account.displayName,
     photo: user?.photoURL || (null as string | null),
+    phoneCountryCode: "+63",
+    phoneNumber: "",
   });
+  const [savedPhoneNumber, setSavedPhoneNumber] = useState("");
 
   // Sync form when user is loaded
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+
+    setEditProfileForm((prev) => ({
+      ...prev,
+      displayName: user.displayName || prev.displayName,
+      photo: user.photoURL || prev.photo,
+    }));
+
+    void getDoc(doc(db, "users", user.uid)).then((snapshot) => {
+      const profile = snapshot.data();
+      const phoneCountryCode = profile?.phoneCountryCode || "+63";
+      const phoneNumber = typeof profile?.phoneNumber === "string" ? profile.phoneNumber : "";
+
+      setSavedPhoneNumber(phoneNumber);
       setEditProfileForm((prev) => ({
         ...prev,
-        displayName: user.displayName || prev.displayName,
-        photo: user.photoURL || prev.photo,
+        phoneCountryCode,
+        phoneNumber: getNationalPhoneNumber(phoneNumber, phoneCountryCode),
       }));
-    }
+    }).catch((error) => {
+      console.error("Failed to load phone number:", error);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -315,20 +345,33 @@ export default function SettingsPage() {
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!user) return;
     try {
-      await updateProfile(user, {
-        displayName: editProfileForm.displayName,
-        photoURL: editProfileForm.photo,
-      });
+      const phoneNumber = normalizePhoneNumber(
+        editProfileForm.phoneCountryCode,
+        editProfileForm.phoneNumber,
+      );
+      await Promise.all([
+        updateProfile(user, {
+          displayName: editProfileForm.displayName,
+          photoURL: editProfileForm.photo,
+        }),
+        setDoc(doc(db, "users", user.uid), {
+          phoneCountryCode: editProfileForm.phoneCountryCode,
+          phoneNumber,
+          updatedAt: serverTimestamp(),
+        }, { merge: true }),
+      ]);
       updateAccountSetting("displayName", editProfileForm.displayName);
+      setSavedPhoneNumber(phoneNumber);
       await refreshUser();
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
     } catch (error) {
       const message =
-        error instanceof FirebaseError ? error.message : "Failed to update profile";
+        error instanceof Error ? error.message : "Failed to update profile";
       addToast(message, "error");
     }
   };
@@ -566,6 +609,9 @@ export default function SettingsPage() {
                 {user?.displayName || settings.account.displayName}
               </h2>
               <p className="text-sm text-theme-muted truncate">{user?.email || settings.account.email}</p>
+              {savedPhoneNumber && (
+                <p className="text-sm text-theme-muted truncate">{savedPhoneNumber}</p>
+              )}
             </div>
             <button
               onClick={() => setShowEditProfile(true)}
@@ -950,7 +996,7 @@ export default function SettingsPage() {
 
       {/* Edit Profile Bottom Sheet */}
       <BottomSheet isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
-        <div className="space-y-5">
+        <form onSubmit={handleSaveProfile} className="space-y-5">
           <div className="flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
@@ -986,10 +1032,37 @@ export default function SettingsPage() {
               className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
-          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors">
+          <div>
+            <label htmlFor="phoneNumber" className="block text-sm font-medium text-theme-secondary mb-1.5">Phone Number</label>
+            <div className="flex gap-2">
+              <select
+                aria-label="Phone country code"
+                value={editProfileForm.phoneCountryCode}
+                onChange={(event) => setEditProfileForm((prev) => ({ ...prev, phoneCountryCode: event.target.value }))}
+                className="w-32 px-3 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent"
+              >
+                {PHONE_COUNTRY_CODES.map(({ code, label }) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
+              </select>
+              <input
+                id="phoneNumber"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel-national"
+                pattern="[0-9 ()-]{7,20}"
+                maxLength={20}
+                placeholder="917 123 4567"
+                value={editProfileForm.phoneNumber}
+                onChange={(event) => setEditProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                className="min-w-0 flex-1 px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+          <button type="submit" className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors">
             Save Changes
           </button>
-        </div>
+        </form>
       </BottomSheet>
 
       {/* Change Password Bottom Sheet */}
