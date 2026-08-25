@@ -63,10 +63,6 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
-import {
-  getLiveAirQualityStatus,
-  getLiveRfidStatus,
-} from "@/lib/utils/liveSensorStatus";
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 import {
   formatMetricValue,
@@ -230,7 +226,7 @@ export default function CatDetailClient() {
     addHealthLog,
     removeHealthLog,
   } = useCats();
-  const { data: sensorData, isLoading: sensorsLoading, error: sensorsError } = useDeviceSensors();
+  const { data: sensorData } = useDeviceSensors();
 
   const cat = getCatById(catId);
   const details = getDetailsByCatId(catId);
@@ -413,7 +409,7 @@ export default function CatDetailClient() {
       <TopBar />
       <ToastContainer toasts={toasts} onClose={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))} />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
 
         {/* ── Back button ── */}
         <div className="flex items-center justify-between mb-5 pt-4">
@@ -731,8 +727,6 @@ export default function CatDetailClient() {
                   displayState={displayState}
                   hasData={hasData}
                   sensorData={sensorData}
-                  sensorsLoading={sensorsLoading}
-                  sensorsError={sensorsError}
                 />
               )}
               {activeTab === "history" && (
@@ -788,8 +782,6 @@ interface OverviewTabProps {
   readonly displayState: BehaviorStateId;
   readonly hasData: boolean;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
-  readonly sensorsLoading: boolean;
-  readonly sensorsError: string | null;
 }
 
 function OverviewTab({
@@ -799,8 +791,6 @@ function OverviewTab({
   displayState,
   hasData,
   sensorData,
-  sensorsLoading,
-  sensorsError,
 }: Readonly<OverviewTabProps>) {
   const displayedStats = useMemo(() => {
     const baseStats = stats ?? { visits: 0, avgDuration: "--" };
@@ -832,16 +822,6 @@ function OverviewTab({
   }, [details, sessions, sensorData, stats]);
 
   const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
-  const airQualityStatus = getLiveAirQualityStatus({
-    sensorData,
-    sensorsLoading,
-    sensorsError,
-  });
-  const rfidStatus = getLiveRfidStatus({
-    sensorData,
-    sensorsLoading,
-    sensorsError,
-  });
   const hasDisplayedData = hasData || displayedStats.visits > 0;
   const summaryDisplayState = hasDisplayedData ? displayState : "insufficient";
 
@@ -877,20 +857,6 @@ function OverviewTab({
             label="Avg Duration"
             status={summaryDisplayState}
             statusLabel={BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
-          />
-          <StatCard
-            icon={Wind}
-            value={airQualityStatus.value}
-            label="Air Quality"
-            status={airQualityStatus.status}
-            statusLabel={airQualityStatus.label}
-          />
-          <StatCard
-            icon={Tag}
-            value={rfidStatus.value}
-            label="RFID Reader"
-            status={rfidStatus.status}
-            statusLabel={rfidStatus.label}
           />
         </div>
       </div>

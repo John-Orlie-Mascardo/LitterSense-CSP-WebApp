@@ -98,7 +98,7 @@ export function TopBar() {
           "0 1px 0 rgba(255,255,255,0.05), 0 4px 24px rgba(0,0,0,0.08)",
       }}
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         {/* Logo */}
         <motion.div
           whileHover={{ scale: 1.03 }}

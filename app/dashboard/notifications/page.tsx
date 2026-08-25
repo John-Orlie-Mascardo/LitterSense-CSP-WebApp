@@ -199,7 +199,7 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <header className="sticky top-0 z-40 border-b border-litter-border bg-litter-card/95 backdrop-blur">
-        <div className="mx-auto max-w-lg px-4">
+        <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -293,7 +293,7 @@ export default function NotificationsPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 pt-5">
+      <main className="mx-auto max-w-[1440px] px-4 pt-5 sm:px-6 lg:px-8">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((item) => (

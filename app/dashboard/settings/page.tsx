@@ -541,7 +541,7 @@ export default function SettingsPage() {
         />
       )}
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
 
         {/* User Profile Card */}
         <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">

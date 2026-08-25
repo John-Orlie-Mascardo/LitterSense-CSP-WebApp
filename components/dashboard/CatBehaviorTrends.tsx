@@ -3,7 +3,7 @@
  *
  * Per-cat activity summary and dual-axis visit/duration chart.
  *
- * DONE: no-data summaries and separate labeled axes for minutes and visit counts
+ * DONE: no-data summaries, labeled chart axes, and on-demand Gemini analysis
  * PLACEHOLDER: none
  *
  * NEXT: data owners should continue supplying duration values in seconds; this
@@ -12,6 +12,7 @@
 
 "use client";
 
+import { useState } from "react";
 import {
   Area,
   AreaChart,
@@ -21,8 +22,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Activity, Clock, TrendingUp } from "lucide-react";
+import { Activity, BrainCircuit, Clock, TrendingUp } from "lucide-react";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import type { CatTrendPoint } from "@/lib/contexts/CatContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
+import {
+  BEHAVIOR_STATE_BY_ID,
+  type BehaviorStateId,
+} from "@/lib/presentation/behaviorStates";
 import { getBehaviorTrendLabel } from "@/lib/utils/dashboardBehaviorMetrics";
 
 const formatDuration = (seconds: number) => {
@@ -57,16 +64,65 @@ export function CatBehaviorTrends({
   todayVisits,
   todayAvgDuration,
   trendData,
+  displayState,
 }: {
   readonly catName: string;
   readonly todayVisits: string | number;
   readonly todayAvgDuration: string;
   readonly trendData: CatTrendPoint[] | null;
+  readonly displayState: BehaviorStateId;
 }) {
+  const { user } = useAuth();
+  const [analysisResult, setAnalysisResult] = useState<{
+    readonly key: string;
+    readonly summary: string;
+  } | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
   const chartData = (trendData ?? []).map((point) => ({
     ...point,
     avgDurationMinutes: point.avgDuration / 60,
   }));
+  const analysisKey = JSON.stringify({ displayState, todayVisits, todayAvgDuration, trendData });
+  const analysisSummary = analysisResult?.key === analysisKey
+    ? analysisResult.summary
+    : BEHAVIOR_STATE_BY_ID[displayState].description;
+
+  const handleAnalyze = async () => {
+    if (!user || isAnalyzing) return;
+
+    setIsAnalyzing(true);
+    setAnalysisError("");
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch("/api/predictive-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken,
+          catName,
+          displayState,
+          todayVisits,
+          todayAvgDuration,
+          trendData,
+        }),
+      });
+      const payload = await response.json().catch(() => null) as {
+        readonly summary?: unknown;
+        readonly error?: unknown;
+      } | null;
+      if (!response.ok || typeof payload?.summary !== "string") {
+        throw new Error(
+          typeof payload?.error === "string" ? payload.error : "AI analysis is unavailable.",
+        );
+      }
+      setAnalysisResult({ key: analysisKey, summary: payload.summary });
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "AI analysis is unavailable.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   return (
     <section className="mb-8">
@@ -111,7 +167,7 @@ export function CatBehaviorTrends({
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 11 }}
-                tickFormatter={(value) => `${Number(value).toFixed(1)}m`}
+                tickFormatter={(value) => `${Number(value).toFixed(0)} min`}
                 label={{
                   value: "Duration (minutes)",
                   angle: -90,
@@ -165,6 +221,37 @@ export function CatBehaviorTrends({
             </p>
           </div>
         )}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3 rounded-xl border border-litter-border bg-litter-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-litter-primary-light">
+            <BrainCircuit className="h-5 w-5 text-litter-primary" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-litter-text">
+              Predictive Health Analysis
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-litter-muted">
+              {analysisSummary}
+            </p>
+            {analysisError ? (
+              <p className="mt-1 text-xs text-litter-danger" role="alert">{analysisError}</p>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
+          <BehaviorStateBadge state={displayState} />
+          <button
+            type="button"
+            onClick={() => void handleAnalyze()}
+            disabled={!user || isAnalyzing}
+            aria-busy={isAnalyzing}
+            className="rounded-lg border border-litter-primary px-3 py-1.5 text-xs font-semibold text-litter-primary transition-colors hover:bg-litter-primary-light disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Analyze
+          </button>
+        </div>
       </div>
     </section>
   );

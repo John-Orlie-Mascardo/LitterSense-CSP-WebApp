@@ -809,10 +809,12 @@ function PopulatedDashboardState({
       <div className="lg:pt-6">
         {selectedCat && (
           <CatBehaviorTrends
+            key={selectedCat.id}
             catName={selectedCat.name}
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
             trendData={trendData}
+            displayState={selectedDisplayState}
           />
         )}
 
@@ -1137,7 +1139,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         {catsLoading ? (
           <DashboardLoadingState />
         ) : isEmpty ? (

@@ -355,9 +355,11 @@ const buildTrendData = (
   sessions: Session[],
   dailyStats: FirebaseCatStatsDoc[],
 ): CatTrendPoint[] | null => {
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
   const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (6 - index));
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
     const key = getLocalDateKey(date);
     return {
       key,

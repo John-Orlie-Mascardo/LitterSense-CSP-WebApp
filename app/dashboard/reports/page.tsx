@@ -203,7 +203,7 @@ export default function ReportsPage() {
         />
       </div>
 
-      <main className="reports-print-shell pt-20 px-4 max-w-6xl mx-auto">
+      <main className="reports-print-shell pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
 
         {/* ── Page Header ── */}
         <div className="reports-screen-only flex items-start justify-between pt-4 mb-5">

@@ -279,7 +279,7 @@ export default function CatsPage() {
       <TopBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         {/* Header */}
         <section className="mb-8 pt-6 flex items-end justify-between">
           <div>

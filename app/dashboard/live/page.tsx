@@ -749,7 +749,7 @@ export default function LivePage() {
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg lg:max-w-4xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         <LiveHeader activeTab={activeTab} onActiveTabChange={setActiveTab} />
 
         {deviceConnected ? (
