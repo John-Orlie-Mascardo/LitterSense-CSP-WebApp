@@ -4,7 +4,7 @@
  * Per-cat activity overview backed by Firebase, with display-only demo fallbacks.
  *
  * DONE: evidence-aware badges, no-data values, state legend, cat selection,
- * activity trends, live environment readings, and recent-session timeline
+ * activity trends, live readings, recent-session preview, and History navigation
  * PLACEHOLDER: live-only sessions use zero sensor deltas until persisted values arrive
  *
  * NEXT: device integration owners should replace temporary live-session deltas
@@ -14,6 +14,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -703,20 +704,14 @@ function PopulatedDashboardState({
   readonly onViewAbnormalDetails: () => void;
   readonly onDismissAbnormal: () => void;
 }) {
-  const [showAllRecentActivity, setShowAllRecentActivity] = useState(false);
   const visibleRecentVisits = useMemo(
-    () => (
-      showAllRecentActivity
-        ? recentVisits
-        : recentVisits.slice(0, 3)
-    ),
-    [recentVisits, showAllRecentActivity],
+    () => recentVisits.slice(0, 3),
+    [recentVisits],
   );
   const recentActivityGroups = useMemo(
     () => groupRecentVisitsByDate(visibleRecentVisits),
     [visibleRecentVisits],
   );
-  const canToggleRecentActivity = recentVisits.length > 3;
   const selectedDisplayState = selectedCat
     ? catDisplayStates[selectedCat.id] ?? "insufficient"
     : "insufficient";
@@ -883,18 +878,12 @@ function PopulatedDashboardState({
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Recent Activity
             </h2>
-            {canToggleRecentActivity ? (
-              <button
-                onClick={() => setShowAllRecentActivity((prev) => !prev)}
-                className="text-sm font-semibold text-litter-primary hover:underline"
-              >
-                {showAllRecentActivity ? "SHOW LESS" : "VIEW ALL"}
-              </button>
-            ) : (
-              <span className="text-litter-primary text-xs font-semibold">
-                Realtime
-              </span>
-            )}
+            <Link
+              href="/dashboard/history"
+              className="text-sm font-semibold text-litter-primary hover:underline"
+            >
+              VIEW ALL
+            </Link>
           </div>
 
           {recentVisits.length > 0 ? (

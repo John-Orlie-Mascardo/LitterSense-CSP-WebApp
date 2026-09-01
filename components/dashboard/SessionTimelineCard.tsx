@@ -1,9 +1,9 @@
 /**
  * SessionTimelineCard.tsx
  *
- * Recorded litter-box session card for the Home activity timeline.
+ * Recorded litter-box session card shared by Home and Session History.
  *
- * DONE: entry/exit times, recorded date, duration, in-progress and incomplete presentation
+ * DONE: entry/exit times, date, duration, optional six-state badge, Unattributed display
  * PLACEHOLDER: live sessions may temporarily lack final sensor deltas until persistence completes
  *
  * NEXT: device integration owners should keep status values aligned with firmware output.
@@ -12,11 +12,13 @@
 "use client";
 
 import Image from "next/image";
-import { Clock3, LogIn, LogOut } from "lucide-react";
+import { Cat as CatIcon, Clock3, LogIn, LogOut } from "lucide-react";
 import { formatDuration } from "@/lib/utils/formatters";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { Session } from "@/lib/interfaces/Session";
 import { INCOMPLETE_SESSION_FLOOR_SECS } from "@/lib/configs/behaviorThresholds";
+import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import type { BehaviorStateId } from "@/lib/presentation/behaviorStates";
 
 const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
@@ -65,10 +67,10 @@ const isShortSession = (session: Session) =>
   session.sessionStatus === "SHORT_SESSION" ||
   session.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS;
 
-function Avatar({ cat }: { readonly cat: Cat }) {
+function Avatar({ cat }: { readonly cat: Cat | null }) {
   return (
     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-litter-primary-light flex items-center justify-center text-sm font-semibold text-litter-primary">
-      {cat.avatar ? (
+      {cat?.avatar ? (
         <Image
           src={cat.avatar}
           alt={cat.name}
@@ -78,7 +80,7 @@ function Avatar({ cat }: { readonly cat: Cat }) {
           className="h-full w-full object-cover"
         />
       ) : (
-        cat.name.charAt(0).toUpperCase()
+        cat ? cat.name.charAt(0).toUpperCase() : <CatIcon className="h-5 w-5" />
       )}
     </div>
   );
@@ -87,9 +89,11 @@ function Avatar({ cat }: { readonly cat: Cat }) {
 export function SessionTimelineCard({
   cat,
   session,
+  displayState,
 }: {
-  readonly cat: Cat;
+  readonly cat: Cat | null;
   readonly session: Session;
+  readonly displayState?: BehaviorStateId;
 }) {
   const startedAt = getStartedAt(session);
   const endedAt = getSessionDate(session.endedAt);
@@ -104,11 +108,12 @@ export function SessionTimelineCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-body text-sm font-semibold text-litter-text leading-snug">
-              {cat.name}
+              {cat?.name ?? "Unattributed"}
             </p>
             <span className="rounded-full bg-litter-primary-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-litter-primary">
-              RFID Session
+              {cat ? "RFID Session" : "Detected Session"}
             </span>
+            {displayState && <BehaviorStateBadge state={displayState} compact />}
             {shortSession && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
                 Short Session

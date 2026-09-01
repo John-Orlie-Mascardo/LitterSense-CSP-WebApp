@@ -3,7 +3,7 @@
  *
  * Builds and archives reports from the owner’s existing Firebase-backed records.
  *
- * DONE: real record filtering, Unattributed retention, cat snapshots, archive actions
+ * DONE: record filtering, Unattributed retention, cat/trend snapshots, archive actions
  * PLACEHOLDER: none
  *
  * NEXT: data owners should move long-running generation to a server job if needed.
@@ -36,6 +36,11 @@ import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
 import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
 import { UNATTRIBUTED_GROUP_NAME } from "@/lib/presentation/reportSessionGroups";
+import {
+  buildAggregateTrendReferences,
+  buildCatTrendReferences,
+  type BaselineMetricsInput,
+} from "@/lib/presentation/trendCharts";
 
 export type ReportSession = Session & {
   catName: string;
@@ -288,6 +293,12 @@ export function useReports() {
       }
     }
 
+    const selectedReportCats = actualCatId === "all" ? cats : cat ? [cat] : [];
+    const reportBaselines = selectedReportCats.flatMap((reportCat) => {
+      const baseline = getDetailsByCatId(reportCat.id)?.baseline;
+      return baseline ? [baseline as BaselineMetricsInput] : [];
+    });
+
     const report: ReportData = {
       id: generateId(),
       catName,
@@ -299,7 +310,7 @@ export function useReports() {
         year: "numeric",
       }),
       ownerName: user?.displayName || user?.email || "LitterSense User",
-      cats: (actualCatId === "all" ? cats : cat ? [cat] : []).map((reportCat) => ({
+      cats: selectedReportCats.map((reportCat) => ({
         id: reportCat.id,
         name: reportCat.name,
         avatar: reportCat.avatar,
@@ -319,6 +330,9 @@ export function useReports() {
         actualCatId === "all"
           ? buildAggregateTrendData(filteredSessions)
           : getTrendData(actualCatId),
+      trendReferences: actualCatId === "all"
+        ? buildAggregateTrendReferences(reportBaselines)
+        : buildCatTrendReferences(reportBaselines[0]),
     };
 
     setCurrentReport(report);

@@ -40,7 +40,7 @@ function sourceBetween(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test("recent activity keeps all sorted visits and shows three until expanded", () => {
+test("recent activity shows three sorted visits and links to dedicated History", () => {
   const getRecentVisits = sourceBetween(
     "const getRecentVisits = (",
     "const getReadingStatus = (",
@@ -52,10 +52,10 @@ test("recent activity keeps all sorted visits and shows three until expanded", (
 
   assert.match(getRecentVisits, /getSessionTimelineSortValue\(b\.session\) -/);
   assert.doesNotMatch(getRecentVisits, /\.slice\(0,\s*5\)/);
-  assert.match(populatedDashboardState, /showAllRecentActivity/);
   assert.match(populatedDashboardState, /recentVisits\.slice\(0,\s*3\)/);
+  assert.match(populatedDashboardState, /href="\/dashboard\/history"/);
   assert.match(populatedDashboardState, /VIEW ALL/);
-  assert.match(populatedDashboardState, /SHOW LESS/);
+  assert.doesNotMatch(populatedDashboardState, /showAllRecentActivity|SHOW LESS/);
 });
 
 test("recent activity is grouped under friendly date labels", () => {

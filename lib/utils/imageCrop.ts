@@ -1,3 +1,14 @@
+/**
+ * imageCrop.ts
+ *
+ * Renders the owner-selected square avatar crop as a JPEG data URL.
+ *
+ * DONE: pan/zoom-aware square crop with stable 512-pixel output
+ * PLACEHOLDER: none
+ *
+ * NEXT: profile forms convert this local result to a Blob before Storage upload.
+ */
+
 export function cropImageToSquare(
   source: string,
   zoom = 1,
