@@ -1,15 +1,3 @@
-/**
- * CatContext.tsx
- *
- * Synchronizes owner-scoped cats, details, sessions, statistics, and notes.
- *
- * DONE: Firebase synchronization, existing presentation derivation, profile writes,
- * and owner-scoped cat-photo cleanup
- * PLACEHOLDER: deterministic demo summaries remain presentation-only
- *
- * NEXT: data owners should preserve the existing classification and mock-trend behavior.
- */
-
 "use client";
 
 import React, {
@@ -20,7 +8,6 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { usePathname } from "next/navigation";
 import {
   collection,
   deleteDoc,
@@ -36,10 +23,10 @@ import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
 import {
   getLocalDateKey,
   getSessionActivityDateKey,
+  getSessionLocalDateKey,
+  toIsoStringFromDateLike,
 } from "@/lib/utils/sessionDate";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
-import { deleteCatPhoto } from "@/lib/utils/catPhoto";
-import { normalizeSessionDocument } from "@/lib/utils/sessionNormalization";
 import {
   buildDemoCatData,
   shouldUseDemoCatData,
@@ -52,6 +39,8 @@ import type {
   HealthLog,
   Session,
 } from "@/lib/data/mockData";
+import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
+import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
 
 interface FirebaseCatStatsDoc {
   catId?: string;
@@ -81,6 +70,7 @@ interface CatContextType {
   catDetails: Record<string, CatDetails>;
   sessions: Session[];
   healthLogs: HealthLog[];
+  catSessionLogs: Record<string, CatSessionLog>;
   addCat: (cat: Cat, stats?: CatStats, details?: CatDetails) => Promise<void>;
   removeCat: (id: string) => Promise<void>;
   updateCat: (id: string, updates: Partial<Cat>) => Promise<void>;
@@ -90,6 +80,7 @@ interface CatContextType {
   getDetailsByCatId: (id: string) => CatDetails | undefined;
   getSessionsByCatId: (id: string) => Session[];
   getHealthLogsByCatId: (id: string) => HealthLog[];
+  getSessionLogByCatId: (id: string) => CatSessionLog | undefined;
   getTrendData: (id: string) => CatTrendPoint[] | null;
   isUsingDemoData: (id: string) => boolean;
   addHealthLog: (
@@ -151,6 +142,45 @@ const formatAvgDuration = (totalDurationSecs: number, visits: number) => {
   const minutes = Math.floor(avgSecs / 60);
   const seconds = avgSecs % 60;
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+};
+
+const inferSessionStartedAt = (endedAt: string, durationSecs: number) => {
+  if (!endedAt) return "";
+  const parsed = new Date(endedAt);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Date(parsed.getTime() - Math.max(0, durationSecs) * 1000).toISOString();
+};
+
+const normalizeSession = (id: string, data: FirestoreData): Session => {
+  const endedAt =
+    toIsoStringFromDateLike(data.endedAt) ||
+    toIsoStringFromDateLike(data.createdAt);
+  const durationSecs = parseNumber(data.durationSecs);
+  const startedAt =
+    toIsoStringFromDateLike(data.startedAt) ||
+    inferSessionStartedAt(endedAt, durationSecs);
+  const eventDate = endedAt ? new Date(endedAt) : new Date();
+
+  return {
+    id,
+    catId: parseString(data.catId),
+    date:
+      getSessionLocalDateKey({
+        date: data.date,
+        endedAt: data.endedAt,
+        createdAt: data.createdAt,
+      }) || getLocalDateKey(eventDate),
+    time: parseString(data.time) || formatLocalTime(eventDate),
+    startedAt,
+    endedAt,
+    durationSecs,
+    mq135Delta: parseNumber(data.mq135Delta),
+    mq136Delta: parseNumber(data.mq136Delta),
+    anomaly: data.anomaly === true,
+    anomalyType:
+      typeof data.anomalyType === "string" ? data.anomalyType : null,
+    sessionStatus: parseString(data.sessionStatus, "NORMAL"),
+  };
 };
 
 const normalizeHealthLog = (id: string, data: FirestoreData): HealthLog => ({
@@ -407,14 +437,13 @@ const getVisitAnomaly = (
 
 export function CatProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
-  const pathname = usePathname();
-  const isHistoryRoute = pathname === "/dashboard/history";
   const uid = user?.uid;
   const [rawCats, setRawCats] = useState<Cat[]>([]);
   const [catStats, setCatStats] = useState<Record<string, CatStats>>({});
   const [catDetails, setCatDetails] = useState<Record<string, CatDetails>>({});
   const [sessions, setSessions] = useState<Session[]>([]);
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([]);
+  const [catSessionLogs, setCatSessionLogs] = useState<Record<string, CatSessionLog>>({});
   const [firebaseCatStats, setFirebaseCatStats] = useState<
     Record<string, FirebaseCatStatsDoc>
   >({});
@@ -433,6 +462,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         setCatDetails({});
         setSessions([]);
         setHealthLogs([]);
+        setCatSessionLogs({});
         setFirebaseCatStats({});
         setCatDailyStats({});
         setIsLoading(false);
@@ -502,30 +532,25 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
-    let unsubSessions: () => void = () => {};
-    if (isHistoryRoute) {
-      queueMicrotask(() => setSessions([]));
-    } else {
-      unsubSessions = onSnapshot(
-        collection(db, "users", uid, "sessions"),
-        (snapshot) => {
-          const loaded = snapshot.docs
-            .map((sessionDoc) => {
-              const data = sessionDoc.data() as FirestoreData;
-              const session = normalizeSessionDocument(sessionDoc.id, data);
-              const sortAt = getSessionSortValue(session);
-              return { session, sortAt };
-            })
-            .sort((a, b) => b.sortAt - a.sortAt)
-            .map(({ session }) => session);
+    const unsubSessions = onSnapshot(
+      collection(db, "users", uid, "sessions"),
+      (snapshot) => {
+        const loaded = snapshot.docs
+          .map((sessionDoc) => {
+            const data = sessionDoc.data() as FirestoreData;
+            const session = normalizeSession(sessionDoc.id, data);
+            const sortAt = getSessionSortValue(session);
+            return { session, sortAt };
+          })
+          .sort((a, b) => b.sortAt - a.sortAt)
+          .map(({ session }) => session);
 
-          setSessions(loaded);
-        },
-        (error) => {
-          console.error("Failed to sync session history:", error);
-        },
-      );
-    }
+        setSessions(loaded);
+      },
+      (error) => {
+        console.error("Failed to sync session history:", error);
+      },
+    );
 
     const unsubHealthLogs = onSnapshot(
       collection(db, "users", uid, "healthLogs"),
@@ -550,14 +575,29 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       },
     );
 
+    const unsubSessionLogs = onSnapshot(
+      collection(db, "users", uid, "catSessionLog"),
+      (snapshot) => {
+        const loaded: Record<string, CatSessionLog> = {};
+        snapshot.forEach((logDoc) => {
+          loaded[logDoc.id] = logDoc.data() as CatSessionLog;
+        });
+        setCatSessionLogs(loaded);
+      },
+      (error) => {
+        console.error("Failed to sync cat session logs:", error);
+      },
+    );
+
     return () => {
       unsubCats();
       unsubDetails();
       unsubCatStats();
       unsubSessions();
       unsubHealthLogs();
+      unsubSessionLogs();
     };
-  }, [uid, authLoading, isHistoryRoute]);
+  }, [uid, authLoading]);
 
   useEffect(() => {
     if (!uid || rawCats.length === 0) {
@@ -687,7 +727,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     await deleteDoc(doc(db, "users", user.uid, "catDetails", id));
     await deleteDoc(doc(db, "users", user.uid, "catStats", id));
     await deleteDoc(doc(db, "users", user.uid, "dailyCatStats", today, "cats", id));
-    await deleteCatPhoto(user.uid, id);
+    await deleteDoc(doc(db, "users", user.uid, "catSessionLog", id));
 
     setCatStats((prev) => {
       const updated = { ...prev };
@@ -843,6 +883,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     [demoDataByCatId],
   );
 
+  const getSessionLogByCatId = useCallback(
+    (id: string): CatSessionLog | undefined => catSessionLogs[id],
+    [catSessionLogs],
+  );
+
   return (
     <CatContext.Provider
       value={{
@@ -851,6 +896,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         catDetails,
         sessions,
         healthLogs,
+        catSessionLogs,
         addCat,
         removeCat,
         updateCat,
@@ -860,6 +906,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         getDetailsByCatId,
         getSessionsByCatId,
         getHealthLogsByCatId,
+        getSessionLogByCatId,
         getTrendData,
         isUsingDemoData,
         addHealthLog,
