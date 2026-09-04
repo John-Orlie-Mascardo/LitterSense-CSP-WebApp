@@ -49,11 +49,13 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { SessionLogSummary } from "@/components/cats/SessionLogSummary";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
+import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import type { Session } from "@/lib/interfaces/Session";
 import {
   calculateAge,
@@ -219,6 +221,7 @@ export default function CatDetailClient() {
     getStatsByCatId,
     getSessionsByCatId,
     getHealthLogsByCatId,
+    getSessionLogByCatId,
     getTrendData,
     updateCat,
     updateDetails,
@@ -233,6 +236,7 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
+  const sessionLog = getSessionLogByCatId(catId);
   const trendData = getTrendData(catId);
   const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
@@ -489,6 +493,7 @@ export default function CatDetailClient() {
                     height={96}
                     unoptimized
                     className="w-full h-full rounded-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   cat.name.charAt(0).toUpperCase()
@@ -545,6 +550,8 @@ export default function CatDetailClient() {
                       onPointerUp={handleEditPhotoPointerUp}
                       onPointerCancel={handleEditPhotoPointerUp}
                       style={{
+                        width: "100%", 
+                        height: "100%",
                         transform: `translate(${editPhotoOffset.x}px, ${editPhotoOffset.y}px) scale(${editPhotoZoom})`,
                       }}
                     />
@@ -772,6 +779,7 @@ export default function CatDetailClient() {
                   sessions={sessions}
                   displayState={displayState}
                   hasData={hasData}
+                  sessionLog={sessionLog}
                   sensorData={sensorData}
                 />
               )}
@@ -828,6 +836,7 @@ interface OverviewTabProps {
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
   readonly hasData: boolean;
+  readonly sessionLog: CatSessionLog | undefined;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
 }
 
@@ -837,6 +846,7 @@ function OverviewTab({
   sessions,
   displayState,
   hasData,
+  sessionLog,
   sensorData,
 }: Readonly<OverviewTabProps>) {
   const displayedStats = useMemo(() => {
@@ -907,6 +917,9 @@ function OverviewTab({
           />
         </div>
       </div>
+
+      {/* Session Log Summary */}
+      <SessionLogSummary log={sessionLog} />
 
       {/* Baseline Profile */}
       {details && hasEstablishedBaseline(details) ? (

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useState, useEffect } from "react";
@@ -599,6 +599,7 @@ export default function SettingsPage() {
                   referrerPolicy="no-referrer"
                   unoptimized
                   className="w-full h-full object-cover"
+                  style={{ width: "100%", height: "100%" }}
                 />
               ) : (
                 (user?.displayName || settings.account.displayName).charAt(0).toUpperCase()
@@ -1009,6 +1010,7 @@ export default function SettingsPage() {
                     referrerPolicy="no-referrer"
                     unoptimized
                     className="w-full h-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   <span className="text-3xl font-display font-bold text-litter-primary">

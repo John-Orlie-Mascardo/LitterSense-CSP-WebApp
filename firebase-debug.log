@@ -1,0 +1,76 @@
+[debug] [2026-08-23T15:25:28.910Z] ----------------------------------------------------------------------
+[debug] [2026-08-23T15:25:28.912Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\roren\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2026-08-23T15:25:28.912Z] CLI Version:   15.19.0
+[debug] [2026-08-23T15:25:28.912Z] Platform:      win32
+[debug] [2026-08-23T15:25:28.912Z] Node Version:  v25.8.1
+[debug] [2026-08-23T15:25:28.912Z] Time:          Sun Aug 23 2026 23:25:28 GMT+0800 (Taiwan Standard Time)
+[debug] [2026-08-23T15:25:28.912Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-23T15:25:28.914Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-08-23T15:25:31.808Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-23T15:25:31.809Z] > authorizing via signed-in user (maclominesdiamond@gmail.com)
+[debug] [2026-08-23T15:25:31.809Z] [iam] checking project littersense-d52b2 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-08-23T15:25:31.810Z] Checked if tokens are valid: false, expires at: 1780823680452
+[debug] [2026-08-23T15:25:31.810Z] Checked if tokens are valid: false, expires at: 1780823680452
+[debug] [2026-08-23T15:25:31.810Z] > refreshing access token with scopes: []
+[debug] [2026-08-23T15:25:31.811Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-08-23T15:25:31.811Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-23T15:25:31.932Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-08-23T15:25:31.932Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-08-23T15:25:31.940Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/littersense-d52b2:testIamPermissions [none]
+[debug] [2026-08-23T15:25:31.940Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/littersense-d52b2:testIamPermissions  x-goog-user-project=littersense-d52b2
+[debug] [2026-08-23T15:25:31.940Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/littersense-d52b2:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-08-23T15:25:32.261Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-08-23T15:25:32.262Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-08-23T15:25:32.897Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/littersense-d52b2:testIamPermissions 200
+[debug] [2026-08-23T15:25:32.897Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/littersense-d52b2:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'littersense-d52b2'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-08-23T15:25:32.901Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:32.901Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:32.901Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/littersense-d52b2/databases/(default) [none]
+[debug] [2026-08-23T15:25:34.103Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/littersense-d52b2/databases/(default) 200
+[debug] [2026-08-23T15:25:34.103Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/littersense-d52b2/databases/(default) {"name":"projects/littersense-d52b2/databases/(default)","uid":"106f13f4-9ff6-4636-818f-bdb137267f61","createTime":"2026-03-25T12:00:58.983364Z","updateTime":"2026-03-25T12:00:58.983364Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-08-23T14:25:35.271078Z","appEngineIntegrationMode":"DISABLED","keyPrefix":"s","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IPz0m9mHt5YDMJmfuf6Iu5MD"}
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-08-23T15:25:34.104Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:34.104Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:34.104Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2:test [none]
+[debug] [2026-08-23T15:25:34.104Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2:test [omitted]
+[debug] [2026-08-23T15:25:35.305Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2:test 200
+[debug] [2026-08-23T15:25:35.305Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-08-23T15:25:35.306Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:35.306Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:35.306Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases pageSize=10&pageToken=
+[debug] [2026-08-23T15:25:36.389Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases 200
+[debug] [2026-08-23T15:25:36.390Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases {"releases":[{"name":"projects/littersense-d52b2/releases/cloud.firestore","rulesetName":"projects/littersense-d52b2/rulesets/24e1a466-e1e7-43be-98eb-b7738c7bf2c1","createTime":"2026-03-25T12:01:03.504450Z","updateTime":"2026-05-27T14:50:24.830362Z"}]}
+[debug] [2026-08-23T15:25:36.390Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:36.390Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:36.390Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets/24e1a466-e1e7-43be-98eb-b7738c7bf2c1 [none]
+[debug] [2026-08-23T15:25:37.459Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets/24e1a466-e1e7-43be-98eb-b7738c7bf2c1 200
+[debug] [2026-08-23T15:25:37.460Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets/24e1a466-e1e7-43be-98eb-b7738c7bf2c1 [omitted]
+[info] i  firestore: uploading rules firestore.rules... 
+[debug] [2026-08-23T15:25:37.461Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:37.461Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:37.461Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets [none]
+[debug] [2026-08-23T15:25:37.461Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets [omitted]
+[debug] [2026-08-23T15:25:37.964Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets 200
+[debug] [2026-08-23T15:25:37.964Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/rulesets {"name":"projects/littersense-d52b2/rulesets/eab6891e-5e69-40a7-8581-20e276c5958d","source":{"files":[{"content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    function signedIn() {\r\n      return request.auth != null;\r\n    }\r\n\r\n    function isOwner(userId) {\r\n      return signedIn() && request.auth.uid == userId;\r\n    }\r\n\r\n    function isAdmin() {\r\n      return signedIn() && request.auth.token.email != null && (\r\n        request.auth.token.email == \"maclaurenz.cultura@gmail.com\" ||\r\n        exists(/databases/$(database)/documents/admins/$(request.auth.token.email))\r\n      );\r\n    }\r\n\r\n    match /admins/{emailId} {\r\n      allow get: if (signedIn() && request.auth.token.email == emailId) || isAdmin();\r\n      allow list, write: if isAdmin();\r\n    }\r\n\r\n    match /deviceConfigs/{configToken} {\r\n      allow get: if true;\r\n      allow list: if false;\r\n      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;\r\n      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;\r\n    }\r\n\r\n    match /rules/{ruleId} {\r\n      allow read: if true;\r\n      allow write: if isAdmin();\r\n    }\r\n\r\n    match /deleteRequests/{requestId} {\r\n      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;\r\n      allow read: if signedIn() && resource.data.userId == request.auth.uid || isAdmin();\r\n      allow update: if isAdmin();\r\n      allow delete: if false;\r\n    }\r\n\r\n    match /users/{userId} {\r\n      allow read: if isOwner(userId) || isAdmin();\r\n      allow create, update: if isOwner(userId);\r\n      allow delete: if isOwner(userId) || isAdmin();\r\n\r\n      match /cats/{catId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /catDetails/{catId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /sessions/{sessionId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /healthLogs/{logId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /notifications/{notificationId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /reports/{reportId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /settings/{settingId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /deviceConfig/{configId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /catStats/{catId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n\r\n        match /daily/{date} {\r\n          allow read: if isOwner(userId) || isAdmin();\r\n          allow create, update: if isOwner(userId);\r\n          allow delete: if isOwner(userId) || isAdmin();\r\n        }\r\n      }\r\n\r\n      match /catSessionLog/{catId} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n      }\r\n\r\n      match /dailyCatStats/{date} {\r\n        allow read: if isOwner(userId) || isAdmin();\r\n        allow create, update: if isOwner(userId);\r\n        allow delete: if isOwner(userId) || isAdmin();\r\n\r\n        match /cats/{catId} {\r\n          allow read: if isOwner(userId) || isAdmin();\r\n          allow create, update: if isOwner(userId);\r\n          allow delete: if isOwner(userId) || isAdmin();\r\n        }\r\n      }\r\n    }\r\n\r\n    match /{document=**} {\r\n      allow read, write: if false;\r\n    }\r\n  }\r\n}\r\n","name":"firestore.rules"}]},"createTime":"2026-08-23T15:25:39.106687Z","metadata":{"services":["cloud.firestore"]}}
+[debug] [2026-08-23T15:25:37.964Z] [rules] created ruleset projects/littersense-d52b2/rulesets/eab6891e-5e69-40a7-8581-20e276c5958d
+[debug] [2026-08-23T15:25:37.965Z] [rules] releasing cloud.firestore with ruleset projects/littersense-d52b2/rulesets/eab6891e-5e69-40a7-8581-20e276c5958d
+[debug] [2026-08-23T15:25:37.965Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:37.965Z] Checked if tokens are valid: true, expires at: 1787502330933
+[debug] [2026-08-23T15:25:37.965Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases/cloud.firestore [none]
+[debug] [2026-08-23T15:25:37.965Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases/cloud.firestore {"release":{"name":"projects/littersense-d52b2/releases/cloud.firestore","rulesetName":"projects/littersense-d52b2/rulesets/eab6891e-5e69-40a7-8581-20e276c5958d"}}
+[debug] [2026-08-23T15:25:39.157Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases/cloud.firestore 200
+[debug] [2026-08-23T15:25:39.157Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/littersense-d52b2/releases/cloud.firestore {"name":"projects/littersense-d52b2/releases/cloud.firestore","rulesetName":"projects/littersense-d52b2/rulesets/eab6891e-5e69-40a7-8581-20e276c5958d","createTime":"2026-03-25T12:01:03.504450Z","updateTime":"2026-08-23T15:25:40.306566Z"}
+[debug] [2026-08-23T15:25:39.158Z] [rules] updated release projects/littersense-d52b2/releases/cloud.firestore
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/littersense-d52b2/overview

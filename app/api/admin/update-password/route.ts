@@ -18,8 +18,6 @@ async function isAdminEmail(email: string): Promise<boolean> {
   if (email === MASTER_ADMIN_EMAIL) return true;
   try {
     // Check the admins collection
-    const { getFirestore: _gfs, ..._ } = await import("firebase-admin/firestore");
-    void _;
     const db = getFirestore(getApps()[0]);
     const snap = await db.collection("admins").doc(email).get();
     return snap.exists;

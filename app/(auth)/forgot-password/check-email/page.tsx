@@ -18,10 +18,35 @@ import { useSearchParams } from "next/navigation";
 import { FirebaseError } from "firebase/app";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/configs/firebase";
+import { getPasswordResetActionCodeSettings } from "@/lib/utils/passwordReset";
+
+function getEmailProvider(email: string | null) {
+  const domain = email?.split("@")[1]?.trim().toLowerCase();
+
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return { name: "Gmail", href: "https://mail.google.com/mail/u/0/#inbox" };
+  }
+
+  if (
+    domain === "outlook.com" ||
+    domain === "hotmail.com" ||
+    domain === "live.com" ||
+    domain === "msn.com"
+  ) {
+    return { name: "Outlook", href: "https://outlook.live.com/mail/0/inbox" };
+  }
+
+  if (domain === "yahoo.com" || domain === "ymail.com") {
+    return { name: "Yahoo Mail", href: "https://mail.yahoo.com/" };
+  }
+
+  return { name: "your email provider", href: "https://mail.google.com/" };
+}
 
 function CheckEmailContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
+  const emailProvider = getEmailProvider(email);
   const [isResending, setIsResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +61,7 @@ function CheckEmailContent() {
     setIsResending(true);
     setError("");
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, getPasswordResetActionCodeSettings());
       setResent(true);
     } catch (caughtError) {
       const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
@@ -70,13 +95,13 @@ function CheckEmailContent() {
           <MailCheck className="w-10 h-10 text-litter-primary" />
         </div>
 
-        {/* Decorative teal banner */}
-        <div className="w-full h-24 bg-gradient-to-r from-[#145C54] to-[#1B7A6E] rounded-2xl mb-8 relative overflow-hidden">
-          {/* Lock decoration */}
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 opacity-30">
+        {/* Decorative teal security banner */}
+        <div className="w-full h-24 bg-gradient-to-r from-[#145C54] to-[#1B7A6E] rounded-2xl mb-8 relative overflow-hidden flex items-center justify-center">
+          {/* Centering the lock makes the banner read as one balanced security illustration. */}
+          <div className="opacity-35" aria-hidden="true">
             <svg
               viewBox="0 0 24 24"
-              className="w-16 h-16 text-white"
+              className="w-16 h-16 text-white drop-shadow-sm"
               fill="currentColor"
             >
               <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM15.1 8H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
@@ -96,12 +121,14 @@ function CheckEmailContent() {
           take a few minutes.
         </p>
 
-        {/* Open Email App Button */}
+        {/* Open the matching provider in the browser instead of invoking the OS mail handler. */}
         <a
-          href="mailto:"
+          href={emailProvider.href}
+          target="_blank"
+          rel="noreferrer"
           className="w-full py-4 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 flex items-center justify-center gap-2"
         >
-          Open Email App
+          Open {emailProvider.name}
         </a>
 
         {/* Resend */}

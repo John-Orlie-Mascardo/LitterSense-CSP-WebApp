@@ -106,6 +106,12 @@ service cloud.firestore {
         }
       }
 
+      match /catSessionLog/{catId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
       match /dailyCatStats/{date} {
         allow read: if isOwner(userId) || isAdmin();
         allow create, update: if isOwner(userId);

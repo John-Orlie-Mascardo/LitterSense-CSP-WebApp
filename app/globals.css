@@ -239,6 +239,15 @@
 .text-status-warning { color: var(--color-warning-text); }
 .border-status-warning { border-color: var(--color-warning-border); }
 
+/* Behavior state dots */
+.bg-litter-normal       { background-color: var(--color-normal); }
+.bg-litter-watch        { background-color: var(--color-watch); }
+.bg-litter-abnormal     { background-color: var(--color-abnormal); }
+.bg-litter-insufficient { background-color: var(--color-insufficient); }
+.bg-litter-incomplete   { background-color: var(--color-incomplete); }
+.bg-litter-unattributed { background-color: var(--color-unattributed); }
+
+
 /* Hover-compatible theme utilities */
 .theme-row-hover { cursor: pointer; transition: background-color 0.15s ease; }
 .theme-row-hover:hover { background-color: var(--color-card-hover); }

@@ -68,6 +68,7 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                     height={40}
                     unoptimized
                     className="h-full w-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   group.name.charAt(0).toUpperCase()

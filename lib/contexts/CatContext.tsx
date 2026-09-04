@@ -643,6 +643,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     };
   }, [uid, rawCats]);
 
+<<<<<<< HEAD
   const demoDataByCatId = useMemo(
     () =>
       Object.fromEntries(
@@ -667,6 +668,47 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       ) as Record<string, DemoCatData>,
     [catDailyStats, catDetails, catStats, firebaseCatStats, rawCats, sessions],
   );
+=======
+  // Recompute and persist session log counts whenever sessions or details change.
+  useEffect(() => {
+    if (!uid || rawCats.length === 0) return;
+
+    const writeSessionLogs = async () => {
+      for (const cat of rawCats) {
+        const catSessions = buildSessionsWithDailySummaries(
+          cat.id,
+          sessions,
+          catDailyStats[cat.id] ?? [],
+        );
+        const details = catDetails[cat.id];
+        const baselineEstablished = Boolean(
+          details?.baseline &&
+          (details.baseline.avgVisitsPerDay ?? 0) > 0 &&
+          (details.baseline.avgDurationSecs ?? 0) > 0 &&
+          details.baseline.lastUpdated?.trim(),
+        );
+        const counts = deriveSessionLogCounts(catSessions, baselineEstablished);
+        const logDoc = {
+          catId: cat.id,
+          ...counts,
+          updatedAt: new Date().toISOString(),
+        } satisfies CatSessionLog;
+
+        try {
+          await setDoc(
+            doc(db, "users", uid, "catSessionLog", cat.id),
+            logDoc,
+          );
+        } catch (err) {
+          console.error(`Failed to write session log for ${cat.id}:`, err);
+        }
+      }
+    };
+
+    void writeSessionLogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, sessions, catDailyStats, catDetails]);
+>>>>>>> 845387bad060e91023769fcdc4318e14cd661020
 
   const getStatsByCatId = useCallback(
     (id: string): CatStats | undefined =>
@@ -881,6 +923,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const isUsingDemoData = useCallback(
     (id: string) => Boolean(demoDataByCatId[id]),
     [demoDataByCatId],
+  );
+
+  const getSessionLogByCatId = useCallback(
+    (id: string): CatSessionLog | undefined => catSessionLogs[id],
+    [catSessionLogs],
   );
 
   const getSessionLogByCatId = useCallback(

@@ -43,3 +43,10 @@ test("the confirmation page resends through Firebase instead of a mock delay", (
   assert.doesNotMatch(confirmationSource, /Mock delay/);
   assert.doesNotMatch(confirmationSource, /setTimeout/);
 });
+
+test("the confirmation page opens Gmail for Gmail reset addresses", () => {
+  assert.match(confirmationSource, /domain === "gmail\.com"/);
+  assert.match(confirmationSource, /https:\/\/mail\.google\.com\/mail\/u\/0\/#inbox/);
+  assert.match(confirmationSource, /Open \{emailProvider\.name\}/);
+  assert.doesNotMatch(confirmationSource, /href="mailto:"/);
+});

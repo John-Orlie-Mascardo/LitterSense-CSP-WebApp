@@ -256,7 +256,7 @@ export default function AdminRequestsPage() {
               </p>
             </div>
             <p className="text-xs text-litter-muted mb-5">
-              This will remove the user's Firebase Auth account and all
+              This will remove the user&apos;s Firebase Auth account and all
               associated Firestore data (cats, readings, etc.).
             </p>
 
