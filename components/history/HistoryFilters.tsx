@@ -3,7 +3,7 @@
  *
  * Responsive Session History presets, calendar, cat/state filters, and sort controls.
  *
- * DONE: sticky desktop panel, mobile bottom sheet, six-state multi-select, Apply gate
+ * DONE: sticky desktop panel, mobile sheet, equal-height state chips, apply/reset controls
  * PLACEHOLDER: none
  *
  * NEXT: route owners should keep URL persistence in the History page boundary.
@@ -12,7 +12,7 @@
 "use client";
 
 import { useState } from "react";
-import { Filter } from "lucide-react";
+import { Filter, RotateCcw } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { HistoryDateRangeCalendar } from "@/components/history/HistoryDateRangeCalendar";
 import type { Cat } from "@/lib/interfaces/Cat";
@@ -43,11 +43,13 @@ function FilterFields({
   cats,
   onChange,
   onApply,
+  onReset,
 }: {
   readonly draft: DraftFilters;
   readonly cats: readonly Cat[];
   readonly onChange: (next: DraftFilters) => void;
   readonly onApply: () => void;
+  readonly onReset: () => void;
 }) {
   const choosePreset = (preset: HistoryPreset) => {
     if (preset === "custom") {
@@ -132,30 +134,39 @@ function FilterFields({
 
       <fieldset>
         <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">States</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-3">
           {BEHAVIOR_STATES.map((state) => (
-            <label key={state.id} className="flex min-h-11 items-center gap-2 rounded-xl border border-litter-border px-3 py-2 text-xs font-medium text-litter-text">
+            <label key={state.id} className="flex min-h-14 items-center gap-2 rounded-xl border border-litter-border px-3 py-2 text-xs font-medium leading-tight text-litter-text">
               <input
                 type="checkbox"
                 checked={draft.states.includes(state.id)}
                 onChange={() => toggleState(state.id)}
-                className="accent-litter-primary"
+                className="shrink-0 accent-litter-primary"
               />
-              <span className={`h-2 w-2 rounded-full ${state.dotClass}`} />
-              {state.label}
+              <span className={`h-2 w-2 shrink-0 rounded-full ${state.dotClass}`} />
+              <span>{state.label}</span>
             </label>
           ))}
         </div>
       </fieldset>
 
-      <button
-        type="button"
-        onClick={onApply}
-        disabled={!draft.endDate}
-        className="w-full rounded-xl bg-litter-primary px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Apply filters
-      </button>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-litter-border px-4 py-3 font-semibold text-litter-text"
+        >
+          <RotateCcw className="h-4 w-4" /> Reset
+        </button>
+        <button
+          type="button"
+          onClick={onApply}
+          disabled={!draft.endDate}
+          className="rounded-xl bg-litter-primary px-4 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Apply filters
+        </button>
+      </div>
     </div>
   );
 }
@@ -164,10 +175,12 @@ export function SessionHistoryFilters({
   filters,
   cats,
   onApply,
+  onReset,
 }: {
   readonly filters: HistoryFilterValue;
   readonly cats: readonly Cat[];
   readonly onApply: (filters: HistoryFilterValue) => void;
+  readonly onReset: () => void;
 }) {
   const [draft, setDraft] = useState<DraftFilters>(filters);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -176,11 +189,15 @@ export function SessionHistoryFilters({
     onApply({ ...draft, endDate: draft.endDate });
     setMobileOpen(false);
   };
+  const reset = () => {
+    onReset();
+    setMobileOpen(false);
+  };
 
   return (
     <>
       <div className="sticky top-20 z-20 hidden rounded-2xl border border-litter-border bg-litter-card/95 p-4 shadow-sm backdrop-blur md:block">
-        <FilterFields draft={draft} cats={cats} onChange={setDraft} onApply={apply} />
+        <FilterFields draft={draft} cats={cats} onChange={setDraft} onApply={apply} onReset={reset} />
       </div>
       <button
         type="button"
@@ -191,7 +208,7 @@ export function SessionHistoryFilters({
         Filters
       </button>
       <BottomSheet isOpen={mobileOpen} onClose={() => setMobileOpen(false)} title="Session filters">
-        <FilterFields draft={draft} cats={cats} onChange={setDraft} onApply={apply} />
+        <FilterFields draft={draft} cats={cats} onChange={setDraft} onApply={apply} onReset={reset} />
       </BottomSheet>
     </>
   );

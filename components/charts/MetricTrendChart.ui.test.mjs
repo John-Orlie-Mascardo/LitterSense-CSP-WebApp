@@ -43,3 +43,11 @@ test("zero data renders an empty message without chart axes", () => {
   assert.match(source, /Baseline still building/);
   assert.match(source, /Baseline unavailable for this saved report/);
 });
+
+test("metric identity owns domains and tick formatting for single and dual axes", () => {
+  assert.match(source, /getTrendMetricConfig/);
+  assert.match(source, /getTrendYAxisDomain/);
+  assert.match(source, /formatTrendTick/);
+  assert.match(source, /secondary/);
+  assert.match(source, /orientation="right"/);
+});

@@ -68,6 +68,8 @@ test("report trends use labeled seven-day owner-facing charts", () => {
   assert.match(source, /Average Duration \(7 days\)/);
   assert.match(source, /Air quality change \(7 days\)/);
   assert.doesNotMatch(source, /Gas Quality/);
-  assert.match(source, /Change from baseline \(%\)/);
+  assert.match(source, /metric="visits"/);
+  assert.match(source, /metric="duration"/);
+  assert.match(source, /metric="airQuality"/);
   assert.match(source, /trendReferences/);
 });

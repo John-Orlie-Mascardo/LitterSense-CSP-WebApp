@@ -3,8 +3,8 @@
  *
  * Loads owner-scoped Session History from Firestore in bounded cursor batches.
  *
- * DONE: inclusive dates, deterministic order, client-derived state filters,
- * stale-request protection, existence check, incremental retry behavior
+ * DONE: stable filter/category keys, inclusive dates, deterministic order,
+ * client-derived states, stale-request protection, and incremental retry
  * PLACEHOLDER: none
  *
  * NEXT: backend owners should add emulator coverage before changing query fields.
@@ -33,6 +33,8 @@ import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
 import {
   filterAndSortHistorySessions,
   HISTORY_BATCH_SIZE,
+  parseHistoryFilters,
+  serializeHistoryFilters,
   type HistoryFilters,
 } from "@/lib/presentation/sessionHistory";
 import { normalizeSessionDocument } from "@/lib/utils/sessionNormalization";
@@ -64,17 +66,31 @@ export function useSessionHistory(
   const loadingRef = useRef(false);
   const requestGenerationRef = useRef(0);
 
-  const catIds = useMemo(
-    () => new Set(cats.map((cat) => cat.id)),
-    [cats],
+  const filterKey = serializeHistoryFilters(filters).toString();
+  const stableFilters = useMemo(
+    () => parseHistoryFilters(
+      new URLSearchParams(filterKey),
+      [],
+      new Date(),
+      false,
+    ),
+    [filterKey],
   );
+  const catIdsKey = cats.map((cat) => cat.id).sort().join("\u001f");
+  const catIds = useMemo(
+    () => new Set(catIdsKey ? catIdsKey.split("\u001f") : []),
+    [catIdsKey],
+  );
+  const baselineCatIdsKey = cats
+    .filter((cat) => hasEstablishedBaseline(catDetails[cat.id]))
+    .map((cat) => cat.id)
+    .sort()
+    .join("\u001f");
   const baselineCatIds = useMemo(
     () => new Set(
-      cats
-        .filter((cat) => hasEstablishedBaseline(catDetails[cat.id]))
-        .map((cat) => cat.id),
+      baselineCatIdsKey ? baselineCatIdsKey.split("\u001f") : [],
     ),
-    [catDetails, cats],
+    [baselineCatIdsKey],
   );
   const fetchPage = useCallback(async (reset: boolean) => {
     if (!user || (!reset && loadingRef.current)) return;
@@ -103,19 +119,19 @@ export function useSessionHistory(
         const pageQuery = nextCursor
           ? query(
             sessionsCollection,
-            where("date", ">=", filters.startDate),
-            where("date", "<=", filters.endDate),
-            orderBy("date", filters.sort),
-            orderBy(documentId(), filters.sort),
+            where("date", ">=", stableFilters.startDate),
+            where("date", "<=", stableFilters.endDate),
+            orderBy("date", stableFilters.sort),
+            orderBy(documentId(), stableFilters.sort),
             startAfter(nextCursor),
             limit(HISTORY_BATCH_SIZE),
           )
           : query(
             sessionsCollection,
-            where("date", ">=", filters.startDate),
-            where("date", "<=", filters.endDate),
-            orderBy("date", filters.sort),
-            orderBy(documentId(), filters.sort),
+            where("date", ">=", stableFilters.startDate),
+            where("date", "<=", stableFilters.endDate),
+            orderBy("date", stableFilters.sort),
+            orderBy(documentId(), stableFilters.sort),
             limit(HISTORY_BATCH_SIZE),
           );
         const snapshot = await getDocs(pageQuery);
@@ -127,7 +143,7 @@ export function useSessionHistory(
         collected.push(
           ...filterAndSortHistorySessions(
             normalized,
-            filters,
+            stableFilters,
             catIds,
             baselineCatIds,
           ),
@@ -154,7 +170,7 @@ export function useSessionHistory(
         setIsLoadingMore(false);
       }
     }
-  }, [baselineCatIds, catIds, filters, user]);
+  }, [baselineCatIds, catIds, stableFilters, user]);
 
   useEffect(() => {
     if (!user) {

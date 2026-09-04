@@ -4,7 +4,7 @@
  * Validates cat photos and owns their Firebase Storage lifecycle.
  *
  * DONE: common-format validation, 10 MB ceiling, resumable upload progress,
- * deterministic owner-scoped paths, and safe missing-object cleanup
+ * timeout cancellation, deterministic owner-scoped paths, and safe cleanup
  * PLACEHOLDER: none
  *
  * NEXT: Firebase owners must deploy the reviewed Storage rules before hosted use.
@@ -20,6 +20,7 @@ import { storage } from "@/lib/configs/firebase";
 
 export const MAX_CAT_PHOTO_BYTES = 10 * 1024 * 1024;
 export const CAT_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+export const CAT_PHOTO_UPLOAD_TIMEOUT_MS = 45_000;
 
 const SUPPORTED_CAT_PHOTO_TYPES = new Set([
   "image/jpeg",
@@ -57,6 +58,7 @@ export interface UploadCatPhotoInput {
   readonly catId: string;
   readonly blob: Blob;
   readonly onProgress?: (percent: number) => void;
+  readonly timeoutMs?: number;
 }
 
 export function uploadCatPhoto({
@@ -64,6 +66,7 @@ export function uploadCatPhoto({
   catId,
   blob,
   onProgress,
+  timeoutMs = CAT_PHOTO_UPLOAD_TIMEOUT_MS,
 }: UploadCatPhotoInput): Promise<string> {
   const photoRef = ref(storage, getCatPhotoPath(uid, catId));
   const uploadTask = uploadBytesResumable(photoRef, blob, {
@@ -71,7 +74,27 @@ export function uploadCatPhoto({
     cacheControl: "public,max-age=3600",
   });
 
+  onProgress?.(0);
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const resolveOnce = (url: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      resolve(url);
+    };
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      reject(error);
+    };
+
+    const timeoutId = setTimeout(() => {
+      rejectOnce(new Error("The photo upload took too long. Please try again."));
+      uploadTask.cancel();
+    }, timeoutMs);
+
     uploadTask.on(
       "state_changed",
       (snapshot) => {
@@ -82,11 +105,12 @@ export function uploadCatPhoto({
           );
         onProgress?.(percent);
       },
-      reject,
+      rejectOnce,
       () => {
-        void getDownloadURL(uploadTask.snapshot.ref).then(resolve, reject);
+        void getDownloadURL(uploadTask.snapshot.ref).then(resolveOnce, rejectOnce);
       },
     );
+
   });
 }
 

@@ -70,6 +70,10 @@ import {
   DASHBOARD_VISIT_WARNING_COUNT,
   INCOMPLETE_SESSION_FLOOR_SECS,
 } from "@/lib/configs/behaviorThresholds";
+import {
+  buildCatTrendReferences,
+  type TrendReferenceSet,
+} from "@/lib/presentation/trendCharts";
 
 const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
@@ -675,6 +679,7 @@ function PopulatedDashboardState({
   airQualityReadings,
   rfidStatus,
   trendData,
+  trendReferences,
   recentVisits,
   displayAvgDuration,
   onSelectCat,
@@ -699,6 +704,7 @@ function PopulatedDashboardState({
   readonly airQualityReadings: AirQualityReadings;
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
+  readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
   readonly displayAvgDuration: string;
   readonly onSelectCat: (catId: string) => void;
@@ -812,6 +818,7 @@ function PopulatedDashboardState({
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
             trendData={trendData}
+            references={trendReferences}
           />
         )}
 
@@ -962,6 +969,10 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const trendReferences = useMemo(
+    () => buildCatTrendReferences(getDetailsByCatId(activeCatId)?.baseline),
+    [activeCatId, getDetailsByCatId],
+  );
   const displaySessions = useMemo(
     () => cats.flatMap((cat) => getSessionsByCatId(cat.id)),
     [cats, getSessionsByCatId],
@@ -1155,6 +1166,7 @@ export default function DashboardPage() {
             airQualityReadings={airQualityReadings}
             rfidStatus={rfidStatus}
             trendData={trendData}
+            trendReferences={trendReferences}
             recentVisits={recentVisits}
             displayAvgDuration={displayAvgDuration}
             onSelectCat={setSelectedCatId}

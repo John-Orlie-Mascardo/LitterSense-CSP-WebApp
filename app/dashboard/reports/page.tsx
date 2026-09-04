@@ -505,10 +505,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </div>
               <MetricTrendChart
                 data={getMetricTrendPoints(trendData, "visits")}
-                metricName="Visit Frequency"
-                yAxisTitle="Visits per day"
-                unit="visits"
-                color="#1B7A6E"
+                metric="visits"
                 hasData={hasReportData}
                 reference={report.trendReferences?.visits}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
@@ -522,10 +519,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </div>
               <MetricTrendChart
                 data={getMetricTrendPoints(trendData, "duration")}
-                metricName="Average Duration"
-                yAxisTitle="Duration (minutes)"
-                unit="minutes"
-                color="#E8924A"
+                metric="duration"
                 hasData={hasReportData}
                 reference={report.trendReferences?.duration}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
@@ -539,10 +533,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
               </div>
               <MetricTrendChart
                 data={getMetricTrendPoints(trendData, "airQuality")}
-                metricName="Air quality change"
-                yAxisTitle="Change from baseline (%)"
-                unit="%"
-                color="#1B7A6E"
+                metric="airQuality"
                 hasData={hasReportData}
                 reference={report.trendReferences?.airQuality}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}

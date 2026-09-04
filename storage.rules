@@ -2,12 +2,12 @@
 //
 // Owner-only Firebase Storage access for LitterSense user files.
 //
-// DONE: authenticated cat-photo reads, validated uploads, replacement, and removal
+// DONE: authenticated owner profile/cat photo reads, validated uploads, and removal
 // PLACEHOLDER: none
 //
 // NEXT: Firebase owners must review and deploy this file with the matching app release.
 
-// FIXME(defense): Deploy this reviewed rule file before testing cat-photo uploads
+// FIXME(defense): Deploy this reviewed rule file before testing owner or cat-photo uploads
 // in the hosted app; local code cannot activate Firebase Storage rules.
 
 rules_version = '2';
@@ -19,6 +19,13 @@ service firebase.storage {
     }
 
     match /users/{userId}/cats/{catId}/photo.jpg {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+
+    match /users/{userId}/profile/{fileName} {
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId)
         && request.resource.size <= 10 * 1024 * 1024

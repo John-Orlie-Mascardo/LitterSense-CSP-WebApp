@@ -38,7 +38,7 @@ test("cat forms validate files and upload cropped blobs to Storage", () => {
 
 test("newly selected photos persist Storage URLs instead of fresh data URIs", () => {
   assert.match(catsSource, /avatar: uploadedPhotoUrl/);
-  assert.match(detailSource, /avatar: nextAvatar/);
+  assert.match(detailSource, /catUpdates\.avatar = uploadedPhotoUrl/);
   assert.doesNotMatch(catsSource, /avatar:\s*croppedDataUrl/);
   assert.doesNotMatch(detailSource, /avatar:\s*croppedDataUrl/);
 });
@@ -51,4 +51,11 @@ test("photo inputs declare the shared accepted image types", () => {
 test("photo removal and cat deletion clean up the owner-scoped object", () => {
   assert.match(detailSource, /deleteCatPhoto\(user\.uid, catId\)/);
   assert.match(contextSource, /deleteCatPhoto\(user\.uid, id\)/);
+});
+
+test("editing without a new photo omits avatar from the cat update", () => {
+  assert.match(detailSource, /const catUpdates: Partial<Cat> = \{\s*name:/);
+  assert.match(detailSource, /if \(uploadedPhotoUrl\) catUpdates\.avatar = uploadedPhotoUrl/);
+  assert.match(detailSource, /else if \(isEditPhotoRemoved\) catUpdates\.avatar = null/);
+  assert.doesNotMatch(detailSource, /updateCat\(catId, \{ name: editForm\.name\.trim\(\), avatar: nextAvatar \}\)/);
 });

@@ -23,9 +23,9 @@ test("cat detail renders three fully labeled seven-day trend charts", () => {
   assert.match(source, /Visit Frequency \(7 days\)/);
   assert.match(source, /Average Duration \(7 days\)/);
   assert.match(source, /Air quality change \(7 days\)/);
-  assert.match(source, /Visits per day/);
-  assert.match(source, /Duration \(minutes\)/);
-  assert.match(source, /Change from baseline \(%\)/);
+  assert.match(source, /metric="visits"/);
+  assert.match(source, /metric="duration"/);
+  assert.match(source, /metric="airQuality"/);
 });
 
 test("existing points are passed through presentation helpers without replacement data", () => {

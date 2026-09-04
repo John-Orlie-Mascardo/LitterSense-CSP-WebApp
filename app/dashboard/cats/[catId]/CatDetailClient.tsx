@@ -54,6 +54,7 @@ import { useCats } from "@/lib/contexts/CatContext";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
+import type { Cat } from "@/lib/interfaces/Cat";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import type { Session } from "@/lib/interfaces/Session";
@@ -257,6 +258,7 @@ export default function CatDetailClient() {
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedEditPhotoFile, setSelectedEditPhotoFile] = useState<File | null>(null);
+  const [isEditPhotoRemoved, setIsEditPhotoRemoved] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [editPhotoZoom, setEditPhotoZoom] = useState(1);
   const [editPhotoOffset, setEditPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
@@ -311,6 +313,7 @@ export default function CatDetailClient() {
     setEditPhotoOffset({ x: 0, y: 0 });
     setEditPhotoSize(null);
     setSelectedEditPhotoFile(null);
+    setIsEditPhotoRemoved(false);
     setUploadProgress(null);
     setEditErrors({});
     setIsEditOpen(true);
@@ -329,6 +332,7 @@ export default function CatDetailClient() {
       reader.onloadend = () => {
         setEditForm((p) => ({ ...p, photo: reader.result as string }));
         setSelectedEditPhotoFile(file);
+        setIsEditPhotoRemoved(false);
         setEditErrors((current) => ({ ...current, photo: undefined }));
         setEditPhotoZoom(1);
         setEditPhotoOffset({ x: 0, y: 0 });
@@ -356,21 +360,26 @@ export default function CatDetailClient() {
     setIsSaving(true);
     try {
       const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
-      let nextAvatar = editForm.photo;
+      let uploadedPhotoUrl: string | null = null;
       if (selectedEditPhotoFile && editForm.photo) {
         const croppedDataUrl = await cropImageToSquare(
           editForm.photo,
           editPhotoZoom,
           editPhotoOffset,
         );
-        nextAvatar = await uploadCatPhoto({
+        uploadedPhotoUrl = await uploadCatPhoto({
           uid: user.uid,
           catId,
           blob: await dataUrlToBlob(croppedDataUrl),
           onProgress: setUploadProgress,
         });
       }
-      await updateCat(catId, { name: editForm.name.trim(), avatar: nextAvatar });
+      const catUpdates: Partial<Cat> = {
+        name: editForm.name.trim(),
+      };
+      if (uploadedPhotoUrl) catUpdates.avatar = uploadedPhotoUrl;
+      else if (isEditPhotoRemoved) catUpdates.avatar = null;
+      await updateCat(catId, catUpdates);
       await updateDetails(catId, {
         breed: editForm.breed,
         gender,
@@ -378,17 +387,21 @@ export default function CatDetailClient() {
         weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
         rfidTag: editForm.rfidTag || "—",
       });
-      if (!editForm.photo && cat.avatar) {
+      if (isEditPhotoRemoved && cat.avatar) {
         await deleteCatPhoto(user.uid, catId);
       }
       setSelectedEditPhotoFile(null);
+      setIsEditPhotoRemoved(false);
       setIsEditOpen(false);
       addToast("Cat profile updated!", "success");
     } catch (error) {
       console.error("Failed to update cat profile:", error);
+      const message = error instanceof Error && error.message.includes("took too long")
+        ? error.message
+        : "We couldn't upload that photo. Please try again.";
       setEditErrors((current) => ({
         ...current,
-        photo: "We couldn't upload that photo. Please try again.",
+        photo: message,
       }));
     } finally {
       setIsSaving(false);
@@ -603,7 +616,7 @@ export default function CatDetailClient() {
                   <label htmlFor="edit-cat-photo-input" className="text-litter-muted hover:text-litter-primary transition-colors cursor-pointer">
                     Change photo
                   </label>
-                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); setSelectedEditPhotoFile(null); resetEditPhotoState(); }}
+                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); setSelectedEditPhotoFile(null); setIsEditPhotoRemoved(true); resetEditPhotoState(); }}
                     className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors">
                     <XIcon className="w-3 h-3" /> Remove photo
                   </button>
@@ -1145,10 +1158,7 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
         </div>
         <MetricTrendChart
           data={getMetricTrendPoints(trendData, "visits")}
-          metricName="Visit Frequency"
-          yAxisTitle="Visits per day"
-          unit="visits"
-          color="#1B7A6E"
+          metric="visits"
           hasData={hasData}
           reference={references?.visits}
           baselineMessage={references ? undefined : "building"}
@@ -1166,10 +1176,7 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
         </div>
         <MetricTrendChart
           data={getMetricTrendPoints(trendData, "duration")}
-          metricName="Average Duration"
-          yAxisTitle="Duration (minutes)"
-          unit="minutes"
-          color="#E8924A"
+          metric="duration"
           hasData={hasData}
           reference={references?.duration}
           baselineMessage={references ? undefined : "building"}
@@ -1187,10 +1194,7 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
         </div>
         <MetricTrendChart
           data={getMetricTrendPoints(trendData, "airQuality")}
-          metricName="Air quality change"
-          yAxisTitle="Change from baseline (%)"
-          unit="%"
-          color="#1B7A6E"
+          metric="airQuality"
           hasData={hasData}
           reference={references?.airQuality}
           baselineMessage={references ? undefined : "building"}

@@ -3,7 +3,8 @@
  *
  * Owns Session History filter state, presets, state mapping, sorting, and date groups.
  *
- * DONE: URL-safe filters, inclusive ranges, six-state filtering, sticky-group data
+ * DONE: URL-safe filters, loading-safe cat restoration, six-state filtering,
+ * inclusive ranges, sorting, and attributed/unattributed group partitioning
  * PLACEHOLDER: Firestore transport is isolated in useSessionHistory
  *
  * NEXT: keep state labels sourced from behaviorStates when presentation copy changes.
@@ -91,6 +92,7 @@ export function parseHistoryFilters(
   params: URLSearchParams,
   validCatIds: readonly string[],
   now = new Date(),
+  validCatIdsReady = true,
 ): HistoryFilters {
   const defaults = getDefaultHistoryFilters(now);
   const start = params.get("start");
@@ -105,7 +107,7 @@ export function parseHistoryFilters(
   const hasValidRange = isDateKey(start) && isDateKey(end) && start <= end;
   const validCatSet = new Set(validCatIds);
   const catId = catValue === "unattributed" || catValue === "all" ||
-    (catValue !== null && validCatSet.has(catValue))
+    (catValue !== null && (!validCatIdsReady || validCatSet.has(catValue)))
     ? catValue
     : defaults.catId;
 
@@ -119,6 +121,25 @@ export function parseHistoryFilters(
     states: requestedStates.length > 0 ? requestedStates : defaults.states,
     sort: sortValue && HISTORY_SORTS.has(sortValue) ? sortValue : defaults.sort,
   };
+}
+
+/** Keeps unattributed/unknown-cat records after named-cat records within a day. */
+export function partitionHistorySessions(
+  sessions: readonly Session[],
+  catIds: ReadonlySet<string>,
+): { readonly attributed: Session[]; readonly unattributed: Session[] } {
+  const attributed: Session[] = [];
+  const unattributed: Session[] = [];
+
+  for (const session of sessions) {
+    if (session.catId && catIds.has(session.catId)) {
+      attributed.push(session);
+    } else {
+      unattributed.push(session);
+    }
+  }
+
+  return { attributed, unattributed };
 }
 
 export function serializeHistoryFilters(filters: HistoryFilters): URLSearchParams {

@@ -13,9 +13,21 @@ import {
   BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
   BASELINE_DURATION_DEVIATION_SECS,
   BASELINE_VISIT_DEVIATION_COUNT,
+  DASHBOARD_DURATION_WARNING_MINS,
+  DASHBOARD_VISIT_WARNING_COUNT,
+  INCOMPLETE_SESSION_FLOOR_SECS,
 } from "@/lib/configs/behaviorThresholds";
 
 export type TrendMetricId = "visits" | "duration" | "airQuality";
+
+export interface TrendMetricConfig {
+  readonly metricName: string;
+  readonly yAxisTitle: string;
+  readonly unit: string;
+  readonly color: string;
+  readonly allowDecimals: boolean;
+  readonly normalRange: { readonly min: number; readonly max: number } | null;
+}
 
 export interface TrendReference {
   readonly baseline: number;
@@ -44,6 +56,73 @@ export interface TrendPointInput {
 }
 
 const roundForDisplay = (value: number) => Math.round(value * 100) / 100;
+
+const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = {
+  visits: {
+    metricName: "Visit Frequency",
+    yAxisTitle: "Visits per day",
+    unit: "visits",
+    color: "#1B7A6E",
+    allowDecimals: false,
+    normalRange: { min: 0, max: DASHBOARD_VISIT_WARNING_COUNT },
+  },
+  duration: {
+    metricName: "Average Duration",
+    yAxisTitle: "Duration (minutes)",
+    unit: "minutes",
+    color: "#E8924A",
+    allowDecimals: true,
+    normalRange: {
+      min: roundForDisplay(INCOMPLETE_SESSION_FLOOR_SECS / 60),
+      max: DASHBOARD_DURATION_WARNING_MINS,
+    },
+  },
+  airQuality: {
+    metricName: "Air quality change",
+    yAxisTitle: "Change from baseline (%)",
+    unit: "%",
+    color: "#1B7A6E",
+    allowDecimals: true,
+    normalRange: null,
+  },
+};
+
+export function getTrendMetricConfig(metric: TrendMetricId): TrendMetricConfig {
+  return TREND_METRIC_CONFIG[metric];
+}
+
+export function formatTrendTick(metric: TrendMetricId, value: number): string {
+  const rounded = roundForDisplay(value);
+  if (metric === "duration") return `${rounded} min`;
+  if (metric === "airQuality") return `${rounded}%`;
+  return String(Math.round(rounded));
+}
+
+export function getTrendYAxisDomain(
+  metric: TrendMetricId,
+  data: readonly { readonly value: number }[],
+  reference?: TrendReference | null,
+): readonly [number, number] {
+  const config = getTrendMetricConfig(metric);
+  const values = data
+    .map((point) => point.value)
+    .filter(Number.isFinite);
+  const candidates = [
+    0,
+    ...values,
+    ...(config.normalRange
+      ? [config.normalRange.min, config.normalRange.max]
+      : []),
+    ...(reference
+      ? [reference.baseline, reference.normalMin, reference.normalMax]
+      : []),
+  ];
+  const minimum = Math.min(...candidates);
+  const maximum = Math.max(...candidates, 1);
+  const lower = minimum < 0 ? Math.floor(minimum * 1.1) : 0;
+  const upper = Math.max(lower + 1, Math.ceil(maximum * 1.1));
+  return [lower, upper];
+}
 
 const isEstablishedBaseline = (
   baseline: BaselineMetricsInput | null | undefined,

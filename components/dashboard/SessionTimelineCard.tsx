@@ -3,7 +3,7 @@
  *
  * Recorded litter-box session card shared by Home and Session History.
  *
- * DONE: entry/exit times, date, duration, optional six-state badge, Unattributed display
+ * DONE: entry/exit times, date, duration, state badge after session type, Unattributed display
  * PLACEHOLDER: live sessions may temporarily lack final sensor deltas until persistence completes
  *
  * NEXT: device integration owners should keep status values aligned with firmware output.

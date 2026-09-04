@@ -3,7 +3,7 @@
  *
  * Source contracts for the responsive, paginated Session History experience.
  *
- * DONE: filter persistence, calendar, state badges, sticky dates, loading and empty states
+ * DONE: persistence, calendar, non-overlapping chips, grouping, loading and empty states
  * PLACEHOLDER: none
  *
  * NEXT: add browser interaction coverage when Firebase emulator data is available.
@@ -38,9 +38,16 @@ test("history persists filters and incrementally loads grouped session cards", (
 test("history renders required first-run, filtered-empty, skeleton, and retry states", () => {
   assert.match(pageSource, /Waiting for RFID visits/);
   assert.match(pageSource, /No sessions recorded between/);
-  assert.match(pageSource, /Reset date range/);
+  assert.match(pageSource, /Reset filters/);
   assert.match(pageSource, /SessionHistorySkeleton/);
   assert.match(pageSource, />Retry</);
+});
+
+test("history preserves loading cat filters and renders Unattributed after named sessions", () => {
+  assert.match(pageSource, /isLoading: catsLoading/);
+  assert.match(pageSource, /partitionHistorySessions/);
+  assert.match(pageSource, /Unattributed sessions/);
+  assert.match(pageSource, /getDefaultHistoryFilters/);
 });
 
 test("desktop filters stay visible and mobile filters use a bottom sheet", () => {
@@ -54,6 +61,9 @@ test("desktop filters stay visible and mobile filters use a bottom sheet", () =>
   assert.match(filterSource, /Unattributed/);
   assert.match(filterSource, /Newest first/);
   assert.match(filterSource, /Oldest first/);
+  assert.match(filterSource, /auto-rows-fr/);
+  assert.match(filterSource, /min-h-14/);
+  assert.match(filterSource, /> Reset/);
 });
 
 test("the calendar is full width with touch buttons and highlighted ranges", () => {
