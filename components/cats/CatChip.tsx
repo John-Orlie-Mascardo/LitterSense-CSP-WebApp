@@ -53,6 +53,7 @@ export function CatChip({ cat, isActive, displayState, onClick }: CatChipProps) 
               height={32}
               unoptimized
               className="w-full h-full rounded-full object-cover"
+              style={{ width: "100%", height: "100%" }}
             />
           ) : (
             cat.name.charAt(0).toUpperCase()

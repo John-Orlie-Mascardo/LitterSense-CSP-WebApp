@@ -3,10 +3,10 @@
  *
  * Detailed cat profile, activity history, trends, notes, and report entry point.
  *
- * DONE: profile editing, per-cat session tabs, evidence-aware state and no-data summaries
+ * DONE: Storage-backed profile editing, per-cat sessions, labeled trends, evidence-aware states
  * PLACEHOLDER: none
  *
- * NEXT: device/data owners should keep profile evidence synchronized with recorded sessions.
+ * NEXT: Firebase owners deploy Storage rules; data owners keep evidence synchronized.
  */
 
 "use client";
@@ -44,15 +44,19 @@ import { TabBar } from "@/components/ui/TabBar";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { SparklineChart } from "@/components/charts/SparklineChart";
+import { MetricTrendChart } from "@/components/charts/MetricTrendChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
+import { SessionLogSummary } from "@/components/cats/SessionLogSummary";
 import { useCats } from "@/lib/contexts/CatContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
+import type { Cat } from "@/lib/interfaces/Cat";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
+import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import type { Session } from "@/lib/interfaces/Session";
 import {
   calculateAge,
@@ -63,6 +67,13 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
+import {
+  CAT_PHOTO_ACCEPT,
+  dataUrlToBlob,
+  deleteCatPhoto,
+  uploadCatPhoto,
+  validateCatPhotoFile,
+} from "@/lib/utils/catPhoto";
 import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
 import {
   formatMetricValue,
@@ -79,6 +90,11 @@ import {
   BASELINE_PERIOD_DAYS,
   BASELINE_VISIT_DEVIATION_COUNT,
 } from "@/lib/configs/behaviorThresholds";
+import {
+  buildCatTrendReferences,
+  getMetricTrendPoints,
+  type TrendReferenceSet,
+} from "@/lib/presentation/trendCharts";
 
 const AVATAR_PREVIEW_SIZE = 128;
 
@@ -179,20 +195,6 @@ type CatDetailTabId = (typeof tabs)[number]["id"];
 const isCatDetailTabId = (tabId: string | null): tabId is CatDetailTabId =>
   tabs.some((tab) => tab.id === tabId);
 
-const getTrendBaseline = (
-  details:
-    | {
-        baseline: {
-          avgVisitsPerDay: number;
-          avgDurationSecs: number;
-          mq135DeltaPercent: number;
-        };
-      }
-    | null,
-) => {
-  return details?.baseline ?? null;
-};
-
 interface EditFormData {
   name: string;
   breed: string;
@@ -213,12 +215,14 @@ export default function CatDetailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const catId = params.catId as string;
+  const { user } = useAuth();
   const {
     getCatById,
     getDetailsByCatId,
     getStatsByCatId,
     getSessionsByCatId,
     getHealthLogsByCatId,
+    getSessionLogByCatId,
     getTrendData,
     updateCat,
     updateDetails,
@@ -233,8 +237,9 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
+  const sessionLog = getSessionLogByCatId(catId);
   const trendData = getTrendData(catId);
-  const trendBaseline = getTrendBaseline(details ?? null);
+  const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
   const baselineEstablished = hasEstablishedBaseline(details);
   const displayState = getCatDisplayState({
@@ -252,6 +257,9 @@ export default function CatDetailClient() {
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedEditPhotoFile, setSelectedEditPhotoFile] = useState<File | null>(null);
+  const [isEditPhotoRemoved, setIsEditPhotoRemoved] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [editPhotoZoom, setEditPhotoZoom] = useState(1);
   const [editPhotoOffset, setEditPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
   const [editPhotoSize, setEditPhotoSize] = useState<PhotoSize | null>(null);
@@ -304,6 +312,9 @@ export default function CatDetailClient() {
     setEditPhotoZoom(1);
     setEditPhotoOffset({ x: 0, y: 0 });
     setEditPhotoSize(null);
+    setSelectedEditPhotoFile(null);
+    setIsEditPhotoRemoved(false);
+    setUploadProgress(null);
     setEditErrors({});
     setIsEditOpen(true);
   };
@@ -311,11 +322,26 @@ export default function CatDetailClient() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const validationMessage = validateCatPhotoFile(file);
+      if (validationMessage) {
+        setEditErrors((current) => ({ ...current, photo: validationMessage }));
+        e.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditForm((p) => ({ ...p, photo: reader.result as string }));
+        setSelectedEditPhotoFile(file);
+        setIsEditPhotoRemoved(false);
+        setEditErrors((current) => ({ ...current, photo: undefined }));
         setEditPhotoZoom(1);
         setEditPhotoOffset({ x: 0, y: 0 });
+      };
+      reader.onerror = () => {
+        setEditErrors((current) => ({
+          ...current,
+          photo: "We couldn't open that photo. Please choose another image.",
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -329,22 +355,58 @@ export default function CatDetailClient() {
     if (!editForm.dob) errs.dob = "Date of birth is required";
     if (Object.keys(errs).length > 0) { setEditErrors(errs); return; }
 
+    if (!user || !cat) return;
+
     setIsSaving(true);
-    const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
-    const avatar = editForm.photo
-      ? await cropImageToSquare(editForm.photo, editPhotoZoom, editPhotoOffset)
-      : null;
-    await updateCat(catId, { name: editForm.name.trim(), avatar });
-    await updateDetails(catId, {
-      breed: editForm.breed,
-      gender,
-      dob: editForm.dob,
-      weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
-      rfidTag: editForm.rfidTag || "—",
-    });
-    setIsSaving(false);
-    setIsEditOpen(false);
-    addToast("Cat profile updated!", "success");
+    try {
+      const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
+      let uploadedPhotoUrl: string | null = null;
+      if (selectedEditPhotoFile && editForm.photo) {
+        const croppedDataUrl = await cropImageToSquare(
+          editForm.photo,
+          editPhotoZoom,
+          editPhotoOffset,
+        );
+        uploadedPhotoUrl = await uploadCatPhoto({
+          uid: user.uid,
+          catId,
+          blob: await dataUrlToBlob(croppedDataUrl),
+          onProgress: setUploadProgress,
+        });
+      }
+      const catUpdates: Partial<Cat> = {
+        name: editForm.name.trim(),
+      };
+      if (uploadedPhotoUrl) catUpdates.avatar = uploadedPhotoUrl;
+      else if (isEditPhotoRemoved) catUpdates.avatar = null;
+      await updateCat(catId, catUpdates);
+      await updateDetails(catId, {
+        breed: editForm.breed,
+        gender,
+        dob: editForm.dob,
+        weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
+        rfidTag: editForm.rfidTag || "—",
+      });
+      if (isEditPhotoRemoved && cat.avatar) {
+        await deleteCatPhoto(user.uid, catId);
+      }
+      setSelectedEditPhotoFile(null);
+      setIsEditPhotoRemoved(false);
+      setIsEditOpen(false);
+      addToast("Cat profile updated!", "success");
+    } catch (error) {
+      console.error("Failed to update cat profile:", error);
+      const message = error instanceof Error && error.message.includes("took too long")
+        ? error.message
+        : "We couldn't upload that photo. Please try again.";
+      setEditErrors((current) => ({
+        ...current,
+        photo: message,
+      }));
+    } finally {
+      setIsSaving(false);
+      setUploadProgress(null);
+    }
   };
 
   const resetEditPhotoState = () => {
@@ -444,6 +506,7 @@ export default function CatDetailClient() {
                     height={96}
                     unoptimized
                     className="w-full h-full rounded-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   cat.name.charAt(0).toUpperCase()
@@ -500,6 +563,8 @@ export default function CatDetailClient() {
                       onPointerUp={handleEditPhotoPointerUp}
                       onPointerCancel={handleEditPhotoPointerUp}
                       style={{
+                        width: "100%", 
+                        height: "100%",
                         transform: `translate(${editPhotoOffset.x}px, ${editPhotoOffset.y}px) scale(${editPhotoZoom})`,
                       }}
                     />
@@ -551,13 +616,14 @@ export default function CatDetailClient() {
                   <label htmlFor="edit-cat-photo-input" className="text-litter-muted hover:text-litter-primary transition-colors cursor-pointer">
                     Change photo
                   </label>
-                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); resetEditPhotoState(); }}
+                  <button type="button" onClick={(e) => { e.preventDefault(); setEditForm((p) => ({ ...p, photo: null })); setSelectedEditPhotoFile(null); setIsEditPhotoRemoved(true); resetEditPhotoState(); }}
                     className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors">
                     <XIcon className="w-3 h-3" /> Remove photo
                   </button>
                 </div>
               )}
-              <input id="edit-cat-photo-input" type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+              <input id="edit-cat-photo-input" type="file" accept={CAT_PHOTO_ACCEPT} onChange={handlePhotoChange} className="hidden" />
+              {editErrors.photo && <p className="text-red-500 text-xs text-center">{editErrors.photo}</p>}
             </div>
 
             {/* Basic Info */}
@@ -671,7 +737,7 @@ export default function CatDetailClient() {
             {/* Save */}
             <button type="button" onClick={handleEditSave} disabled={isSaving}
               className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-semibold hover:bg-[#165a4e] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm">
-              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</> : <><PawPrint className="w-4 h-4" /> Save Changes</>}
+              {isSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress === null ? "Saving…" : `Uploading photo — ${uploadProgress}%`}</> : <><PawPrint className="w-4 h-4" /> Save Changes</>}
             </button>
 
             {/* Danger zone */}
@@ -726,6 +792,7 @@ export default function CatDetailClient() {
                   sessions={sessions}
                   displayState={displayState}
                   hasData={hasData}
+                  sessionLog={sessionLog}
                   sensorData={sensorData}
                 />
               )}
@@ -736,7 +803,8 @@ export default function CatDetailClient() {
                 <TrendsTab
                   key="trends"
                   trendData={trendData}
-                  baseline={trendBaseline}
+                  references={trendReferences}
+                  hasData={hasData}
                 />
               )}
               {activeTab === "health" && (
@@ -781,6 +849,7 @@ interface OverviewTabProps {
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
   readonly hasData: boolean;
+  readonly sessionLog: CatSessionLog | undefined;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
 }
 
@@ -790,6 +859,7 @@ function OverviewTab({
   sessions,
   displayState,
   hasData,
+  sessionLog,
   sensorData,
 }: Readonly<OverviewTabProps>) {
   const displayedStats = useMemo(() => {
@@ -860,6 +930,9 @@ function OverviewTab({
           />
         </div>
       </div>
+
+      {/* Session Log Summary */}
+      <SessionLogSummary log={sessionLog} />
 
       {/* Baseline Profile */}
       {details && hasEstablishedBaseline(details) ? (
@@ -1057,20 +1130,17 @@ interface TrendsTabProps {
     readonly avgDuration: number;
     readonly mq135Delta: number;
   }> | null;
-  readonly baseline: {
-    readonly avgVisitsPerDay: number;
-    readonly avgDurationSecs: number;
-    readonly mq135DeltaPercent: number;
-  } | null;
+  readonly references: TrendReferenceSet | null;
+  readonly hasData: boolean;
 }
 
-function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
-  if (!trendData || !baseline) {
+function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>) {
+  if (!trendData || !hasData) {
     return (
       <EmptyState
         icon={AlertTriangle}
         title="No trend data"
-        description="Not enough data to show trends."
+          description="No sessions were recorded in this 7-day period."
       />
     );
   }
@@ -1086,10 +1156,13 @@ function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
             Visit Frequency (7 days)
           </h4>
         </div>
-        <SparklineChart
-          data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
-          baseline={baseline.avgVisitsPerDay}
-          color="#1B7A6E"
+        <MetricTrendChart
+          data={getMetricTrendPoints(trendData, "visits")}
+          metric="visits"
+          hasData={hasData}
+          reference={references?.visits}
+          baselineMessage={references ? undefined : "building"}
+          emptyMessage="No sessions were recorded in this 7-day period."
         />
       </div>
 
@@ -1101,14 +1174,17 @@ function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
             Average Duration (7 days)
           </h4>
         </div>
-        <SparklineChart
-          data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
-          baseline={baseline.avgDurationSecs}
-          color="#E8924A"
+        <MetricTrendChart
+          data={getMetricTrendPoints(trendData, "duration")}
+          metric="duration"
+          hasData={hasData}
+          reference={references?.duration}
+          baselineMessage={references ? undefined : "building"}
+          emptyMessage="No sessions were recorded in this 7-day period."
         />
       </div>
 
-      {/* Gas Quality */}
+      {/* Air quality change */}
       <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
         <div className="flex items-center gap-2 mb-3">
           <Wind className="w-5 h-5 text-litter-primary" />
@@ -1116,10 +1192,13 @@ function TrendsTab({ trendData, baseline }: Readonly<TrendsTabProps>) {
             Air quality change (7 days)
           </h4>
         </div>
-        <SparklineChart
-          data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
-          baseline={baseline.mq135DeltaPercent}
-          color="#1B7A6E"
+        <MetricTrendChart
+          data={getMetricTrendPoints(trendData, "airQuality")}
+          metric="airQuality"
+          hasData={hasData}
+          reference={references?.airQuality}
+          baselineMessage={references ? undefined : "building"}
+          emptyMessage="No sessions were recorded in this 7-day period."
         />
       </div>
 

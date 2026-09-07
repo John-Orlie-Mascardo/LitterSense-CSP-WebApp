@@ -4,7 +4,7 @@
  * Per-cat activity overview backed by Firebase, with display-only demo fallbacks.
  *
  * DONE: evidence-aware badges, no-data values, state legend, cat selection,
- * activity trends, live environment readings, and recent-session timeline
+ * activity trends, live readings, recent-session preview, and History navigation
  * PLACEHOLDER: live-only sessions use zero sensor deltas until persisted values arrive
  *
  * NEXT: device integration owners should replace temporary live-session deltas
@@ -14,6 +14,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -69,6 +70,10 @@ import {
   DASHBOARD_VISIT_WARNING_COUNT,
   INCOMPLETE_SESSION_FLOOR_SECS,
 } from "@/lib/configs/behaviorThresholds";
+import {
+  buildCatTrendReferences,
+  type TrendReferenceSet,
+} from "@/lib/presentation/trendCharts";
 
 const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
@@ -599,6 +604,7 @@ function CatAvatar({
           height={size}
           unoptimized
           className="w-full h-full object-cover"
+          style={{ width: "100%", height: "100%" }}
         />
       ) : (
         cat.name.charAt(0).toUpperCase()
@@ -673,6 +679,7 @@ function PopulatedDashboardState({
   airQualityReadings,
   rfidStatus,
   trendData,
+  trendReferences,
   recentVisits,
   displayAvgDuration,
   onSelectCat,
@@ -697,26 +704,21 @@ function PopulatedDashboardState({
   readonly airQualityReadings: AirQualityReadings;
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
+  readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
   readonly displayAvgDuration: string;
   readonly onSelectCat: (catId: string) => void;
   readonly onViewAbnormalDetails: () => void;
   readonly onDismissAbnormal: () => void;
 }) {
-  const [showAllRecentActivity, setShowAllRecentActivity] = useState(false);
   const visibleRecentVisits = useMemo(
-    () => (
-      showAllRecentActivity
-        ? recentVisits
-        : recentVisits.slice(0, 3)
-    ),
-    [recentVisits, showAllRecentActivity],
+    () => recentVisits.slice(0, 3),
+    [recentVisits],
   );
   const recentActivityGroups = useMemo(
     () => groupRecentVisitsByDate(visibleRecentVisits),
     [visibleRecentVisits],
   );
-  const canToggleRecentActivity = recentVisits.length > 3;
   const selectedDisplayState = selectedCat
     ? catDisplayStates[selectedCat.id] ?? "insufficient"
     : "insufficient";
@@ -816,6 +818,7 @@ function PopulatedDashboardState({
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
             trendData={trendData}
+            references={trendReferences}
           />
         )}
 
@@ -883,18 +886,12 @@ function PopulatedDashboardState({
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Recent Activity
             </h2>
-            {canToggleRecentActivity ? (
-              <button
-                onClick={() => setShowAllRecentActivity((prev) => !prev)}
-                className="text-sm font-semibold text-litter-primary hover:underline"
-              >
-                {showAllRecentActivity ? "SHOW LESS" : "VIEW ALL"}
-              </button>
-            ) : (
-              <span className="text-litter-primary text-xs font-semibold">
-                Realtime
-              </span>
-            )}
+            <Link
+              href="/dashboard/history"
+              className="text-sm font-semibold text-litter-primary hover:underline"
+            >
+              VIEW ALL
+            </Link>
           </div>
 
           {recentVisits.length > 0 ? (
@@ -972,6 +969,10 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const trendReferences = useMemo(
+    () => buildCatTrendReferences(getDetailsByCatId(activeCatId)?.baseline),
+    [activeCatId, getDetailsByCatId],
+  );
   const displaySessions = useMemo(
     () => cats.flatMap((cat) => getSessionsByCatId(cat.id)),
     [cats, getSessionsByCatId],
@@ -1165,6 +1166,7 @@ export default function DashboardPage() {
             airQualityReadings={airQualityReadings}
             rfidStatus={rfidStatus}
             trendData={trendData}
+            trendReferences={trendReferences}
             recentVisits={recentVisits}
             displayAvgDuration={displayAvgDuration}
             onSelectCat={setSelectedCatId}

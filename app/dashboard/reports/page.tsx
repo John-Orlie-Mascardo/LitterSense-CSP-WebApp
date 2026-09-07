@@ -3,7 +3,7 @@
  *
  * Generates activity reports from existing records and renders printable per-cat logs.
  *
- * DONE: exports, activity naming, shared state key, grouped session preview, archive actions
+ * DONE: owner-facing exports, labeled trends, shared state key, grouped logs, archive actions
  * PLACEHOLDER: none
  *
  * NEXT: report owners should add server-side PDF generation if browser printing is replaced.
@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
-import { SparklineChart } from "@/components/charts/SparklineChart";
+import { MetricTrendChart } from "@/components/charts/MetricTrendChart";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
@@ -54,6 +54,7 @@ import {
   buildReportSessionGroups,
   type ReportCatSnapshot,
 } from "@/lib/presentation/reportSessionGroups";
+import { getMetricTrendPoints } from "@/lib/presentation/trendCharts";
 
 type DateRangeValue = "1" | "3" | "7" | "14" | "21" | "30";
 
@@ -134,7 +135,7 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-    const headers = "Cat,Date,Time,Visits,Duration,MQ-135 Delta,MQ-136 Delta,Anomaly\n";
+    const headers = "Cat,Date,Time,Visits,Duration,Air quality change (%),Odor level change (%),Anomaly\n";
     const rows = currentReport.sessions
       .map(
         (s) =>
@@ -500,35 +501,43 @@ function ReportPreview({ report }: ReportPreviewProps) {
             <div className="bg-theme-overlay rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-4 h-4 text-litter-primary" />
-                <span className="text-xs font-medium text-theme-secondary">Visit Frequency</span>
+                <span className="text-xs font-medium text-theme-secondary">Visit Frequency (7 days)</span>
               </div>
-              <SparklineChart
-                data={trendData.map((d) => ({ value: d.visits, label: d.day }))}
-                height={60}
-                showArea={false}
+              <MetricTrendChart
+                data={getMetricTrendPoints(trendData, "visits")}
+                metric="visits"
+                hasData={hasReportData}
+                reference={report.trendReferences?.visits}
+                baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
+                emptyMessage="No sessions were recorded in this 7-day period."
               />
             </div>
             <div className="bg-theme-overlay rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Timer className="w-4 h-4 text-litter-primary" />
-                <span className="text-xs font-medium text-theme-secondary">Avg Duration</span>
+                <span className="text-xs font-medium text-theme-secondary">Average Duration (7 days)</span>
               </div>
-              <SparklineChart
-                data={trendData.map((d) => ({ value: d.avgDuration, label: d.day }))}
-                color="#E8924A"
-                height={60}
-                showArea={false}
+              <MetricTrendChart
+                data={getMetricTrendPoints(trendData, "duration")}
+                metric="duration"
+                hasData={hasReportData}
+                reference={report.trendReferences?.duration}
+                baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
+                emptyMessage="No sessions were recorded in this 7-day period."
               />
             </div>
             <div className="bg-theme-overlay rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Wind className="w-4 h-4 text-litter-primary" />
-                <span className="text-xs font-medium text-theme-secondary">Gas Quality</span>
+                <span className="text-xs font-medium text-theme-secondary">Air quality change (7 days)</span>
               </div>
-              <SparklineChart
-                data={trendData.map((d) => ({ value: d.mq135Delta, label: d.day }))}
-                height={60}
-                showArea={false}
+              <MetricTrendChart
+                data={getMetricTrendPoints(trendData, "airQuality")}
+                metric="airQuality"
+                hasData={hasReportData}
+                reference={report.trendReferences?.airQuality}
+                baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
+                emptyMessage="No sessions were recorded in this 7-day period."
               />
             </div>
           </div>

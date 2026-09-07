@@ -1,3 +1,14 @@
+/**
+ * page.ui.test.mjs
+ *
+ * Source contracts for Settings account, device, and owner-photo flows.
+ *
+ * DONE: Storage-backed photo synchronization, rollback, progress, and device actions
+ * PLACEHOLDER: none
+ *
+ * NEXT: add Firebase emulator interaction coverage when available.
+ */
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -106,4 +117,19 @@ test("PDF and DOC exports omit settings data", () => {
   assert.doesNotMatch(exportHtml, /<h2>Settings<\/h2>/);
   assert.doesNotMatch(exportHtml, /payload\.settings/);
   assert.doesNotMatch(exportHtml, /JSON\.stringify\(payload\.settings/);
+});
+
+test("owner photos upload to Storage before Auth and mirror the URL to Firestore", () => {
+  const saveHandler = sourceBetween(
+    "const handleSaveProfile = async",
+    "const handleChangePassword = async",
+  );
+
+  assert.match(source, /selectedProfilePhotoFile/);
+  assert.match(source, /uploadOwnerPhoto/);
+  assert.match(source, /deleteOwnerPhoto/);
+  assert.match(saveHandler, /photoURL: nextPhotoUrl/);
+  assert.match(saveHandler, /photoPath: nextPhotoPath/);
+  assert.doesNotMatch(saveHandler, /photoURL:\s*editProfileForm\.photo/);
+  assert.match(source, /isSavingProfile/);
 });

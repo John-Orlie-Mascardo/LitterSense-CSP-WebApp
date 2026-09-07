@@ -19,6 +19,7 @@ import { auth } from "@/lib/configs/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { getPasswordResetActionCodeSettings } from "@/lib/utils/passwordReset";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -40,7 +41,7 @@ export default function ForgotPasswordPage() {
     setError("");
     
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, getPasswordResetActionCodeSettings());
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );

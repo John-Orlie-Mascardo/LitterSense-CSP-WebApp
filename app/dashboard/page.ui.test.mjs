@@ -40,7 +40,7 @@ function sourceBetween(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test("recent activity keeps all sorted visits and shows three until expanded", () => {
+test("recent activity shows three sorted visits and links to dedicated History", () => {
   const getRecentVisits = sourceBetween(
     "const getRecentVisits = (",
     "const getReadingStatus = (",
@@ -52,10 +52,10 @@ test("recent activity keeps all sorted visits and shows three until expanded", (
 
   assert.match(getRecentVisits, /getSessionTimelineSortValue\(b\.session\) -/);
   assert.doesNotMatch(getRecentVisits, /\.slice\(0,\s*5\)/);
-  assert.match(populatedDashboardState, /showAllRecentActivity/);
   assert.match(populatedDashboardState, /recentVisits\.slice\(0,\s*3\)/);
+  assert.match(populatedDashboardState, /href="\/dashboard\/history"/);
   assert.match(populatedDashboardState, /VIEW ALL/);
-  assert.match(populatedDashboardState, /SHOW LESS/);
+  assert.doesNotMatch(populatedDashboardState, /showAllRecentActivity|SHOW LESS/);
 });
 
 test("recent activity is grouped under friendly date labels", () => {
@@ -151,13 +151,10 @@ test("home derives presentation states and distinguishes missing metrics from re
 });
 
 test("behavior chart labels duration in minutes on the left and visits on the right", () => {
-  assert.match(chartSource, /Duration \(minutes\)/);
-  assert.match(chartSource, /toFixed\(0\).* min/);
-  assert.match(chartSource, /Visit count/);
-  assert.match(chartSource, /avgDurationMinutes/);
-  assert.match(chartSource, /yAxisId="duration"/);
-  assert.match(chartSource, /yAxisId="visits"/);
-  assert.match(chartSource, /orientation="right"/);
+  assert.match(chartSource, /<MetricTrendChart/);
+  assert.match(chartSource, /metric="duration"/);
+  assert.match(chartSource, /metric: "visits"/);
+  assert.doesNotMatch(chartSource, /from "recharts"/);
 });
 
 test("behavior chart orders the current week from Monday through Sunday", () => {

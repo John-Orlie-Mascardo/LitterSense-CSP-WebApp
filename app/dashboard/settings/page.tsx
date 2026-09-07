@@ -1,4 +1,16 @@
-﻿"use client";
+/**
+ * Settings page.
+ *
+ * Owner account, device, notification, appearance, export, and privacy settings.
+ *
+ * DONE: Storage-backed owner photos synchronized to Auth and Firestore, phone and
+ * password updates, device provisioning, exports, and account actions
+ * PLACEHOLDER: none
+ *
+ * NEXT: Firebase owners must deploy the reviewed Storage rules before hosted uploads.
+ */
+
+"use client";
 
 import Image from "next/image";
 import { useState, useEffect } from "react";
@@ -60,6 +72,14 @@ import {
 import { FirebaseError } from "firebase/app";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 import { getNationalPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phoneNumber";
+import {
+  CAT_PHOTO_ACCEPT,
+  validateCatPhotoFile,
+} from "@/lib/utils/catPhoto";
+import {
+  deleteOwnerPhoto,
+  uploadOwnerPhoto,
+} from "@/lib/utils/ownerPhoto";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -254,6 +274,10 @@ export default function SettingsPage() {
 
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [selectedProfilePhotoFile, setSelectedProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoProgress, setProfilePhotoProgress] = useState<number | null>(null);
+  const [savedProfilePhotoPath, setSavedProfilePhotoPath] = useState("");
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
   const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
@@ -317,6 +341,9 @@ export default function SettingsPage() {
       const phoneNumber = typeof profile?.phoneNumber === "string" ? profile.phoneNumber : "";
 
       setSavedPhoneNumber(phoneNumber);
+      setSavedProfilePhotoPath(
+        typeof profile?.photoPath === "string" ? profile.photoPath : "",
+      );
       setEditProfileForm((prev) => ({
         ...prev,
         phoneCountryCode,
@@ -348,31 +375,92 @@ export default function SettingsPage() {
   const handleSaveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) return;
+    setIsSavingProfile(true);
+    setProfilePhotoProgress(null);
+    const previousDisplayName = user.displayName;
+    const previousPhotoUrl = user.photoURL;
+    const previousPhotoPath = savedProfilePhotoPath;
+    let nextPhotoUrl = previousPhotoUrl;
+    let nextPhotoPath = previousPhotoPath;
+    let uploadedPhotoPath = "";
+    let authUpdated = false;
+
     try {
       const phoneNumber = normalizePhoneNumber(
         editProfileForm.phoneCountryCode,
         editProfileForm.phoneNumber,
       );
-      await Promise.all([
-        updateProfile(user, {
-          displayName: editProfileForm.displayName,
-          photoURL: editProfileForm.photo,
-        }),
-        setDoc(doc(db, "users", user.uid), {
-          phoneCountryCode: editProfileForm.phoneCountryCode,
-          phoneNumber,
-          updatedAt: serverTimestamp(),
-        }, { merge: true }),
-      ]);
+      if (selectedProfilePhotoFile) {
+        const uploaded = await uploadOwnerPhoto({
+          uid: user.uid,
+          file: selectedProfilePhotoFile,
+          onProgress: setProfilePhotoProgress,
+        });
+        nextPhotoUrl = uploaded.url;
+        nextPhotoPath = uploaded.path;
+        uploadedPhotoPath = uploaded.path;
+      }
+
+      await updateProfile(user, {
+        displayName: editProfileForm.displayName,
+        photoURL: nextPhotoUrl,
+      });
+      authUpdated = true;
+      await setDoc(doc(db, "users", user.uid), {
+        displayName: editProfileForm.displayName,
+        photoURL: nextPhotoUrl,
+        photoPath: nextPhotoPath,
+        phoneCountryCode: editProfileForm.phoneCountryCode,
+        phoneNumber,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
       updateAccountSetting("displayName", editProfileForm.displayName);
       setSavedPhoneNumber(phoneNumber);
-      await refreshUser();
+      setSavedProfilePhotoPath(nextPhotoPath);
+      setSelectedProfilePhotoFile(null);
+      try {
+        await refreshUser();
+      } catch (refreshError) {
+        // Auth and Firestore are already synchronized; a refresh failure should
+        // not roll them back or delete the newly referenced Storage object.
+        console.error("Failed to refresh the synchronized profile:", refreshError);
+      }
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
+
+      if (previousPhotoPath && previousPhotoPath !== nextPhotoPath) {
+        try {
+          await deleteOwnerPhoto(user.uid, previousPhotoPath);
+        } catch (cleanupError) {
+          console.error("Failed to delete the previous profile photo:", cleanupError);
+        }
+      }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to update profile";
+      if (authUpdated) {
+        try {
+          await updateProfile(user, {
+            displayName: previousDisplayName,
+            photoURL: previousPhotoUrl,
+          });
+        } catch (rollbackError) {
+          console.error("Failed to roll back the Auth profile:", rollbackError);
+        }
+      }
+      if (uploadedPhotoPath) {
+        try {
+          await deleteOwnerPhoto(user.uid, uploadedPhotoPath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up the unsaved profile photo:", cleanupError);
+        }
+      }
+      const message = error instanceof Error && error.message.includes("took too long")
+        ? error.message
+        : "We couldn't update your profile. Please try again.";
       addToast(message, "error");
+    } finally {
+      setIsSavingProfile(false);
+      setProfilePhotoProgress(null);
     }
   };
 
@@ -462,10 +550,21 @@ export default function SettingsPage() {
   const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const validationMessage = validateCatPhotoFile(file);
+      if (validationMessage) {
+        addToast(validationMessage, "error");
+        event.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditProfileForm((prev) => ({ ...prev, photo: reader.result as string }));
+        setSelectedProfilePhotoFile(file);
       };
+      reader.onerror = () => addToast(
+        "We couldn't open that photo. Please choose another image.",
+        "error",
+      );
       reader.readAsDataURL(file);
     }
   };
@@ -599,6 +698,7 @@ export default function SettingsPage() {
                   referrerPolicy="no-referrer"
                   unoptimized
                   className="w-full h-full object-cover"
+                  style={{ width: "100%", height: "100%" }}
                 />
               ) : (
                 (user?.displayName || settings.account.displayName).charAt(0).toUpperCase()
@@ -614,7 +714,14 @@ export default function SettingsPage() {
               )}
             </div>
             <button
-              onClick={() => setShowEditProfile(true)}
+              onClick={() => {
+                setSelectedProfilePhotoFile(null);
+                setEditProfileForm((current) => ({
+                  ...current,
+                  photo: user?.photoURL ?? null,
+                }));
+                setShowEditProfile(true);
+              }}
               className="border border-litter-primary text-litter-primary bg-litter-primary-light rounded-full px-3 py-1 text-sm font-medium hover:bg-litter-primary-light transition-colors shrink-0"
             >
               Edit Profile
@@ -995,7 +1102,15 @@ export default function SettingsPage() {
       </BottomSheet>
 
       {/* Edit Profile Bottom Sheet */}
-      <BottomSheet isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
+      <BottomSheet
+        isOpen={showEditProfile}
+        onClose={() => {
+          if (isSavingProfile) return;
+          setSelectedProfilePhotoFile(null);
+          setShowEditProfile(false);
+        }}
+        title="Edit Profile"
+      >
         <form onSubmit={handleSaveProfile} className="space-y-5">
           <div className="flex flex-col items-center">
             <div className="relative">
@@ -1009,6 +1124,7 @@ export default function SettingsPage() {
                     referrerPolicy="no-referrer"
                     unoptimized
                     className="w-full h-full object-cover"
+                    style={{ width: "100%", height: "100%" }}
                   />
                 ) : (
                   <span className="text-3xl font-display font-bold text-litter-primary">
@@ -1018,7 +1134,7 @@ export default function SettingsPage() {
               </div>
               <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-litter-primary-hover transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
-                <input type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
+                <input type="file" accept={CAT_PHOTO_ACCEPT} onChange={handleProfilePhotoChange} className="hidden" />
               </label>
             </div>
           </div>
@@ -1059,8 +1175,14 @@ export default function SettingsPage() {
               />
             </div>
           </div>
-          <button type="submit" className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors">
-            Save Changes
+          <button
+            type="submit"
+            disabled={isSavingProfile}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-litter-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSavingProfile ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />{profilePhotoProgress === null ? "Saving…" : `Uploading photo — ${profilePhotoProgress}%`}</>
+            ) : "Save Changes"}
           </button>
         </form>
       </BottomSheet>
