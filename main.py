@@ -23,7 +23,7 @@ app.add_middleware(
 dvr_thread = None
 is_running = False
 current_status = "idle"
-ESP32_STREAM_URL = os.getenv("ESP32_STREAM_URL", "http://192.168.225.87:81/stream")
+ESP32_STREAM_URL = os.getenv("ESP32_STREAM_URL", "http://192.168.68.120:81/stream")
 
 
 # --- BACKGROUND DELETION ---

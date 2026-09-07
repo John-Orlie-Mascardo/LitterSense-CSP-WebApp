@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -30,7 +30,7 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-const ESP32_STREAM_URL = process.env.NEXT_PUBLIC_STREAM_URL ?? "/api/stream";
+const ESP32_STREAM_URL = "/api/stream";
 const SHOW_RECORDINGS_UI = false;
 
 type LiveStreamState = "unknown" | "connected" | "error";
@@ -145,6 +145,36 @@ function LiveView({
   readonly onStreamStateChange: (state: LiveStreamState) => void;
 }) {
   const [error, setError] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [capture, setCapture] = useState(false);
+  const [zoomOut, setZoomOut] = useState(true);
+  const [frame, setFrame] = useState(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const imageUrl = capture ? `${ESP32_STREAM_URL}?capture=1&frame=${frame}` : ESP32_STREAM_URL;
+
+  const handleImageError = () => {
+    clearTimeout(timer.current);
+    setLoaded(false);
+    if (!capture) {
+      setCapture(true);
+    } else {
+      setError(true);
+      onStreamStateChange("error");
+    }
+  };
+
+  useEffect(() => {
+    if (error) return;
+    timer.current = setTimeout(() => {
+      setLoaded(false);
+      if (!capture) setCapture(true);
+      else {
+        setError(true);
+        onStreamStateChange("error");
+      }
+    }, 12000);
+    return () => clearTimeout(timer.current);
+  }, [capture, frame, error, onStreamStateChange]);
 
   return (
     <div className="relative w-full aspect-video bg-[#1C1C1C] rounded-2xl overflow-hidden shadow-lg">
@@ -156,6 +186,9 @@ function LiveView({
           <button
             onClick={() => {
               setError(false);
+              setLoaded(false);
+              setCapture(false);
+              setFrame(0);
               onStreamStateChange("unknown");
             }}
             className="mt-2 px-3 py-1 rounded-full bg-litter-primary text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
@@ -167,21 +200,37 @@ function LiveView({
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={ESP32_STREAM_URL}
+            src={imageUrl}
             alt="ESP32-CAM live stream"
-            className="w-full h-full object-cover"
+            className={`w-full h-full rotate-180 ${zoomOut ? "object-contain" : "object-cover"}`}
             onLoad={() => {
+              clearTimeout(timer.current);
               setError(false);
+              setLoaded(true);
               onStreamStateChange("connected");
+              // ponytail: one capture per second; use MJPEG when the camera stream is available.
+              if (capture) timer.current = setTimeout(() => setFrame((value) => value + 1), 1000);
             }}
-            onError={() => {
-              setError(true);
-              onStreamStateChange("error");
-            }}
+            onError={handleImageError}
           />
+          {!loaded && (
+            <p role="status" className="absolute inset-0 flex items-center justify-center text-white text-sm">
+              Connecting to camera…
+            </p>
+          )}
+          {loaded && (
+            <button
+              onClick={() => setZoomOut((value) => !value)}
+              className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs font-semibold tracking-wide hover:bg-black/80 transition-colors"
+            >
+              {zoomOut ? "Fill" : "Full view"}
+            </button>
+          )}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-white text-xs font-semibold tracking-wide">LIVE</span>
+            <span className={`w-2 h-2 rounded-full animate-pulse ${loaded ? "bg-red-500" : "bg-yellow-500"}`} />
+            <span className="text-white text-xs font-semibold tracking-wide">
+              {loaded ? (capture ? "LIVE · 1s refresh" : "LIVE") : "CONNECTING"}
+            </span>
           </div>
         </>
       )}

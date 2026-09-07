@@ -20,11 +20,8 @@ import {
 
 export const runtime = "nodejs";
 
-const DEFAULT_ESP32_BASE_URL = "http://192.168.189.40";
-
 const ESP32_SENSOR_URL =
-  process.env.ESP32_SENSOR_URL ??
-  `${process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL}/sensors`;
+  process.env.ESP32_SENSOR_URL ?? "http://192.168.68.131/sensors";
 
 const SENSOR_REQUEST_TIMEOUT_MS = 8000;
 const CONFIG_TOKEN_PATTERN = /^[A-Za-z0-9_-]{16,}$/;
