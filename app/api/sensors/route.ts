@@ -17,6 +17,7 @@ import {
   DEVICE_SENSOR_SNAPSHOT_PATH,
   toDeviceSensorsResponse,
 } from "@/lib/utils/deviceSensorSnapshot";
+import { getAdminAuth } from "@/lib/configs/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -112,7 +113,22 @@ const readRequestBody = async (request: Request) => {
   }
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  const authorization = request.headers.get("authorization");
+  if (authorization) {
+    let ownerId: string;
+    try {
+      ownerId = (await getAdminAuth().verifyIdToken(authorization.replace(/^Bearer /, ""))).uid;
+    } catch {
+      return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
+    }
+    try {
+      const snapshot = await getFirestoreRestClient().getDocument(`users/${ownerId}/deviceState/current`);
+      return Response.json(toDeviceSensorsResponse(snapshot?.data ?? {}), { headers: NO_STORE_HEADERS });
+    } catch {
+      return Response.json({ error: "Unable to read device state" }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  }
   const sensorProxyTarget = classifySensorProxyUrl(ESP32_SENSOR_URL);
   const shouldFallbackToStoredSnapshot = shouldSkipServerSensorProxy(
     ESP32_SENSOR_URL,
@@ -349,6 +365,8 @@ function buildSyncResponse(args: {
   unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }>;
 }) {
   const { normalized, recorded, duplicates, unmatched } = args;
+  const acknowledged = normalized.events.length === 1 && unmatched.length === 0 &&
+    recorded.length + duplicates.length === 1 && /^[A-Za-z0-9_-]{1,96}$/.test(normalized.events[0].eventId) ? normalized.events[0].eventId : "";
   return Response.json(
     {
       ok: true,
@@ -360,7 +378,7 @@ function buildSyncResponse(args: {
       recordedSessions: recorded,
       duplicateSessions: duplicates,
     },
-    { headers: NO_STORE_HEADERS },
+    { headers: { ...NO_STORE_HEADERS, "x-litersense-ack": acknowledged } },
   );
 }
 
@@ -441,8 +459,9 @@ async function handleSensorSync(
     );
     const catDetails = buildCatDetails(catDetailDocs);
     const serverNow = new Date();
+    const snapshotPath = `users/${ownerId}/deviceState/current`;
     const existingSensorSnapshot = await client.getDocument(
-      DEVICE_SENSOR_SNAPSHOT_PATH,
+      snapshotPath,
     );
     const { recorded, recordedEvents, duplicates, unmatched } =
       await processSensorEvents({
@@ -462,6 +481,10 @@ async function handleSensorSync(
       liveSensors:
         typeof body === "object" && body !== null
           ? {
+              sessionActive: "sessionActive" in body ? body.sessionActive : undefined,
+              activeRfidHex: "activeRfidHex" in body && typeof body.activeRfidHex === "string" && /^[A-Fa-f0-9]{2,124}$/.test(body.activeRfidHex) ? body.activeRfidHex : undefined,
+              activeSessionStartMs: "activeSessionStartMs" in body ? body.activeSessionStartMs : undefined,
+              activeSessionDurationMs: "activeSessionDurationMs" in body ? body.activeSessionDurationMs : undefined,
               mq135: "mq135" in body ? body.mq135 : undefined,
               mq136: "mq136" in body ? body.mq136 : undefined,
               mq135Raw: "mq135Raw" in body ? body.mq135Raw : undefined,
@@ -474,7 +497,7 @@ async function handleSensorSync(
 
     await client.commit([
       client.createSetWrite(
-        DEVICE_SENSOR_SNAPSHOT_PATH,
+        snapshotPath,
         sensorSnapshot as unknown as Record<string, unknown>,
         existingSensorSnapshot ? undefined : { exists: false },
       ),
@@ -487,7 +510,6 @@ async function handleSensorSync(
     const message = getErrorMessage(error);
 
     console.error("ESP32 sensor sync failed.", {
-      configToken,
       status,
       message,
       detail: isFirestoreError ? error.detail : undefined,

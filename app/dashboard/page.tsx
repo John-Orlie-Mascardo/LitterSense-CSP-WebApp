@@ -1,7 +1,7 @@
 /**
  * Dashboard / Home Page
  *
- * Per-cat activity overview backed by Firebase, with display-only demo fallbacks.
+ * Per-cat activity overview backed by real Firebase data only.
  *
  * DONE: evidence-aware badges, no-data values, state legend, cat selection,
  * activity trends, live readings, recent-session preview, and History navigation
@@ -496,7 +496,6 @@ const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) =>
   const liveStartedAt = getSessionStartedAt(liveSession);
 
   return sessions.some((session) => {
-    if (session.id.startsWith("demo-")) return false;
     if (session.catId !== liveSession.catId) return false;
     if (session.sessionStatus === "IN_PROGRESS" || !session.endedAt) return true;
 
@@ -509,7 +508,6 @@ const hasOverlappingRecentVisit = (sessions: Session[], candidate: Session) => {
   const candidateTime = getSessionTimelineSortValue(candidate);
 
   return sessions.some((session) => {
-    if (session.id.startsWith("demo-")) return false;
     if (session.catId !== candidate.catId) return false;
 
     const sessionTime = getSessionTimelineSortValue(session);
@@ -941,7 +939,6 @@ export default function DashboardPage() {
     getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
-    isUsingDemoData,
     isLoading: catsLoading,
   } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
@@ -1034,7 +1031,7 @@ export default function DashboardPage() {
     () => cats.filter((cat) => cat.status === "abnormal"),
     [cats],
   );
-  const hasRealAnomaly = abnormalCats.some((cat) => !isUsingDemoData(cat.id));
+  const hasRealAnomaly = abnormalCats.length > 0;
   const {
     dismissedAbnormalKeys,
     isDismissedAbnormalReady,
@@ -1047,7 +1044,7 @@ export default function DashboardPage() {
   const abnormalNotificationPayloads = useMemo(() => {
     const dateKey = getLocalDateKey();
 
-    return abnormalCats.filter((cat) => !isUsingDemoData(cat.id)).map((cat) => {
+    return abnormalCats.map((cat) => {
       const abnormalStats = getStatsByCatId(cat.id);
       const visitCount = abnormalStats?.visits ?? 0;
       const avgDuration = abnormalStats?.avgDuration ?? "--";
@@ -1065,7 +1062,7 @@ export default function DashboardPage() {
         avgDuration,
       };
     });
-  }, [abnormalCats, getStatsByCatId, isUsingDemoData]);
+  }, [abnormalCats, getStatsByCatId]);
 
   useEffect(() => {
     if (notificationsLoading || abnormalNotificationPayloads.length === 0) return;

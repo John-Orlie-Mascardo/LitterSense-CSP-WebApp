@@ -50,8 +50,8 @@ export function useRfidVisitTracker(
       rfidCard,
       rfidHex,
     } = sensor;
-    const card = activeRfidCard || rfidCard || "";
-    const hex = activeRfidHex || rfidHex || "";
+    const card = (sensor.sessionActive ? activeRfidCard : rfidCard) || "";
+    const hex = (sensor.sessionActive ? activeRfidHex : rfidHex) || "";
 
     if (sensor.sessionActive) {
       const entryKey = `${sensor.activeSessionStartMs ?? ""}|${card}|${hex}`;
@@ -72,6 +72,8 @@ export function useRfidVisitTracker(
         }
       }
     }
+
+    if (sensor.sessionActive) return;
 
     const sessionCompleted =
       completedSessionCount !== null &&

@@ -4,7 +4,6 @@
  * Cat profile creation and evidence-aware summary cards for registered cats.
  *
  * DONE: profile grid, Storage-backed photo crop/upload, no-data metrics, six-state badges
- * PLACEHOLDER: cats without evidence receive shared display-only demo data
  *
  * NEXT: Firebase owners must deploy storage.rules before hosted photo uploads.
  */
