@@ -32,42 +32,6 @@ type PredictiveSession = {
   readonly anomalyType?: string | null;
 };
 
-export function createPredictiveHealthRateLimiter(cooldownMs: number) {
-  const inFlightUsers = new Set<string>();
-  const lastSuccessfulRequestAt = new Map<string, number>();
-
-  return {
-    begin(uid: string, now = Date.now()) {
-      if (inFlightUsers.has(uid)) {
-        return {
-          allowed: false as const,
-          reason: "in_progress" as const,
-          retryAfterSeconds: 1,
-        };
-      }
-
-      const lastSuccessfulAt = lastSuccessfulRequestAt.get(uid);
-      if (lastSuccessfulAt !== undefined) {
-        const remainingMs = cooldownMs - (now - lastSuccessfulAt);
-        if (remainingMs > 0) {
-          return {
-            allowed: false as const,
-            reason: "cooldown" as const,
-            retryAfterSeconds: Math.ceil(remainingMs / 1000),
-          };
-        }
-      }
-
-      inFlightUsers.add(uid);
-      return { allowed: true as const };
-    },
-    finish(uid: string, succeeded: boolean, now = Date.now()) {
-      inFlightUsers.delete(uid);
-      if (succeeded) lastSuccessfulRequestAt.set(uid, now);
-    },
-  };
-}
-
 export interface PredictiveHealthRequest {
   readonly idToken: string;
   readonly catName: string;

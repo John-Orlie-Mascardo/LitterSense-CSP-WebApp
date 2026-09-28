@@ -11,6 +11,10 @@
 
 "use client";
 
+import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
+
+import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
+
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -32,7 +36,6 @@ import {
   Upload,
   X as XIcon,
   PawPrint,
-  Scale,
   CalendarDays,
   Wifi,
   ScanLine,
@@ -56,7 +59,7 @@ import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { HealthLog } from "@/lib/interfaces/HealthLog";
-import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
+import { deriveSessionLogCounts, type SessionLogCounts } from "@/lib/utils/sessionLogCounts";
 import type { Session } from "@/lib/interfaces/Session";
 import {
   calculateAge,
@@ -74,10 +77,11 @@ import {
   uploadCatPhoto,
   validateCatPhotoFile,
 } from "@/lib/utils/catPhoto";
-import { formatSessionTimeLabel } from "@/lib/utils/sessionTime";
+import { formatSessionTimeLabel, getSessionSortValue } from "@/lib/utils/sessionTime";
 import {
   formatMetricValue,
-  getCatDisplayState,
+  getSessionDisplayState,
+  getMostSevereState,
   hasEstablishedBaseline,
   hasRecordedCatData,
   BEHAVIOR_STATE_BY_ID,
@@ -200,7 +204,6 @@ interface EditFormData {
   breed: string;
   gender: "" | NonNullable<CatDetails["gender"]>;
   dob: string;
-  weightKg: string;
   rfidTag: string;
   photo: string | null;
 }
@@ -222,7 +225,6 @@ export default function CatDetailClient() {
     getStatsByCatId,
     getSessionsByCatId,
     getHealthLogsByCatId,
-    getSessionLogByCatId,
     getTrendData,
     updateCat,
     updateDetails,
@@ -237,16 +239,14 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
-  const sessionLog = getSessionLogByCatId(catId);
+  const sessionLog = deriveSessionLogCounts(sessions, hasEstablishedBaseline(details));
   const trendData = getTrendData(catId);
   const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
   const baselineEstablished = hasEstablishedBaseline(details);
-  const displayState = getCatDisplayState({
-    persistedStatus: cat?.status,
-    hasData,
-    baselineEstablished,
-  });
+  const displayState = getMostSevereState(sessions
+    .filter((session) => getSessionActivityDateKey(session) === getTodayDateKey())
+    .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished })));
 
   const requestedTab = searchParams.get("tab");
   const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
@@ -256,10 +256,10 @@ export default function CatDetailClient() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteStep1Open, setIsDeleteStep1Open] = useState(false);
   const [isDeleteStep2Open, setIsDeleteStep2Open] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const photoUpload = usePhotoUpload();
+  const { isSaving: isSaving, progress: uploadProgress } = photoUpload;
   const [selectedEditPhotoFile, setSelectedEditPhotoFile] = useState<File | null>(null);
   const [isEditPhotoRemoved, setIsEditPhotoRemoved] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [editPhotoZoom, setEditPhotoZoom] = useState(1);
   const [editPhotoOffset, setEditPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
   const [editPhotoSize, setEditPhotoSize] = useState<PhotoSize | null>(null);
@@ -270,7 +270,6 @@ export default function CatDetailClient() {
     breed: details?.breed ?? "",
     gender: details?.gender ?? "",
     dob: details?.dob ?? "",
-    weightKg: details?.weightKg ? String(details.weightKg) : "",
     rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
     photo: cat?.avatar ?? null,
   });
@@ -305,7 +304,6 @@ export default function CatDetailClient() {
       breed: details?.breed ?? "",
       gender: details?.gender ?? "",
       dob: details?.dob ?? "",
-      weightKg: details?.weightKg ? String(details.weightKg) : "",
       rfidTag: details?.rfidTag === "—" ? "" : (details?.rfidTag ?? ""),
       photo: cat?.avatar ?? null,
     });
@@ -314,9 +312,18 @@ export default function CatDetailClient() {
     setEditPhotoSize(null);
     setSelectedEditPhotoFile(null);
     setIsEditPhotoRemoved(false);
-    setUploadProgress(null);
     setEditErrors({});
     setIsEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    photoUpload.cancel();
+    setIsEditOpen(false);
+    setSelectedEditPhotoFile(null);
+    setIsEditPhotoRemoved(false);
+    setEditErrors({});
+    setEditForm({ name: "", breed: "", gender: "", dob: "", rfidTag: "", photo: null });
+    resetEditPhotoState();
   };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,8 +335,10 @@ export default function CatDetailClient() {
         e.target.value = "";
         return;
       }
+      photoUpload.reader.current?.abort();
       const reader = new FileReader();
-      reader.onloadend = () => {
+      photoUpload.reader.current = reader;
+      reader.onload = () => {
         setEditForm((p) => ({ ...p, photo: reader.result as string }));
         setSelectedEditPhotoFile(file);
         setIsEditPhotoRemoved(false);
@@ -357,7 +366,7 @@ export default function CatDetailClient() {
 
     if (!user || !cat) return;
 
-    setIsSaving(true);
+    const upload = photoUpload.begin();
     try {
       const gender = editForm.gender as NonNullable<CatDetails["gender"]>;
       let uploadedPhotoUrl: string | null = null;
@@ -371,9 +380,11 @@ export default function CatDetailClient() {
           uid: user.uid,
           catId,
           blob: await dataUrlToBlob(croppedDataUrl),
-          onProgress: setUploadProgress,
+          signal: upload.signal,
+          onProgress: upload.onProgress,
         });
       }
+      upload.signal.throwIfAborted();
       const catUpdates: Partial<Cat> = {
         name: editForm.name.trim(),
       };
@@ -384,17 +395,19 @@ export default function CatDetailClient() {
         breed: editForm.breed,
         gender,
         dob: editForm.dob,
-        weightKg: editForm.weightKg ? Number.parseFloat(editForm.weightKg) : 0,
         rfidTag: editForm.rfidTag || "—",
       });
       if (isEditPhotoRemoved && cat.avatar) {
         await deleteCatPhoto(user.uid, catId);
       }
+      if (upload.signal.aborted) return;
       setSelectedEditPhotoFile(null);
       setIsEditPhotoRemoved(false);
       setIsEditOpen(false);
       addToast("Cat profile updated!", "success");
     } catch (error) {
+      upload.finish();
+      if (upload.signal.aborted) return;
       console.error("Failed to update cat profile:", error);
       const message = error instanceof Error && error.message.includes("took too long")
         ? error.message
@@ -404,8 +417,7 @@ export default function CatDetailClient() {
         photo: message,
       }));
     } finally {
-      setIsSaving(false);
-      setUploadProgress(null);
+      upload.finish();
     }
   };
 
@@ -523,7 +535,7 @@ export default function CatDetailClient() {
               {details?.breed || "Unknown breed"}
               {` · ${formatGender(details?.gender)}`}
               {details?.dob ? ` · ${calculateAge(details.dob)}` : ""}
-              {details?.weightKg ? ` · ${details.weightKg} kg` : ""}
+              {/* NOTE(manuscript): Section 3.3.7 profile header no longer displays weight. */}
             </p>
 
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
@@ -531,12 +543,12 @@ export default function CatDetailClient() {
               RFID: {details?.rfidTag || "—"}
             </span>
 
-            <BehaviorStateBadge state={displayState} />
+            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} />
           </div>
         </section>
 
         {/* ── Edit BottomSheet ── */}
-        <BottomSheet isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Edit Cat Profile">
+        <BottomSheet isOpen={isEditOpen} onClose={closeEdit} title="Edit Cat Profile">
           <div className="space-y-6">
 
             {/* Photo */}
@@ -694,17 +706,7 @@ export default function CatDetailClient() {
                 {editErrors.dob && <p className="text-red-500 text-xs mt-1">{editErrors.dob}</p>}
               </div>
 
-              <div>
-                <label htmlFor="edit-cat-weight-input" className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
-                <div className="relative">
-                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
-                  <input id="edit-cat-weight-input" type="number" step="0.1" min="0" value={editForm.weightKg}
-                    onChange={(e) => setEditForm((p) => ({ ...p, weightKg: e.target.value }))}
-                    placeholder="4.2"
-                    className="w-full pl-9 pr-3 py-3 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
+              {/* NOTE(manuscript): Weight removed from Edit Cat registration fields. */}
             </div>
 
             {/* Device */}
@@ -744,7 +746,7 @@ export default function CatDetailClient() {
             <div className="border-t border-litter-border pt-4">
               <button
                 type="button"
-                onClick={() => { setIsEditOpen(false); setTimeout(() => setIsDeleteStep1Open(true), 150); }}
+                onClick={() => { closeEdit(); setTimeout(() => setIsDeleteStep1Open(true), 150); }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 hover:border-red-400 active:scale-[0.98] transition-all"
               >
                 <Trash2 className="w-4 h-4" />
@@ -849,7 +851,7 @@ interface OverviewTabProps {
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
   readonly hasData: boolean;
-  readonly sessionLog: CatSessionLog | undefined;
+  readonly sessionLog: SessionLogCounts;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
 }
 
@@ -891,7 +893,7 @@ function OverviewTab({
       : { ...baseStats, visits: baseStats.visits + 1 };
   }, [details, sessions, sensorData, stats]);
 
-  const recentAnomalies = sessions.filter((session) => session.anomaly).slice(0, 3);
+  const recentAnomalies = sessions.filter((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished: hasEstablishedBaseline(details) }) === "abnormal").sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a)).slice(0, 3);
   const hasDisplayedData = hasData || displayedStats.visits > 0;
   const summaryDisplayState = hasDisplayedData ? displayState : "insufficient";
 
@@ -919,20 +921,20 @@ function OverviewTab({
             value={formatMetricValue(displayedStats.visits, hasDisplayedData)}
             label="Visits Today"
             status={summaryDisplayState}
-            statusLabel={BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
           />
           <StatCard
             icon={Timer}
             value={formatMetricValue(stats?.avgDuration, hasDisplayedData)}
             label="Avg Duration"
             status={summaryDisplayState}
-            statusLabel={BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
           />
         </div>
       </div>
 
       {/* Session Log Summary */}
-      <SessionLogSummary log={sessionLog} />
+      <div><p className="mb-2 text-xs text-litter-muted">All recorded sessions</p><SessionLogSummary log={sessionLog} /></div>
 
       {/* Baseline Profile */}
       {details && hasEstablishedBaseline(details) ? (
@@ -991,10 +993,10 @@ function OverviewTab({
 
       {/* Recent Anomalies */}
       <div>
-        <h3 className="font-semibold text-litter-text mb-3">Recent Anomalies</h3>
+        <h3 className="font-semibold text-litter-text mb-3">Recent Anomalies (recorded sessions)</h3>
         {recentAnomalies.length === 0 ? (
           <div className="bg-green-50 rounded-xl p-4 text-center">
-            <p className="text-green-700">No anomalies detected this week 🎉</p>
+            <p className="text-green-700">No recorded sessions classified Abnormal.</p>
           </div>
         ) : (
           <div className="space-y-2">

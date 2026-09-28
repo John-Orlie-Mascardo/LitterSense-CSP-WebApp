@@ -15,7 +15,7 @@ import { AlertTriangle, BarChart3, Bell, BrainCircuit, Cat, Check, Download, Hom
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState, useEffect, type KeyboardEvent } from "react";
+import { useRef, useState, useEffect, useSyncExternalStore, type KeyboardEvent } from "react";
 import {
   getNotificationCategory,
   getTimeLabel,
@@ -23,6 +23,27 @@ import {
   type AppNotification,
 } from "@/lib/contexts/NotificationContext";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
+import { useAuth } from "@/lib/contexts/AuthContext";
+
+const dismissalEvent = "littersense-notification-dismissal";
+const subscribeToDismissals = (notify: () => void) => {
+  window.addEventListener("storage", notify);
+  window.addEventListener(dismissalEvent, notify);
+  return () => {
+    window.removeEventListener("storage", notify);
+    window.removeEventListener(dismissalEvent, notify);
+  };
+};
+
+export function getPanelNotifications<T extends { id: string }>(notifications: readonly T[], stored: string): T[] {
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    const dismissed = new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
+    return notifications.filter((notification) => !dismissed.has(notification.id));
+  } catch {
+    return [...notifications];
+  }
+}
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -44,11 +65,40 @@ const navItems = [
 
 export function TopBar() {
   const { isInstallable, triggerInstall } = usePWAInstall();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { notifications, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { user } = useAuth();
+  const dismissalKey = user ? `littersense-dismissed-notifications:${user.uid}` : "";
+  const dismissed = useSyncExternalStore(subscribeToDismissals, () => {
+    try { return dismissalKey ? localStorage.getItem(dismissalKey) ?? "" : ""; }
+    catch { return ""; }
+  }, () => "");
+  const panelNotifications = getPanelNotifications(notifications, dismissed);
+  const unreadCount = panelNotifications.filter((notification) => !notification.isRead).length;
+  const [actionError, setActionError] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const runAction = async (action: () => Promise<void>) => {
+    setActionError("");
+    setIsUpdating(true);
+    try { await action(); return true; }
+    catch { setActionError("Couldn't update notifications. Please try again."); return false; }
+    finally { setIsUpdating(false); }
+  };
+
+  const clearPanel = () => {
+    if (!dismissalKey || !window.confirm("Clear all notifications from this panel in this browser? Your full notification history will remain available.")) return;
+    try {
+      localStorage.setItem(dismissalKey, JSON.stringify(notifications.map((notification) => notification.id)));
+      window.dispatchEvent(new Event(dismissalEvent));
+      setActionError("");
+    } catch {
+      setActionError("Couldn't save the dismissal in this browser. Please try again.");
+    }
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -65,7 +115,7 @@ export function TopBar() {
   )?.[1] ?? "Dashboard";
 
   const handleNotificationClick = (notification: AppNotification) => {
-    void markAsRead(notification.id);
+    void runAction(() => markAsRead(notification.id));
     if (!notification.route) return;
     setDropdownOpen(false);
     router.push(notification.route);
@@ -243,7 +293,9 @@ export function TopBar() {
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg)"; }}
               onMouseLeave={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "transparent"; }}
               onClick={() => setDropdownOpen((v) => !v)}
-              aria-label="Notifications"
+              aria-label={`Notifications (${unreadCount} unread)`}
+              aria-expanded={dropdownOpen}
+              aria-controls="notification-panel"
             >
               <Bell className="w-5 h-5" />
               <AnimatePresence>
@@ -264,6 +316,7 @@ export function TopBar() {
             <AnimatePresence>
               {dropdownOpen && (
                 <motion.div
+                  id="notification-panel"
                   initial={{ opacity: 0, y: -8, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.96 }}
@@ -278,30 +331,31 @@ export function TopBar() {
                   }}
                 >
                   {/* Header */}
-                  <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
                     <span className="font-semibold text-base" style={{ color: "var(--color-text)" }}>
                       Notifications {unreadCount > 0 && <span className="ml-1 text-xs font-normal opacity-60">({unreadCount} unread)</span>}
                     </span>
                     <div className="flex items-center gap-1">
-                      {unreadCount > 0 && (
                         <button
-                          onClick={() => markAllAsRead()}
-                          className="text-xs px-2 py-1 rounded-lg transition-colors"
+                          onClick={() => void runAction(markAllAsRead)}
+                          disabled={unreadCount === 0 || isUpdating}
+                          className="text-xs px-2 py-1 rounded-lg transition-colors disabled:opacity-40"
                           style={{ color: "var(--color-primary)", background: "transparent" }}
                           title="Mark all as read"
                         >
-                          Mark all read
+                          Mark all as read
                         </button>
-                      )}
-                      <button onClick={() => setDropdownOpen(false)} className="p-1 rounded-lg opacity-50 hover:opacity-100" style={{ color: "var(--color-text)" }}>
+                      <button onClick={clearPanel} disabled={!user || panelNotifications.length === 0 || isUpdating} className="text-xs px-2 py-1 rounded-lg text-status-abnormal disabled:opacity-40">Clear all</button>
+                      <button onClick={() => setDropdownOpen(false)} aria-label="Close notifications" className="p-1 rounded-lg opacity-50 hover:opacity-100" style={{ color: "var(--color-text)" }}>
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
+                  {actionError && <p role="alert" className="px-5 py-2 text-sm text-status-abnormal">{actionError}</p>}
 
                   {/* List */}
                   <div className="overflow-y-auto" style={{ minHeight: "260px", maxHeight: "520px" }}>
-                    {notifications.length === 0 ? (
+                    {panelNotifications.length === 0 ? (
                       <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: "260px" }}>
                         <div
                           className="w-14 h-14 rounded-2xl flex items-center justify-center"
@@ -317,7 +371,7 @@ export function TopBar() {
                         </div>
                       </div>
                     ) : (
-                      notifications.slice(0, 20).map((n) => (
+                      panelNotifications.slice(0, 20).map((n) => (
                         <div
                           key={n.id}
                           onClick={() => handleNotificationClick(n)}
@@ -351,11 +405,11 @@ export function TopBar() {
                           </div>
                           <div className="flex flex-col gap-1 shrink-0">
                             {!n.isRead && (
-                              <button onClick={(e) => { e.stopPropagation(); void markAsRead(n.id); }} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
+                              <button disabled={isUpdating} aria-label={`Mark as read: ${n.title}`} onClick={(e) => { e.stopPropagation(); void runAction(() => markAsRead(n.id)); }} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            <button onClick={(e) => { e.stopPropagation(); void deleteNotification(n.id); }} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
+                            <button disabled={isUpdating} aria-label={`Delete: ${n.title}`} onClick={(e) => { e.stopPropagation(); void runAction(() => deleteNotification(n.id)); }} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>

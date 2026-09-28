@@ -19,6 +19,8 @@ import {
 } from "@/lib/utils/deviceSensorSnapshot";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 
+import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
+
 export const runtime = "nodejs";
 
 const ESP32_SENSOR_URL =
@@ -114,6 +116,18 @@ const readRequestBody = async (request: Request) => {
 };
 
 export async function GET(request: Request) {
+  const response = await getPrimarySensors(request);
+  const url = process.env.ESP32_GAS_ULTRASONIC_URL?.trim();
+  if (!url || !response.ok) return response;
+  const data = await response.json();
+  if ("gasUltrasonicOnline" in data) return Response.json(data, { headers: NO_STORE_HEADERS });
+  const extra = shouldSkipServerSensorProxy(url, process.env.VERCEL === "1")
+    ? { gasUltrasonicOnline: false, mq135: "Unknown", mq136: "Unknown", mq135Raw: null, mq136Raw: null, distanceCm: null }
+    : await fetchGasUltrasonic(url);
+  return Response.json({ ...data, ...extra }, { headers: NO_STORE_HEADERS });
+}
+
+async function getPrimarySensors(request: Request) {
   const authorization = request.headers.get("authorization");
   if (authorization) {
     let ownerId: string;
@@ -123,8 +137,15 @@ export async function GET(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
     }
     try {
-      const snapshot = await getFirestoreRestClient().getDocument(`users/${ownerId}/deviceState/current`);
-      return Response.json(toDeviceSensorsResponse(snapshot?.data ?? {}), { headers: NO_STORE_HEADERS });
+      const client = getFirestoreRestClient();
+      const [snapshot, gasSnapshot] = await Promise.all([
+        client.getDocument(`users/${ownerId}/deviceState/current`),
+        client.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
+      ]);
+      return Response.json({
+        ...toDeviceSensorsResponse(snapshot?.data ?? {}),
+        ...(gasSnapshot ? toGasUltrasonicResponse(gasSnapshot.data) : {}),
+      }, { headers: NO_STORE_HEADERS });
     } catch {
       return Response.json({ error: "Unable to read device state" }, { status: 503, headers: NO_STORE_HEADERS });
     }
@@ -454,15 +475,25 @@ async function handleSensorSync(
     const configError = getConfigDocOrError(configDoc, ownerId);
     if (configError) return configError;
 
-    const catDetailDocs = await client.listDocuments(
-      `users/${ownerId}/catDetails`,
-    );
+    // Keep independent sensor heartbeats from clearing RFID sessions or refreshing their age.
+    if (typeof body === "object" && body !== null && "source" in body && body.source === "gas-ultrasonic") {
+      const readings = normalizeGasUltrasonic(body);
+      if (!readings) return Response.json({ ok: false, error: "Invalid gas/ultrasonic readings." }, { status: 400, headers: NO_STORE_HEADERS });
+      await client.commit([client.createSetWrite(`users/${ownerId}/deviceState/gasUltrasonic`, {
+        ...readings, deviceId, updatedAt: new Date().toISOString(),
+      })]);
+      return Response.json({ ok: true, source: "gas-ultrasonic" }, {
+        headers: { ...NO_STORE_HEADERS, "x-litersense-ack": "gas-ultrasonic" },
+      });
+    }
+
+    const snapshotPath = `users/${ownerId}/deviceState/current`;
+    const [catDetailDocs, existingSensorSnapshot] = await Promise.all([
+      client.listDocuments(`users/${ownerId}/catDetails`),
+      client.getDocument(snapshotPath),
+    ]);
     const catDetails = buildCatDetails(catDetailDocs);
     const serverNow = new Date();
-    const snapshotPath = `users/${ownerId}/deviceState/current`;
-    const existingSensorSnapshot = await client.getDocument(
-      snapshotPath,
-    );
     const { recorded, recordedEvents, duplicates, unmatched } =
       await processSensorEvents({
         client,

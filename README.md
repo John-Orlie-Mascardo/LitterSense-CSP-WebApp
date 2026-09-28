@@ -4,6 +4,8 @@
 
 ---
 
+For current production setup, use the [Vercel deployment guide](docs/vercel-deployment.md) and [.env.example](.env.example). The app now uses Next.js 16, React 19, and server API routes; the older static-export architecture notes below are historical.
+
 ## 1. PROJECT OVERVIEW
 
 ### What LitterSense Is

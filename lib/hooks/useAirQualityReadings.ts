@@ -68,7 +68,7 @@ export function useAirQualityReadings(
     };
   }
 
-  if (sensorsError || !sensorData?.online) {
+  if (sensorsError || !(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) {
     return {
       ammonia: getOfflineReading(),
       h2s: getOfflineReading(),

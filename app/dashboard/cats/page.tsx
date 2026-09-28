@@ -10,6 +10,10 @@
 
 "use client";
 
+import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
+
+import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
+
 import { useRef, useState } from "react";
 import Image from "next/image";
 import {
@@ -19,7 +23,6 @@ import {
   Loader2,
   Cat as CatIcon,
   Camera,
-  Scale,
   CalendarDays,
   PawPrint,
   X as XIcon,
@@ -53,7 +56,8 @@ import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import { CatGridSkeleton } from "@/components/ui/AppLoadingSkeletons";
 import {
   formatMetricValue,
-  getCatDisplayState,
+  getSessionDisplayState,
+  getMostSevereState,
   hasEstablishedBaseline,
   hasRecordedCatData,
 } from "@/lib/presentation/behaviorStates";
@@ -110,7 +114,6 @@ interface CatFormData {
   breed: string;
   gender: "" | "male" | "female";
   dob: string;
-  weightKg: string;
   rfidTag: string;
   photo: string | null;
 }
@@ -120,7 +123,6 @@ const initialFormData: CatFormData = {
   breed: "",
   gender: "",
   dob: "",
-  weightKg: "",
   rfidTag: "",
   photo: null,
 };
@@ -141,9 +143,9 @@ export default function CatsPage() {
   const [errors, setErrors] = useState<
     Partial<Record<keyof CatFormData, string>>
   >({});
-  const [isSaving, setIsSaving] = useState(false);
+  const photoUpload = usePhotoUpload();
+  const { isSaving: isSaving, progress: uploadProgress } = photoUpload;
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [photoZoom, setPhotoZoom] = useState(1);
   const [photoOffset, setPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
   const [photoSize, setPhotoSize] = useState<PhotoSize | null>(null);
@@ -196,7 +198,7 @@ export default function CatsPage() {
       return;
     }
 
-    setIsSaving(true);
+    const upload = photoUpload.begin();
     const gender = formData.gender as Exclude<CatFormData["gender"], "">;
     const newCatId = generateId();
 
@@ -205,7 +207,6 @@ export default function CatsPage() {
       breed: formData.breed,
       gender,
       dob: formData.dob,
-      weightKg: formData.weightKg ? parseFloat(formData.weightKg) : 0,
       rfidTag: formData.rfidTag || "—",
       healthInsight: "",
       baseline: {
@@ -229,7 +230,8 @@ export default function CatsPage() {
           uid: user.uid,
           catId: newCatId,
           blob: await dataUrlToBlob(croppedDataUrl),
-          onProgress: setUploadProgress,
+          signal: upload.signal,
+          onProgress: upload.onProgress,
         });
       }
 
@@ -240,13 +242,16 @@ export default function CatsPage() {
         avatar: uploadedPhotoUrl,
         isOnline: false,
       };
+      upload.signal.throwIfAborted();
       await addCat(newCat, undefined, newDetails);
+      if (upload.signal.aborted) return;
       setIsModalOpen(false);
       setFormData(initialFormData);
       setSelectedPhotoFile(null);
       resetPhotoState();
       addToast(`${newCat.name} has been added!`, "success");
     } catch (error) {
+      upload.finish();
       console.error("Failed to add cat profile:", error);
       if (uploadedPhotoUrl) {
         try {
@@ -255,13 +260,13 @@ export default function CatsPage() {
           console.error("Failed to clean up an unsaved cat photo:", cleanupError);
         }
       }
+      if (upload.signal.aborted) return;
       setErrors((current) => ({
         ...current,
         photo: "We couldn't upload that photo. Please try again.",
       }));
     } finally {
-      setIsSaving(false);
-      setUploadProgress(null);
+      upload.finish();
     }
   };
 
@@ -274,8 +279,10 @@ export default function CatsPage() {
         event.target.value = "";
         return;
       }
+      photoUpload.reader.current?.abort();
       const reader = new FileReader();
-      reader.onloadend = () => {
+      photoUpload.reader.current = reader;
+      reader.onload = () => {
         setFormData((prev) => ({ ...prev, photo: reader.result as string }));
         setSelectedPhotoFile(file);
         setErrors((current) => ({ ...current, photo: undefined }));
@@ -396,6 +403,7 @@ export default function CatsPage() {
       <BottomSheet
         isOpen={isModalOpen}
         onClose={() => {
+          photoUpload.cancel();
           setIsModalOpen(false);
           setFormData(initialFormData);
           setSelectedPhotoFile(null);
@@ -574,22 +582,7 @@ export default function CatsPage() {
               {errors.dob && <p className="text-red-500 text-xs mt-1">{errors.dob}</p>}
             </div>
 
-            {/* Weight */}
-            <div>
-              <label className="block text-sm font-medium text-theme-secondary mb-1.5">Weight (kg)</label>
-              <div className="relative">
-                  <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={formData.weightKg}
-                    onChange={(event) => setFormData((prev) => ({ ...prev, weightKg: event.target.value }))}
-                    placeholder="4.2"
-                    className="w-full pl-9 pr-2 py-3 rounded-xl border border-litter-border bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
+            {/* NOTE(manuscript): Section 3.3.6 registration no longer includes weight. */}
             </div>
 
           {/* ── Device ───────────────────────────────────── */}
@@ -685,11 +678,9 @@ const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
 function CatCard({ cat, details, stats, sessions }: CatCardProps) {
   const hasData = hasRecordedCatData({ sessions, stats });
   const baselineEstablished = hasEstablishedBaseline(details);
-  const displayState = getCatDisplayState({
-    persistedStatus: cat.status,
-    hasData,
-    baselineEstablished,
-  });
+  const displayState = getMostSevereState(sessions
+    .filter((session) => getSessionActivityDateKey(session) === getTodayDateKey())
+    .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished })));
 
   return (
     <div>
@@ -723,7 +714,7 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
             </div>
 
             {/* Status badge */}
-            <BehaviorStateBadge state={displayState} compact className="shrink-0" />
+            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} compact className="shrink-0" />
           </div>
 
           {/* Divider */}

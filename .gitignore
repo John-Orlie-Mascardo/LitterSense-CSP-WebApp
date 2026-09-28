@@ -25,6 +25,7 @@
 .DS_Store
 .superpowers/
 .worktrees/
+.kilo/
 *.pem
 
 # debug

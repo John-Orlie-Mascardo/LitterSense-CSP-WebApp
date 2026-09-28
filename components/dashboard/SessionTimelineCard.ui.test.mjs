@@ -24,21 +24,21 @@ test("recent activity session cards show the recorded date", () => {
   assert.match(source, /Recorded/);
 });
 
-test("incomplete-session presentation imports the central reviewed threshold", () => {
-  assert.match(source, /INCOMPLETE_SESSION_FLOOR_SECS/);
+test("session presentation uses the shared resolver", () => {
+  assert.match(source, /getSessionDisplayState/);
   assert.doesNotMatch(source, /durationSecs\s*<\s*30/);
 });
 
 test("history can add a shared six-state badge and Unattributed presentation", () => {
   assert.match(source, /readonly displayState\?: BehaviorStateId/);
-  assert.match(source, /<BehaviorStateBadge state=\{displayState\} compact/);
+  assert.match(source, /<BehaviorStateBadge state=\{state\} compact/);
   assert.match(source, /Unattributed/);
   assert.match(source, /Detected Session/);
   assert.match(source, /readonly cat: Cat \| null/);
   const sessionTypeIndex = source.indexOf('{cat ? "RFID Session" : "Detected Session"}');
   const behaviorBadgeIndex = source.indexOf("<BehaviorStateBadge", sessionTypeIndex);
-  const shortSessionIndex = source.indexOf("{shortSession &&", sessionTypeIndex);
+  assert.doesNotMatch(source, /Short Session|shortSession/);
   assert.ok(sessionTypeIndex >= 0);
   assert.ok(behaviorBadgeIndex > sessionTypeIndex);
-  assert.ok(behaviorBadgeIndex < shortSessionIndex);
+  assert.equal(source.match(/<BehaviorStateBadge/g)?.length, 1);
 });

@@ -42,6 +42,7 @@ export function deriveSessionLogCounts(
     const isAttributed = Boolean(session.catId);
 
     const state = getSessionDisplayState({
+      durationSecs: session.durationSecs,
       sessionStatus: session.sessionStatus,
       anomaly: session.anomaly,
       anomalyType: session.anomalyType,

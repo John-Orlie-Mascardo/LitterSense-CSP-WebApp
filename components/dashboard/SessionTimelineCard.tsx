@@ -16,9 +16,10 @@ import { Cat as CatIcon, Clock3, LogIn, LogOut } from "lucide-react";
 import { formatDuration } from "@/lib/utils/formatters";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { Session } from "@/lib/interfaces/Session";
-import { INCOMPLETE_SESSION_FLOOR_SECS } from "@/lib/configs/behaviorThresholds";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
-import type { BehaviorStateId } from "@/lib/presentation/behaviorStates";
+import { getSessionDisplayState, hasEstablishedBaseline, type BehaviorStateId } from "@/lib/presentation/behaviorStates";
+
+import { useCats } from "@/lib/contexts/CatContext";
 
 const TIME_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   hour: "numeric",
@@ -63,10 +64,6 @@ const formatActivityDate = (date: Date | null, fallbackDate?: string) => {
 const isInProgress = (session: Session) =>
   session.sessionStatus === "IN_PROGRESS" || !session.endedAt;
 
-const isShortSession = (session: Session) =>
-  session.sessionStatus === "SHORT_SESSION" ||
-  session.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS;
-
 function Avatar({ cat }: { readonly cat: Cat | null }) {
   return (
     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-litter-primary-light flex items-center justify-center text-sm font-semibold text-litter-primary">
@@ -96,10 +93,14 @@ export function SessionTimelineCard({
   readonly session: Session;
   readonly displayState?: BehaviorStateId;
 }) {
+  const { getDetailsByCatId } = useCats();
+  const state = displayState ?? getSessionDisplayState({
+    ...session, isAttributed: Boolean(cat),
+    baselineEstablished: Boolean(cat && hasEstablishedBaseline(getDetailsByCatId(cat.id))),
+  });
   const startedAt = getStartedAt(session);
   const endedAt = getSessionDate(session.endedAt);
   const inProgress = isInProgress(session);
-  const shortSession = isShortSession(session);
   const activityDate = formatActivityDate(endedAt ?? startedAt, session.date);
 
   return (
@@ -114,12 +115,7 @@ export function SessionTimelineCard({
             <span className="rounded-full bg-litter-primary-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-litter-primary">
               {cat ? "RFID Session" : "Detected Session"}
             </span>
-            {displayState && <BehaviorStateBadge state={displayState} compact />}
-            {shortSession && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                Short Session
-              </span>
-            )}
+            <BehaviorStateBadge state={state} compact />
             <span className="text-xs font-medium text-litter-muted">
               Recorded {activityDate}
             </span>

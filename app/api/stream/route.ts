@@ -1,8 +1,6 @@
-const DEFAULT_ESP32_BASE_URL = "http://192.168.68.120";
+import { shouldSkipServerSensorProxy } from "@/lib/utils/sensorEndpointDiagnostics";
 
-const ESP32_STREAM_URL =
-  process.env.ESP32_STREAM_URL ??
-  `${process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL}:81/stream`;
+const DEFAULT_ESP32_BASE_URL = "http://192.168.68.120";
 
 export async function GET(request: Request) {
   const capture = new URL(request.url).searchParams.get("capture") === "1";
@@ -10,9 +8,19 @@ export async function GET(request: Request) {
   const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
+    const baseUrl = process.env.ESP32_BASE_URL?.trim() || DEFAULT_ESP32_BASE_URL;
+    const streamUrl = new URL(baseUrl);
+    streamUrl.port = "81";
+    streamUrl.pathname = "/stream";
     const url = capture
-      ? new URL("/capture", process.env.ESP32_BASE_URL ?? DEFAULT_ESP32_BASE_URL)
-      : ESP32_STREAM_URL;
+      ? new URL("/capture", baseUrl)
+      : new URL(process.env.ESP32_STREAM_URL?.trim() || streamUrl.toString());
+    if (shouldSkipServerSensorProxy(url.toString(), process.env.VERCEL === "1")) {
+      return new Response("Camera requires a cloud-reachable endpoint", {
+        status: 503,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     const upstream = await fetch(url, {
       cache: "no-store",
       signal: AbortSignal.any([request.signal, controller.signal]),

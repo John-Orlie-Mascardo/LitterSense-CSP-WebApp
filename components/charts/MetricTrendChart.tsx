@@ -50,6 +50,10 @@ export interface MetricTrendChartProps {
   readonly baselineMessage?: "building" | "unavailable";
   readonly emptyMessage: string;
   readonly height?: number;
+  /** Fixed px width. Set this for printing: ResponsiveContainer measures the
+   *  screen width and never re-measures for the narrower print layout, so the
+   *  chart would otherwise overflow the page and get clipped. */
+  readonly width?: number;
 }
 
 interface MetricTooltipProps {
@@ -61,14 +65,18 @@ interface MetricTooltipProps {
   readonly label?: string | number;
   readonly primaryMetric: TrendMetricId;
   readonly secondaryMetric?: TrendMetricId;
+  readonly primaryMaximum: number;
+  readonly secondaryMaximum?: number;
 }
 
-function MetricTooltip({
+export function MetricTooltip({
   active,
   payload,
   label,
   primaryMetric,
   secondaryMetric,
+  primaryMaximum,
+  secondaryMaximum,
 }: MetricTooltipProps) {
   if (!active || !payload?.length) return null;
   const rows = payload.flatMap((entry) => {
@@ -77,20 +85,21 @@ function MetricTooltip({
       ? secondaryMetric
       : primaryMetric;
     const config = getTrendMetricConfig(metric);
-    return [formatTrendTooltipLine(
+    const maximum = entry.dataKey === "secondaryValue" ? secondaryMaximum : primaryMaximum;
+    return [{ prominence: entry.value / (maximum || 1), text: formatTrendTooltipLine(
       config.metricName,
       entry.value,
       config.unit,
       String(label ?? ""),
-    )];
-  });
+    ) }];
+  }).sort((a, b) => b.prominence - a.prominence);
   if (rows.length === 0) return null;
 
   return (
     <div className="rounded-lg border border-litter-border bg-litter-card px-3 py-2 shadow-lg">
       {rows.map((row) => (
-        <p key={row} className="whitespace-nowrap text-xs font-semibold text-litter-text">
-          {row}
+        <p key={row.text} className="whitespace-nowrap text-xs font-semibold text-litter-text">
+          {row.text}
         </p>
       ))}
     </div>
@@ -106,6 +115,7 @@ export function MetricTrendChart({
   baselineMessage,
   emptyMessage,
   height = 240,
+  width,
 }: MetricTrendChartProps) {
   const id = useId().replaceAll(":", "");
   const primaryGradientId = `metric-fill-${id}`;
@@ -125,6 +135,15 @@ export function MetricTrendChart({
   const normalRange = config.normalRange ?? (reference
     ? { min: reference.normalMin, max: reference.normalMax }
     : null);
+  const primaryDomain = getTrendYAxisDomain(metric, data, reference);
+  const secondaryDomain = secondary
+    ? getTrendYAxisDomain(secondary.metric, secondary.data, secondary.reference)
+    : undefined;
+  const axisColor = (id: TrendMetricId) => id === "duration"
+    ? "var(--trend-duration-axis)" : "var(--trend-teal-axis)";
+  const legendLabel = (id: TrendMetricId) => id === "visits"
+    ? "Visit frequency (visits per day)"
+    : id === "duration" ? "Average duration (minutes)" : "Air quality change (%)";
 
   if (!hasData) {
     return (
@@ -141,14 +160,14 @@ export function MetricTrendChart({
       : null;
 
   return (
-    <div>
+    <div className="[--trend-teal-axis:#1B7A6E] [--trend-duration-axis:#99501A] dark:[--trend-teal-axis:#48B6A8] dark:[--trend-duration-axis:#E8924A]">
       {baselineNotice && (
         <p className="mb-2 text-xs font-medium text-status-insufficient">
           {baselineNotice}
         </p>
       )}
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div style={{ width: width ?? "100%", height }}>
+        <ResponsiveContainer width={width ?? "100%"} height={height}>
           <AreaChart
             data={chartData}
             margin={{ top: 18, right: secondary ? 62 : 22, left: 28, bottom: 28 }}
@@ -175,27 +194,27 @@ export function MetricTrendChart({
             />
             <YAxis
               yAxisId={metric}
-              domain={getTrendYAxisDomain(metric, data, reference)}
+              domain={primaryDomain}
               allowDecimals={config.allowDecimals}
               tickFormatter={(value) => formatTrendTick(metric, Number(value))}
               tickLine={false}
               axisLine={{ stroke: "var(--color-litter-border)" }}
-              tick={{ fontSize: 11, fill: "var(--color-litter-muted)" }}
+              tick={{ fontSize: 11, fill: axisColor(metric) }}
               width={68}
-              label={{ value: config.yAxisTitle, angle: -90, position: "insideLeft", offset: -12, fill: "var(--color-litter-muted)", fontSize: 10 }}
+              label={{ value: config.yAxisTitle, angle: -90, position: "insideLeft", offset: -12, fill: axisColor(metric), fontSize: 10 }}
             />
             {secondary && secondaryConfig && (
               <YAxis
                 yAxisId={secondary.metric}
                 orientation="right"
-                domain={getTrendYAxisDomain(secondary.metric, secondary.data, secondary.reference)}
+                domain={secondaryDomain}
                 allowDecimals={secondaryConfig.allowDecimals}
                 tickFormatter={(value) => formatTrendTick(secondary.metric, Number(value))}
                 tickLine={false}
                 axisLine={{ stroke: "var(--color-litter-border)" }}
-                tick={{ fontSize: 11, fill: "var(--color-litter-muted)" }}
+                tick={{ fontSize: 11, fill: axisColor(secondary.metric) }}
                 width={58}
-                label={{ value: secondaryConfig.yAxisTitle, angle: 90, position: "insideRight", offset: -10, fill: "var(--color-litter-muted)", fontSize: 10 }}
+                label={{ value: secondaryConfig.yAxisTitle, angle: 90, position: "insideRight", offset: -10, fill: axisColor(secondary.metric), fontSize: 10 }}
               />
             )}
             {normalRange && (
@@ -209,7 +228,7 @@ export function MetricTrendChart({
                 label={{ value: "Normal range", position: "insideTopLeft", fill: "var(--color-litter-muted)", fontSize: 10 }}
               />
             )}
-            <Tooltip content={<MetricTooltip primaryMetric={metric} secondaryMetric={secondary?.metric} />} />
+            <Tooltip content={<MetricTooltip primaryMetric={metric} secondaryMetric={secondary?.metric} primaryMaximum={primaryDomain[1]} secondaryMaximum={secondaryDomain?.[1]} />} />
             <Area
               yAxisId={metric}
               type="monotone"
@@ -245,6 +264,15 @@ export function MetricTrendChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      <ul aria-label="Chart legend" className="flex gap-4 overflow-x-auto pb-1 text-xs text-litter-text">
+        {[metric, ...(secondary ? [secondary.metric] : [])].sort((a, b) => Number(b === "visits") - Number(a === "visits")).map((id) => (
+          <li key={id} className="flex shrink-0 items-center gap-2">
+            <span aria-hidden="true" className="h-1 w-4 rounded" style={{ backgroundColor: getTrendMetricConfig(id).color }} />
+            {legendLabel(id)}
+          </li>
+        ))}
+        {normalRange && <li className="flex shrink-0 items-center gap-2"><span aria-hidden="true" className="h-3 w-4 border border-litter-muted" style={{ backgroundColor: "rgba(30, 107, 94, 0.1)" }} />Normal range</li>}
+      </ul>
     </div>
   );
 }

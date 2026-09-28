@@ -3,19 +3,17 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/configs/firebase-admin";
+import { getAdminAuth, getAdminFirestore } from "@/lib/configs/firebase-admin";
+import { createPredictiveHealthRateLimiter } from "@/lib/server/predictiveHealthLimiter";
 import {
   buildPredictiveHealthPrompt,
   createPredictiveHealthAnalysis,
-  createPredictiveHealthRateLimiter,
   parseGeminiSummary,
   parsePredictiveHealthRequest,
 } from "@/lib/utils/predictiveHealth";
 
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const COOLDOWN_MS = 15_000;
-// ponytail: per-instance cooldown; replace with shared rate limiting if public traffic grows.
-const requestLimiter = createPredictiveHealthRateLimiter(COOLDOWN_MS);
 
 export async function POST(req: NextRequest) {
   const request = parsePredictiveHealthRequest(await req.json().catch(() => null));
@@ -42,7 +40,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "AI analysis is not configured." }, { status: 503 });
   }
 
-  const limit = requestLimiter.begin(uid);
+  let requestLimiter;
+  let limit;
+  try {
+    requestLimiter = createPredictiveHealthRateLimiter(getAdminFirestore(), COOLDOWN_MS);
+    limit = await requestLimiter.begin(uid);
+  } catch {
+    return NextResponse.json({ error: "AI analysis is temporarily unavailable." }, { status: 503 });
+  }
   if (!limit.allowed) {
     return NextResponse.json(
       {
@@ -107,6 +112,10 @@ export async function POST(req: NextRequest) {
     );
     return NextResponse.json({ error: "AI analysis is temporarily unavailable." }, { status: 502 });
   } finally {
-    requestLimiter.finish(uid, succeeded);
+    try {
+      await requestLimiter.finish(uid, limit.leaseId, succeeded);
+    } catch {
+      console.error("[predictive-health] Failed to release analysis lease; it will expire automatically.");
+    }
   }
 }

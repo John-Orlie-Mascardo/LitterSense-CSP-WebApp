@@ -5,6 +5,8 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 
 export type DeviceSensors = {
   online: boolean;
+  gasUltrasonicOnline?: boolean;
+  distanceCm?: number | null;
   connectedSsid: string;
   mq135: string;
   mq136: string;
