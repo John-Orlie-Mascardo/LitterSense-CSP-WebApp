@@ -3,10 +3,9 @@
  *
  * Cat profile creation and evidence-aware summary cards for registered cats.
  *
- * DONE: profile grid, add-cat form, photo crop, no-data metrics, six-state badges
- * PLACEHOLDER: none; empty baselines are intentional until real sessions establish them
+ * DONE: profile grid, Storage-backed photo crop/upload, no-data metrics, six-state badges
  *
- * NEXT: device/data owners should populate baseline fields from recorded sessions.
+ * NEXT: Firebase owners must deploy storage.rules before hosted photo uploads.
  */
 
 "use client";
@@ -34,6 +33,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCats } from "@/lib/contexts/CatContext";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { CatStats } from "@/lib/interfaces/CatStats";
@@ -42,6 +42,13 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { cropImageToSquare } from "@/lib/utils/imageCrop";
+import {
+  CAT_PHOTO_ACCEPT,
+  dataUrlToBlob,
+  deleteCatPhoto,
+  uploadCatPhoto,
+  validateCatPhotoFile,
+} from "@/lib/utils/catPhoto";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import { CatGridSkeleton } from "@/components/ui/AppLoadingSkeletons";
 import {
@@ -119,10 +126,12 @@ const initialFormData: CatFormData = {
 };
 
 export default function CatsPage() {
+  const { user } = useAuth();
   const {
     cats,
     addCat,
     catDetails: contextCatDetails,
+    getDetailsByCatId,
     getStatsByCatId,
     getSessionsByCatId,
     isLoading: catsLoading,
@@ -133,6 +142,8 @@ export default function CatsPage() {
     Partial<Record<keyof CatFormData, string>>
   >({});
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [photoZoom, setPhotoZoom] = useState(1);
   const [photoOffset, setPhotoOffset] = useState<PhotoOffset>({ x: 0, y: 0 });
   const [photoSize, setPhotoSize] = useState<PhotoSize | null>(null);
@@ -180,20 +191,14 @@ export default function CatsPage() {
 
   const handleSave = async () => {
     if (!validateForm()) return;
+    if (!user) {
+      addToast("Please sign in again before saving this cat.", "error");
+      return;
+    }
 
     setIsSaving(true);
     const gender = formData.gender as Exclude<CatFormData["gender"], "">;
-    const avatar = formData.photo
-      ? await cropImageToSquare(formData.photo, photoZoom, photoOffset)
-      : null;
-
-    const newCat: Cat = {
-      id: generateId(),
-      name: formData.name,
-      status: "normal",
-      avatar,
-      isOnline: false,
-    };
+    const newCatId = generateId();
 
     const today = new Date().toISOString().split("T")[0];
     const newDetails = {
@@ -212,24 +217,76 @@ export default function CatsPage() {
       },
     };
 
-    await addCat(newCat, undefined, newDetails);
-    setIsModalOpen(false);
-    setFormData(initialFormData);
-    setPhotoZoom(1);
-    setPhotoOffset({ x: 0, y: 0 });
-    setPhotoSize(null);
-    setIsSaving(false);
-    addToast(`${newCat.name} has been added!`, "success");
+    let uploadedPhotoUrl: string | null = null;
+    try {
+      if (formData.photo && selectedPhotoFile) {
+        const croppedDataUrl = await cropImageToSquare(
+          formData.photo,
+          photoZoom,
+          photoOffset,
+        );
+        uploadedPhotoUrl = await uploadCatPhoto({
+          uid: user.uid,
+          catId: newCatId,
+          blob: await dataUrlToBlob(croppedDataUrl),
+          onProgress: setUploadProgress,
+        });
+      }
+
+      const newCat: Cat = {
+        id: newCatId,
+        name: formData.name.trim(),
+        status: "normal",
+        avatar: uploadedPhotoUrl,
+        isOnline: false,
+      };
+      await addCat(newCat, undefined, newDetails);
+      setIsModalOpen(false);
+      setFormData(initialFormData);
+      setSelectedPhotoFile(null);
+      resetPhotoState();
+      addToast(`${newCat.name} has been added!`, "success");
+    } catch (error) {
+      console.error("Failed to add cat profile:", error);
+      if (uploadedPhotoUrl) {
+        try {
+          await deleteCatPhoto(user.uid, newCatId);
+        } catch (cleanupError) {
+          console.error("Failed to clean up an unsaved cat photo:", cleanupError);
+        }
+      }
+      setErrors((current) => ({
+        ...current,
+        photo: "We couldn't upload that photo. Please try again.",
+      }));
+    } finally {
+      setIsSaving(false);
+      setUploadProgress(null);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const validationMessage = validateCatPhotoFile(file);
+      if (validationMessage) {
+        setErrors((current) => ({ ...current, photo: validationMessage }));
+        event.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData((prev) => ({ ...prev, photo: reader.result as string }));
+        setSelectedPhotoFile(file);
+        setErrors((current) => ({ ...current, photo: undefined }));
         setPhotoZoom(1);
         setPhotoOffset({ x: 0, y: 0 });
+      };
+      reader.onerror = () => {
+        setErrors((current) => ({
+          ...current,
+          photo: "We couldn't open that photo. Please choose another image.",
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -279,7 +336,7 @@ export default function CatsPage() {
       <TopBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         {/* Header */}
         <section className="mb-8 pt-6 flex items-end justify-between">
           <div>
@@ -324,7 +381,7 @@ export default function CatsPage() {
               <CatCard
                 key={cat.id}
                 cat={cat}
-                catDetails={contextCatDetails}
+                details={getDetailsByCatId(cat.id)}
                 stats={getStatsByCatId(cat.id)}
                 sessions={getSessionsByCatId(cat.id)}
               />
@@ -341,6 +398,7 @@ export default function CatsPage() {
         onClose={() => {
           setIsModalOpen(false);
           setFormData(initialFormData);
+          setSelectedPhotoFile(null);
           resetPhotoState();
           setErrors({});
         }}
@@ -426,14 +484,15 @@ export default function CatsPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={(event) => { event.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); resetPhotoState(); }}
+                  onClick={(event) => { event.preventDefault(); setFormData((prev) => ({ ...prev, photo: null })); setSelectedPhotoFile(null); resetPhotoState(); }}
                   className="flex items-center gap-1 text-litter-muted hover:text-red-500 transition-colors"
                 >
                   <XIcon className="w-3 h-3" /> Remove photo
                 </button>
               </div>
             )}
-            <input id="add-cat-photo-input" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+            <input id="add-cat-photo-input" type="file" accept={CAT_PHOTO_ACCEPT} onChange={handleFileChange} className="hidden" />
+            {errors.photo && <p className="text-red-500 text-xs text-center">{errors.photo}</p>}
           </div>
 
           {/* ── Basic Info ───────────────────────────────── */}
@@ -574,6 +633,7 @@ export default function CatsPage() {
               onClick={() => {
                 setIsModalOpen(false);
                 setFormData(initialFormData);
+                setSelectedPhotoFile(null);
                 resetPhotoState();
                 setErrors({});
               }}
@@ -590,7 +650,7 @@ export default function CatsPage() {
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
+                  {uploadProgress === null ? "Saving..." : `Uploading photo — ${uploadProgress}%`}
                 </>
               ) : (
                 <>
@@ -609,7 +669,7 @@ export default function CatsPage() {
 // ── Cat Card ────────────────────────────────────────────────────────────────
 interface CatCardProps {
   cat: Cat;
-  catDetails: Record<string, CatDetails>;
+  details?: CatDetails;
   stats?: CatStats;
   sessions: Session[];
 }
@@ -622,8 +682,7 @@ const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
   });
 };
 
-function CatCard({ cat, catDetails, stats, sessions }: CatCardProps) {
-  const details = catDetails[cat.id];
+function CatCard({ cat, details, stats, sessions }: CatCardProps) {
   const hasData = hasRecordedCatData({ sessions, stats });
   const baselineEstablished = hasEstablishedBaseline(details);
   const displayState = getCatDisplayState({

@@ -3,7 +3,7 @@
  *
  * Composition contracts for predictable route loading placeholders.
  *
- * DONE: stable card, chart/video, table, settings, and notification shapes
+ * DONE: stable card, chart/video, table, settings, notification, and history shapes
  * PLACEHOLDER: none
  *
  * NEXT: add a route fixture when a new primary navigation destination is created.
@@ -26,6 +26,7 @@ const routeExpectations = [
   ["app/dashboard/live/loading.tsx", "LiveContentSkeleton"],
   ["app/dashboard/settings/loading.tsx", "SettingsContentSkeleton"],
   ["app/dashboard/notifications/loading.tsx", "NotificationsContentSkeleton"],
+  ["app/dashboard/history/loading.tsx", "SessionHistorySkeleton"],
 ];
 
 test("skeleton library preserves predictable content shapes", () => {
@@ -36,6 +37,7 @@ test("skeleton library preserves predictable content shapes", () => {
   assert.match(source, /marker="video-block"/);
   assert.match(source, /marker="settings-row"/);
   assert.match(source, /marker="notification-row"/);
+  assert.match(source, /data-skeleton="history-card"/);
   assert.match(source, /aria-label="Loading content"/);
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/contexts/AuthContext";
 
 export type DeviceSensors = {
   online: boolean;
@@ -55,10 +56,11 @@ type SensorState = {
 
 const POLL_INTERVAL_MS = 1000;
 
-async function fetchDeviceSensors(signal?: AbortSignal): Promise<DeviceSensors> {
+async function fetchDeviceSensors(token: string, signal?: AbortSignal): Promise<DeviceSensors> {
   const response = await fetch("/api/sensors", {
     cache: "no-store",
     signal,
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   const payload = await response.json() as {
@@ -75,6 +77,7 @@ async function fetchDeviceSensors(signal?: AbortSignal): Promise<DeviceSensors> 
 }
 
 export function useDeviceSensors() {
+  const { user } = useAuth();
   const [state, setState] = useState<SensorState>({
     data: null,
     isLoading: true,
@@ -82,13 +85,17 @@ export function useDeviceSensors() {
   });
 
   useEffect(() => {
+    if (!user) {
+      setState({ data: null, isLoading: false, error: null });
+      return;
+    }
     let isMounted = true;
     let timeoutId: number;
     const controller = new AbortController();
 
     const pollSensors = async () => {
       try {
-        const data = await fetchDeviceSensors(controller.signal);
+        const data = await fetchDeviceSensors(await user.getIdToken(), controller.signal);
         if (!isMounted) return;
         setState({ data, isLoading: false, error: null });
       } catch (error) {
@@ -115,7 +122,7 @@ export function useDeviceSensors() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [user]);
 
   return state;
 }

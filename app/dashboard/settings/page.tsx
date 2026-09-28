@@ -1,3 +1,15 @@
+/**
+ * Settings page.
+ *
+ * Owner account, device, notification, appearance, export, and privacy settings.
+ *
+ * DONE: Storage-backed owner photos synchronized to Auth and Firestore, phone and
+ * password updates, device provisioning, exports, and account actions
+ * PLACEHOLDER: none
+ *
+ * NEXT: Firebase owners must deploy the reviewed Storage rules before hosted uploads.
+ */
+
 "use client";
 
 import Image from "next/image";
@@ -48,7 +60,8 @@ import {
 import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { auth } from "@/lib/configs/firebase";
+import { auth, db } from "@/lib/configs/firebase";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   updateProfile,
   updatePassword,
@@ -58,6 +71,15 @@ import {
 } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
+import { getNationalPhoneNumber, normalizePhoneNumber } from "@/lib/utils/phoneNumber";
+import {
+  CAT_PHOTO_ACCEPT,
+  validateCatPhotoFile,
+} from "@/lib/utils/catPhoto";
+import {
+  deleteOwnerPhoto,
+  uploadOwnerPhoto,
+} from "@/lib/utils/ownerPhoto";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -65,6 +87,16 @@ const THEME_OPTIONS: { value: AppearanceTheme; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
+];
+
+const PHONE_COUNTRY_CODES = [
+  { code: "+63", label: "PH +63" },
+  { code: "+1", label: "US/CA +1" },
+  { code: "+61", label: "AU +61" },
+  { code: "+65", label: "SG +65" },
+  { code: "+81", label: "JP +81" },
+  { code: "+82", label: "KR +82" },
+  { code: "+44", label: "UK +44" },
 ];
 
 type ExportAllFormat = "pdf" | "csv" | "doc";
@@ -242,6 +274,10 @@ export default function SettingsPage() {
 
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [selectedProfilePhotoFile, setSelectedProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoProgress, setProfilePhotoProgress] = useState<number | null>(null);
+  const [savedProfilePhotoPath, setSavedProfilePhotoPath] = useState("");
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
   const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
@@ -284,17 +320,38 @@ export default function SettingsPage() {
   const [editProfileForm, setEditProfileForm] = useState({
     displayName: user?.displayName || settings.account.displayName,
     photo: user?.photoURL || (null as string | null),
+    phoneCountryCode: "+63",
+    phoneNumber: "",
   });
+  const [savedPhoneNumber, setSavedPhoneNumber] = useState("");
 
   // Sync form when user is loaded
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+
+    setEditProfileForm((prev) => ({
+      ...prev,
+      displayName: user.displayName || prev.displayName,
+      photo: user.photoURL || prev.photo,
+    }));
+
+    void getDoc(doc(db, "users", user.uid)).then((snapshot) => {
+      const profile = snapshot.data();
+      const phoneCountryCode = profile?.phoneCountryCode || "+63";
+      const phoneNumber = typeof profile?.phoneNumber === "string" ? profile.phoneNumber : "";
+
+      setSavedPhoneNumber(phoneNumber);
+      setSavedProfilePhotoPath(
+        typeof profile?.photoPath === "string" ? profile.photoPath : "",
+      );
       setEditProfileForm((prev) => ({
         ...prev,
-        displayName: user.displayName || prev.displayName,
-        photo: user.photoURL || prev.photo,
+        phoneCountryCode,
+        phoneNumber: getNationalPhoneNumber(phoneNumber, phoneCountryCode),
       }));
-    }
+    }).catch((error) => {
+      console.error("Failed to load phone number:", error);
+    });
   }, [user]);
 
   useEffect(() => {
@@ -315,21 +372,95 @@ export default function SettingsPage() {
     setToasts((prev) => [...prev, { id, message, type }]);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!user) return;
+    setIsSavingProfile(true);
+    setProfilePhotoProgress(null);
+    const previousDisplayName = user.displayName;
+    const previousPhotoUrl = user.photoURL;
+    const previousPhotoPath = savedProfilePhotoPath;
+    let nextPhotoUrl = previousPhotoUrl;
+    let nextPhotoPath = previousPhotoPath;
+    let uploadedPhotoPath = "";
+    let authUpdated = false;
+
     try {
+      const phoneNumber = normalizePhoneNumber(
+        editProfileForm.phoneCountryCode,
+        editProfileForm.phoneNumber,
+      );
+      if (selectedProfilePhotoFile) {
+        const uploaded = await uploadOwnerPhoto({
+          uid: user.uid,
+          file: selectedProfilePhotoFile,
+          onProgress: setProfilePhotoProgress,
+        });
+        nextPhotoUrl = uploaded.url;
+        nextPhotoPath = uploaded.path;
+        uploadedPhotoPath = uploaded.path;
+      }
+
       await updateProfile(user, {
         displayName: editProfileForm.displayName,
-        photoURL: editProfileForm.photo,
+        photoURL: nextPhotoUrl,
       });
+      authUpdated = true;
+      await setDoc(doc(db, "users", user.uid), {
+        displayName: editProfileForm.displayName,
+        photoURL: nextPhotoUrl,
+        photoPath: nextPhotoPath,
+        phoneCountryCode: editProfileForm.phoneCountryCode,
+        phoneNumber,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
       updateAccountSetting("displayName", editProfileForm.displayName);
-      await refreshUser();
+      setSavedPhoneNumber(phoneNumber);
+      setSavedProfilePhotoPath(nextPhotoPath);
+      setSelectedProfilePhotoFile(null);
+      try {
+        await refreshUser();
+      } catch (refreshError) {
+        // Auth and Firestore are already synchronized; a refresh failure should
+        // not roll them back or delete the newly referenced Storage object.
+        console.error("Failed to refresh the synchronized profile:", refreshError);
+      }
       setShowEditProfile(false);
       addToast("Profile updated successfully", "success");
+
+      if (previousPhotoPath && previousPhotoPath !== nextPhotoPath) {
+        try {
+          await deleteOwnerPhoto(user.uid, previousPhotoPath);
+        } catch (cleanupError) {
+          console.error("Failed to delete the previous profile photo:", cleanupError);
+        }
+      }
     } catch (error) {
-      const message =
-        error instanceof FirebaseError ? error.message : "Failed to update profile";
+      if (authUpdated) {
+        try {
+          await updateProfile(user, {
+            displayName: previousDisplayName,
+            photoURL: previousPhotoUrl,
+          });
+        } catch (rollbackError) {
+          console.error("Failed to roll back the Auth profile:", rollbackError);
+        }
+      }
+      if (uploadedPhotoPath) {
+        try {
+          await deleteOwnerPhoto(user.uid, uploadedPhotoPath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up the unsaved profile photo:", cleanupError);
+        }
+      }
+      const message = error instanceof Error && error.message.includes("took too long")
+        ? error.message
+        : "We couldn't update your profile. Please try again.";
       addToast(message, "error");
+    } finally {
+      setIsSavingProfile(false);
+      setProfilePhotoProgress(null);
     }
   };
 
@@ -419,10 +550,21 @@ export default function SettingsPage() {
   const handleProfilePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const validationMessage = validateCatPhotoFile(file);
+      if (validationMessage) {
+        addToast(validationMessage, "error");
+        event.target.value = "";
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditProfileForm((prev) => ({ ...prev, photo: reader.result as string }));
+        setSelectedProfilePhotoFile(file);
       };
+      reader.onerror = () => addToast(
+        "We couldn't open that photo. Please choose another image.",
+        "error",
+      );
       reader.readAsDataURL(file);
     }
   };
@@ -541,7 +683,7 @@ export default function SettingsPage() {
         />
       )}
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-lg mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
 
         {/* User Profile Card */}
         <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">
@@ -567,9 +709,19 @@ export default function SettingsPage() {
                 {user?.displayName || settings.account.displayName}
               </h2>
               <p className="text-sm text-theme-muted truncate">{user?.email || settings.account.email}</p>
+              {savedPhoneNumber && (
+                <p className="text-sm text-theme-muted truncate">{savedPhoneNumber}</p>
+              )}
             </div>
             <button
-              onClick={() => setShowEditProfile(true)}
+              onClick={() => {
+                setSelectedProfilePhotoFile(null);
+                setEditProfileForm((current) => ({
+                  ...current,
+                  photo: user?.photoURL ?? null,
+                }));
+                setShowEditProfile(true);
+              }}
               className="border border-litter-primary text-litter-primary bg-litter-primary-light rounded-full px-3 py-1 text-sm font-medium hover:bg-litter-primary-light transition-colors shrink-0"
             >
               Edit Profile
@@ -950,8 +1102,16 @@ export default function SettingsPage() {
       </BottomSheet>
 
       {/* Edit Profile Bottom Sheet */}
-      <BottomSheet isOpen={showEditProfile} onClose={() => setShowEditProfile(false)} title="Edit Profile">
-        <div className="space-y-5">
+      <BottomSheet
+        isOpen={showEditProfile}
+        onClose={() => {
+          if (isSavingProfile) return;
+          setSelectedProfilePhotoFile(null);
+          setShowEditProfile(false);
+        }}
+        title="Edit Profile"
+      >
+        <form onSubmit={handleSaveProfile} className="space-y-5">
           <div className="flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
@@ -974,7 +1134,7 @@ export default function SettingsPage() {
               </div>
               <label className="absolute bottom-0 right-0 w-8 h-8 bg-litter-primary rounded-full flex items-center justify-center cursor-pointer hover:bg-litter-primary-hover transition-colors shadow-md">
                 <Upload className="w-4 h-4 text-white" />
-                <input type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
+                <input type="file" accept={CAT_PHOTO_ACCEPT} onChange={handleProfilePhotoChange} className="hidden" />
               </label>
             </div>
           </div>
@@ -988,10 +1148,43 @@ export default function SettingsPage() {
               className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
-          <button onClick={handleSaveProfile} className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover transition-colors">
-            Save Changes
+          <div>
+            <label htmlFor="phoneNumber" className="block text-sm font-medium text-theme-secondary mb-1.5">Phone Number</label>
+            <div className="flex gap-2">
+              <select
+                aria-label="Phone country code"
+                value={editProfileForm.phoneCountryCode}
+                onChange={(event) => setEditProfileForm((prev) => ({ ...prev, phoneCountryCode: event.target.value }))}
+                className="w-32 px-3 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent"
+              >
+                {PHONE_COUNTRY_CODES.map(({ code, label }) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
+              </select>
+              <input
+                id="phoneNumber"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel-national"
+                pattern="[0-9 ()-]{7,20}"
+                maxLength={20}
+                placeholder="917 123 4567"
+                value={editProfileForm.phoneNumber}
+                onChange={(event) => setEditProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                className="min-w-0 flex-1 px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={isSavingProfile}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-litter-primary px-4 py-3 font-medium text-white transition-colors hover:bg-litter-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSavingProfile ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />{profilePhotoProgress === null ? "Saving…" : `Uploading photo — ${profilePhotoProgress}%`}</>
+            ) : "Save Changes"}
           </button>
-        </div>
+        </form>
       </BottomSheet>
 
       {/* Change Password Bottom Sheet */}

@@ -3,7 +3,7 @@
  *
  * Stable, theme-aware loading shapes for primary LitterSense routes.
  *
- * DONE: app shell, dashboard, cats, reports, live, settings, and notification skeletons
+ * DONE: app shell, dashboard, cats, reports, history, live, settings, notification skeletons
  * PLACEHOLDER: none; these shapes are intentional loading UI, not mock content
  *
  * NEXT: route owners should update the matching skeleton when a page's major layout changes.
@@ -135,6 +135,35 @@ export function NotificationsContentSkeleton() {
     <div aria-label="Loading content" className="space-y-4">
       <Pulse className="h-7 w-48" />
       <RowList marker="notification-row" count={7} />
+    </div>
+  );
+}
+
+export function SessionHistorySkeleton() {
+  return (
+    <div aria-label="Loading session history" className="space-y-5">
+      <div className="rounded-2xl border border-litter-border bg-litter-card p-4">
+        <Pulse className="h-5 w-44" />
+        <Pulse className="mt-3 h-11 w-full" />
+        <Pulse className="mt-3 h-40 w-full" />
+      </div>
+      {Array.from({ length: 2 }, (_, groupIndex) => (
+        <div key={groupIndex} className="space-y-3">
+          <Pulse className="h-4 w-36" />
+          {Array.from({ length: 3 }, (_, cardIndex) => (
+            <div
+              key={cardIndex}
+              data-skeleton="history-card"
+              className="h-44 animate-pulse rounded-xl border border-litter-border bg-litter-card p-4"
+            >
+              <div className="flex gap-3">
+                <Pulse className="h-10 w-10 rounded-full" />
+                <div className="flex-1"><Pulse className="h-4 w-1/3" /><Pulse className="mt-3 h-20 w-full" /></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

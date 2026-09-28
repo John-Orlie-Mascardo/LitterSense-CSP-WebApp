@@ -3,7 +3,7 @@
  *
  * UI contracts for recorded-session timeline presentation.
  *
- * DONE: recorded-date display and central incomplete-session threshold usage
+ * DONE: recorded date, central threshold, badge placement, Unattributed display
  * PLACEHOLDER: none
  *
  * NEXT: extend only when the visible timeline contract changes.
@@ -27,4 +27,18 @@ test("recent activity session cards show the recorded date", () => {
 test("incomplete-session presentation imports the central reviewed threshold", () => {
   assert.match(source, /INCOMPLETE_SESSION_FLOOR_SECS/);
   assert.doesNotMatch(source, /durationSecs\s*<\s*30/);
+});
+
+test("history can add a shared six-state badge and Unattributed presentation", () => {
+  assert.match(source, /readonly displayState\?: BehaviorStateId/);
+  assert.match(source, /<BehaviorStateBadge state=\{displayState\} compact/);
+  assert.match(source, /Unattributed/);
+  assert.match(source, /Detected Session/);
+  assert.match(source, /readonly cat: Cat \| null/);
+  const sessionTypeIndex = source.indexOf('{cat ? "RFID Session" : "Detected Session"}');
+  const behaviorBadgeIndex = source.indexOf("<BehaviorStateBadge", sessionTypeIndex);
+  const shortSessionIndex = source.indexOf("{shortSession &&", sessionTypeIndex);
+  assert.ok(sessionTypeIndex >= 0);
+  assert.ok(behaviorBadgeIndex > sessionTypeIndex);
+  assert.ok(behaviorBadgeIndex < shortSessionIndex);
 });

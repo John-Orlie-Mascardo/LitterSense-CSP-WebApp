@@ -1,9 +1,9 @@
 /**
  * page.ui.test.mjs
  *
- * Source-level contracts for report naming, exports, state reference, and grouped logs.
+ * Source-level contracts for report naming, exports, state reference, grouped logs, and trends.
  *
- * DONE: printable grouping, raw CSV headers, activity naming, shared legend
+ * DONE: printable grouping, owner-facing CSV headers, activity naming, shared legend, labeled trends
  * PLACEHOLDER: none
  *
  * NEXT: add browser-level print assertions when automated browser coverage is available.
@@ -52,10 +52,24 @@ test("session groups are single-open on screen and all expanded for print", () =
   assert.match(accordionSource, /Unattributed/);
 });
 
-test("owner-facing columns use plain names while CSV retains raw sensor identifiers", () => {
+test("owner-facing tables and CSV exports use the same plain metric names", () => {
   assert.match(accordionSource, /Air quality change/);
   assert.match(accordionSource, /Odor level change/);
   assert.match(accordionSource, />State</);
   assert.doesNotMatch(accordionSource, /MQ-135|MQ-136/);
-  assert.match(source, /MQ-135 Delta,MQ-136 Delta/);
+  assert.match(source, /Air quality change \(%\)/);
+  assert.match(source, /Odor level change \(%\)/);
+  assert.doesNotMatch(source, /MQ-135 Delta|MQ-136 Delta/);
+});
+
+test("report trends use labeled seven-day owner-facing charts", () => {
+  assert.equal(source.match(/<MetricTrendChart/g)?.length, 3);
+  assert.match(source, /Visit Frequency \(7 days\)/);
+  assert.match(source, /Average Duration \(7 days\)/);
+  assert.match(source, /Air quality change \(7 days\)/);
+  assert.doesNotMatch(source, /Gas Quality/);
+  assert.match(source, /metric="visits"/);
+  assert.match(source, /metric="duration"/);
+  assert.match(source, /metric="airQuality"/);
+  assert.match(source, /trendReferences/);
 });

@@ -3,7 +3,7 @@
  *
  * Describes the persisted snapshot used by report previews and exports.
  *
- * DONE: summary, sessions, notes, trends, and stable per-cat presentation snapshots
+ * DONE: summary, sessions, notes, trends, references, and stable cat snapshots
  * PLACEHOLDER: none
  *
  * NEXT: data-model owners version this shape before making incompatible archive changes.
@@ -12,6 +12,7 @@
 import type { CatTrendPoint } from "../contexts/CatContext";
 import type { ReportHealthLog, ReportSession } from "../hooks/useReports";
 import type { ReportCatSnapshot } from "../presentation/reportSessionGroups";
+import type { TrendReferenceSet } from "../presentation/trendCharts";
 
 export interface ReportData {
   id: string;
@@ -32,4 +33,5 @@ export interface ReportData {
   sessions: ReportSession[];
   healthLogs: ReportHealthLog[];
   trendData: CatTrendPoint[] | null;
+  trendReferences?: TrendReferenceSet | null;
 }

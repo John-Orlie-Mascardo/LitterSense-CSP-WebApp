@@ -1,10 +1,10 @@
 /**
  * Dashboard / Home Page
  *
- * Per-cat activity overview backed by Firebase sessions, stats, and live sensors.
+ * Per-cat activity overview backed by real Firebase data only.
  *
  * DONE: evidence-aware badges, no-data values, state legend, cat selection,
- * activity trends, live environment readings, and recent-session timeline
+ * activity trends, live readings, recent-session preview, and History navigation
  * PLACEHOLDER: live-only sessions use zero sensor deltas until persisted values arrive
  *
  * NEXT: device integration owners should replace temporary live-session deltas
@@ -14,6 +14,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -69,6 +70,10 @@ import {
   DASHBOARD_VISIT_WARNING_COUNT,
   INCOMPLETE_SESSION_FLOOR_SECS,
 } from "@/lib/configs/behaviorThresholds";
+import {
+  buildCatTrendReferences,
+  type TrendReferenceSet,
+} from "@/lib/presentation/trendCharts";
 
 const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
 
@@ -672,6 +677,7 @@ function PopulatedDashboardState({
   airQualityReadings,
   rfidStatus,
   trendData,
+  trendReferences,
   recentVisits,
   displayAvgDuration,
   onSelectCat,
@@ -696,26 +702,21 @@ function PopulatedDashboardState({
   readonly airQualityReadings: AirQualityReadings;
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
+  readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
   readonly displayAvgDuration: string;
   readonly onSelectCat: (catId: string) => void;
   readonly onViewAbnormalDetails: () => void;
   readonly onDismissAbnormal: () => void;
 }) {
-  const [showAllRecentActivity, setShowAllRecentActivity] = useState(false);
   const visibleRecentVisits = useMemo(
-    () => (
-      showAllRecentActivity
-        ? recentVisits
-        : recentVisits.slice(0, 3)
-    ),
-    [recentVisits, showAllRecentActivity],
+    () => recentVisits.slice(0, 3),
+    [recentVisits],
   );
   const recentActivityGroups = useMemo(
     () => groupRecentVisitsByDate(visibleRecentVisits),
     [visibleRecentVisits],
   );
-  const canToggleRecentActivity = recentVisits.length > 3;
   const selectedDisplayState = selectedCat
     ? catDisplayStates[selectedCat.id] ?? "insufficient"
     : "insufficient";
@@ -810,10 +811,12 @@ function PopulatedDashboardState({
       <div className="lg:pt-6">
         {selectedCat && (
           <CatBehaviorTrends
+            key={selectedCat.id}
             catName={selectedCat.name}
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
             trendData={trendData}
+            references={trendReferences}
           />
         )}
 
@@ -881,18 +884,12 @@ function PopulatedDashboardState({
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Recent Activity
             </h2>
-            {canToggleRecentActivity ? (
-              <button
-                onClick={() => setShowAllRecentActivity((prev) => !prev)}
-                className="text-sm font-semibold text-litter-primary hover:underline"
-              >
-                {showAllRecentActivity ? "SHOW LESS" : "VIEW ALL"}
-              </button>
-            ) : (
-              <span className="text-litter-primary text-xs font-semibold">
-                Realtime
-              </span>
-            )}
+            <Link
+              href="/dashboard/history"
+              className="text-sm font-semibold text-litter-primary hover:underline"
+            >
+              VIEW ALL
+            </Link>
           </div>
 
           {recentVisits.length > 0 ? (
@@ -939,9 +936,9 @@ export default function DashboardPage() {
     cats,
     getCatById,
     getDetailsByCatId,
+    getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
-    sessions,
     isLoading: catsLoading,
   } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
@@ -969,11 +966,19 @@ export default function DashboardPage() {
   const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const trendReferences = useMemo(
+    () => buildCatTrendReferences(getDetailsByCatId(activeCatId)?.baseline),
+    [activeCatId, getDetailsByCatId],
+  );
+  const displaySessions = useMemo(
+    () => cats.flatMap((cat) => getSessionsByCatId(cat.id)),
+    [cats, getSessionsByCatId],
+  );
   const catPresentation = useMemo(
     () =>
       Object.fromEntries(
         cats.map((cat) => {
-          const catSessions = sessions.filter((session) => session.catId === cat.id);
+          const catSessions = getSessionsByCatId(cat.id);
           const catStats = getStatsByCatId(cat.id);
           const catTrendData = getTrendData(cat.id);
           const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
@@ -1004,7 +1009,7 @@ export default function DashboardPage() {
           readonly state: BehaviorStateId;
         }
       >,
-    [cats, getDetailsByCatId, getStatsByCatId, getTrendData, sessions],
+    [cats, getDetailsByCatId, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
   const catDisplayStates = useMemo(
     () =>
@@ -1026,7 +1031,7 @@ export default function DashboardPage() {
     () => cats.filter((cat) => cat.status === "abnormal"),
     [cats],
   );
-  const hasAnomaly = abnormalCats.length > 0;
+  const hasRealAnomaly = abnormalCats.length > 0;
   const {
     dismissedAbnormalKeys,
     isDismissedAbnormalReady,
@@ -1087,10 +1092,10 @@ export default function DashboardPage() {
 
   // ── Trigger permission prompt when anomaly is detected ──
   useEffect(() => {
-    if (hasAnomaly) {
+    if (hasRealAnomaly) {
       triggerOnAnomaly();
     }
-  }, [hasAnomaly, triggerOnAnomaly]);
+  }, [hasRealAnomaly, triggerOnAnomaly]);
 
   const rfidStatus = getLiveRfidStatus({
     sensorData,
@@ -1106,7 +1111,7 @@ export default function DashboardPage() {
   );
   const notificationRecentVisits = buildNotificationRecentVisits(notifications, cats);
   const recentVisits = getRecentVisits(
-    sessions,
+    displaySessions,
     getCatById,
     liveVisit,
     completedLiveVisit,
@@ -1127,10 +1132,10 @@ export default function DashboardPage() {
       getFallbackAverageDuration(
         displayStats?.avgDuration,
         trendData,
-        sessions,
+        displaySessions,
         activeCatId,
       ),
-    [activeCatId, displayStats?.avgDuration, sessions, trendData],
+    [activeCatId, displaySessions, displayStats?.avgDuration, trendData],
   );
   const todayDate = formatDate();
 
@@ -1138,7 +1143,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-litter-bg pb-24 lg:pb-10">
       <TopBar />
 
-      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+      <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         {catsLoading ? (
           <DashboardLoadingState />
         ) : isEmpty ? (
@@ -1158,6 +1163,7 @@ export default function DashboardPage() {
             airQualityReadings={airQualityReadings}
             rfidStatus={rfidStatus}
             trendData={trendData}
+            trendReferences={trendReferences}
             recentVisits={recentVisits}
             displayAvgDuration={displayAvgDuration}
             onSelectCat={setSelectedCatId}

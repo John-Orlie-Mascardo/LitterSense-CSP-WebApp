@@ -42,6 +42,10 @@ interface BuildDeviceSensorSnapshotInput {
   recordedEvents: NormalizedSensorSyncEvent[];
   ignoredEvents: IgnoredSensorSyncEvent[];
   liveSensors?: {
+    sessionActive?: unknown;
+    activeRfidHex?: unknown;
+    activeSessionStartMs?: unknown;
+    activeSessionDurationMs?: unknown;
     mq135?: unknown;
     mq136?: unknown;
     mq135Raw?: unknown;
@@ -121,12 +125,12 @@ export function buildDeviceSensorSnapshot({
     rfidCard: lastRecordedEvent?.rfidCard ?? (typeof previous.rfidCard === "string" ? previous.rfidCard : ""),
     lastRfidMs: lastRecordedEvent ? Date.parse(lastRecordedEvent.endedAt) || null : toIntOrNull(previous.lastRfidMs),
     rfidEvent: lastRecordedEvent?.status ?? (typeof previous.rfidEvent === "string" ? previous.rfidEvent : "none"),
-    sessionActive: false,
-    activeRfidHex: "",
+    sessionActive: liveSensors.sessionActive === true,
+    activeRfidHex: liveSensors.sessionActive === true && typeof liveSensors.activeRfidHex === "string" ? liveSensors.activeRfidHex : "",
     activeRfidCard: "",
-    activeSessionStartMs: null,
-    activeSessionDurationMs: null,
-    currentSessionStatus: lastRecordedEvent?.status ?? (typeof previous.currentSessionStatus === "string" ? previous.currentSessionStatus : "IDLE"),
+    activeSessionStartMs: liveSensors.sessionActive === true ? toIntOrNull(liveSensors.activeSessionStartMs) : null,
+    activeSessionDurationMs: liveSensors.sessionActive === true ? toIntOrNull(liveSensors.activeSessionDurationMs) : null,
+    currentSessionStatus: liveSensors.sessionActive === true ? "IN_PROGRESS" : "IDLE",
     lastSessionStatus: lastRecordedEvent?.status ?? (typeof previous.lastSessionStatus === "string" ? previous.lastSessionStatus : "NONE"),
     lastSessionDurationMs: lastRecordedEvent ? lastRecordedEvent.durationSecs * 1000 : toIntOrNull(previous.lastSessionDurationMs),
     lastSessionEndMs: lastRecordedEvent ? Date.parse(lastRecordedEvent.endedAt) || null : toIntOrNull(previous.lastSessionEndMs),
