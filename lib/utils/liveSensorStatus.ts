@@ -3,6 +3,7 @@ type SensorDisplayValue = "Offline" | "Syncing" | "Normal" | "Abnormal" | "Onlin
 
 export interface LiveSensorData {
   readonly online?: boolean;
+  readonly gasUltrasonicOnline?: boolean;
   readonly mq135?: string;
   readonly mq136?: string;
   readonly mq135Raw?: number | null;
@@ -83,7 +84,7 @@ export const getLiveAirQualityStatus = ({
 }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getUnavailableSensorStatus(getSensorErrorLabel(sensorsError));
   if (sensorsLoading) return getLoadingSensorStatus();
-  if (!sensorData?.online) return getUnavailableSensorStatus("No data");
+  if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("No data");
 
   return getOnlineSensorStatus(
     getLiveAirQualityValue(

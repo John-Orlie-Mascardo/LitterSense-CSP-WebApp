@@ -27,6 +27,7 @@ export interface ReportCatSnapshot {
 }
 
 export interface ReportSessionLike {
+  readonly durationSecs?: number;
   readonly id: string;
   readonly catId: string;
   readonly catName: string;
@@ -81,6 +82,7 @@ export function buildReportSessionGroups<TSession extends ReportSessionLike>(
     const sessionsWithState = catSessions.map((session) => ({
       ...session,
       displayState: getSessionDisplayState({
+        durationSecs: session.durationSecs,
         sessionStatus: session.sessionStatus,
         anomaly: session.anomaly,
         anomalyType: session.anomalyType,

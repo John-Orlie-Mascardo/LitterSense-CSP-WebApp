@@ -13,6 +13,8 @@
 
 "use client";
 
+import { getSessionActivityDateKey as getRecordedSessionDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
+
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
@@ -58,16 +60,13 @@ import type { CatTrendPoint } from "@/lib/contexts/CatContext";
 import {
   BEHAVIOR_STATE_BY_ID,
   formatMetricValue,
-  getCatDisplayState,
+  getSessionDisplayState,
+  getMostSevereState,
   hasEstablishedBaseline,
   hasRecordedCatData,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
 import {
-  DASHBOARD_DURATION_UPPER_MINS,
-  DASHBOARD_DURATION_WARNING_MINS,
-  DASHBOARD_VISIT_UPPER_COUNT,
-  DASHBOARD_VISIT_WARNING_COUNT,
   INCOMPLETE_SESSION_FLOOR_SECS,
 } from "@/lib/configs/behaviorThresholds";
 import {
@@ -130,42 +129,6 @@ const formatDate = () => {
     day: "numeric",
   };
   return new Date().toLocaleDateString("en-US", options);
-};
-
-const getVisitsStatus = (
-  visits: number,
-  canClassify: boolean,
-): BehaviorStateId => {
-  if (!canClassify) return "insufficient";
-  if (visits > DASHBOARD_VISIT_WARNING_COUNT) return "abnormal";
-  return "normal";
-};
-
-const getVisitsLabel = (visits: number, canClassify: boolean) => {
-  if (!canClassify) return BEHAVIOR_STATE_BY_ID.insufficient.label;
-  if (visits > DASHBOARD_VISIT_UPPER_COUNT) return BEHAVIOR_STATE_BY_ID.abnormal.label;
-  if (visits > DASHBOARD_VISIT_WARNING_COUNT) return BEHAVIOR_STATE_BY_ID.abnormal.label;
-  return BEHAVIOR_STATE_BY_ID.normal.label;
-};
-
-const getDurationLabel = (duration: string, canClassify: boolean) => {
-  if (!canClassify || duration === "No data yet") {
-    return BEHAVIOR_STATE_BY_ID.insufficient.label;
-  }
-  const mins = Number.parseInt(duration);
-  if (mins >= DASHBOARD_DURATION_UPPER_MINS) return BEHAVIOR_STATE_BY_ID.abnormal.label;
-  if (mins >= DASHBOARD_DURATION_WARNING_MINS) return BEHAVIOR_STATE_BY_ID.abnormal.label;
-  return BEHAVIOR_STATE_BY_ID.normal.label;
-};
-
-const getDurationStatus = (
-  duration: string,
-  canClassify: boolean,
-): BehaviorStateId => {
-  if (!canClassify || duration === "No data yet") return "insufficient";
-  const mins = Number.parseInt(duration);
-  if (mins >= DASHBOARD_DURATION_WARNING_MINS) return "abnormal";
-  return "normal";
 };
 
 const useDismissedAbnormalKeys = (abnormalCats: { id: string; status: string }[]) => {
@@ -634,7 +597,8 @@ function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
       </h2>
       <p className="text-litter-muted text-sm leading-relaxed max-w-xs mb-8">
         Keep track of your furry friend&apos;s health, bathroom habits,
-        and weight trends by adding them to your dashboard.
+        {/* NOTE(manuscript): Dashboard copy no longer promises weight tracking. */}
+        and visit trends by adding them to your dashboard.
       </p>
       <button
         onClick={onAddCat}
@@ -675,6 +639,7 @@ function PopulatedDashboardState({
   abnormalCat,
   isDismissedAbnormalReady,
   airQualityReadings,
+  ultrasonicValue,
   rfidStatus,
   trendData,
   trendReferences,
@@ -700,6 +665,7 @@ function PopulatedDashboardState({
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
   readonly airQualityReadings: AirQualityReadings;
+  readonly ultrasonicValue: string;
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
   readonly trendReferences: TrendReferenceSet | null;
@@ -720,7 +686,6 @@ function PopulatedDashboardState({
   const selectedDisplayState = selectedCat
     ? catDisplayStates[selectedCat.id] ?? "insufficient"
     : "insufficient";
-  const canClassifyMetrics = selectedHasData && selectedBaselineEstablished;
   const displayVisits = formatMetricValue(stats?.visits ?? 0, selectedHasData);
   const displayDuration = formatMetricValue(displayAvgDuration, selectedHasData);
 
@@ -800,7 +765,7 @@ function PopulatedDashboardState({
                 </p>
               </div>
             </div>
-            <BehaviorStateBadge state={selectedDisplayState} />
+            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={selectedDisplayState} />
           </div>
         )}
 
@@ -832,15 +797,15 @@ function PopulatedDashboardState({
               icon={Clock}
               value={displayVisits}
               label="Today's Visits"
-              status={getVisitsStatus(stats?.visits ?? 0, canClassifyMetrics)}
-              statusLabel={getVisitsLabel(stats?.visits ?? 0, canClassifyMetrics)}
+              status={selectedDisplayState}
+              statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
             <StatCard
               icon={Timer}
               value={displayDuration}
               label="Avg Duration"
-              status={getDurationStatus(String(displayDuration), canClassifyMetrics)}
-              statusLabel={getDurationLabel(String(displayDuration), canClassifyMetrics)}
+              status={selectedDisplayState}
+              statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
             <StatCard
               icon={Radio}
@@ -876,6 +841,7 @@ function PopulatedDashboardState({
               status={getReadingStatus(airQualityReadings.h2s)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s)}
             />
+            <StatCard icon={Radio} value={ultrasonicValue} label="Ultrasonic Distance" subtitle="HC-SR04" status={ultrasonicValue.endsWith(" cm") ? "normal" : "offline"} />
           </div>
         </section>
 
@@ -993,11 +959,9 @@ export default function DashboardPage() {
             {
               hasData,
               baselineEstablished,
-              state: getCatDisplayState({
-                persistedStatus: cat.status,
-                hasData,
-                baselineEstablished,
-              }),
+              state: getMostSevereState(catSessions
+                .filter((session) => getRecordedSessionDateKey(session) === getTodayDateKey())
+                .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished }))),
             },
           ];
         }),
@@ -1161,6 +1125,7 @@ export default function DashboardPage() {
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
             airQualityReadings={airQualityReadings}
+            ultrasonicValue={sensorsLoading ? "Syncing" : !sensorData?.gasUltrasonicOnline || sensorsError ? "Offline" : sensorData.distanceCm == null ? "No echo" : `${sensorData.distanceCm.toFixed(1)} cm`}
             rfidStatus={rfidStatus}
             trendData={trendData}
             trendReferences={trendReferences}

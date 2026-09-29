@@ -2,7 +2,7 @@ export interface CatDetails {
   breed: string;
   gender?: "male" | "female";
   dob: string;
-  weightKg: number;
+  // NOTE(manuscript): Remove weight from the CAT ERD (3.4.2); legacy stored values remain untouched.
   rfidTag: string;
   healthInsight: string;
   baseline: {

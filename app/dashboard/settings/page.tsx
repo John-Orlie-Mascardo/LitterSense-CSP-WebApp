@@ -12,6 +12,8 @@
 
 "use client";
 
+import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
+
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -53,10 +55,6 @@ import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
-import {
-  SETUP_DEVICE_PROVISION_URL,
-  buildDeviceProvisioningBody,
-} from "@/lib/utils/deviceProvisioning";
 import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -274,9 +272,9 @@ export default function SettingsPage() {
 
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const photoUpload = usePhotoUpload();
+  const { isSaving: isSavingProfile, progress: profilePhotoProgress } = photoUpload;
   const [selectedProfilePhotoFile, setSelectedProfilePhotoFile] = useState<File | null>(null);
-  const [profilePhotoProgress, setProfilePhotoProgress] = useState<number | null>(null);
   const [savedProfilePhotoPath, setSavedProfilePhotoPath] = useState("");
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showExportSheet, setShowExportSheet] = useState(false);
@@ -288,7 +286,6 @@ export default function SettingsPage() {
   const [showWifiProvisioning, setShowWifiProvisioning] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showWifiPassword, setShowWifiPassword] = useState(false);
-  const [isSendingDeviceProvisioning, setIsSendingDeviceProvisioning] = useState(false);
   const [exportPrintHtml, setExportPrintHtml] = useState<string | null>(null);
 
   // Data Retention dropdown
@@ -324,6 +321,7 @@ export default function SettingsPage() {
     phoneNumber: "",
   });
   const [savedPhoneNumber, setSavedPhoneNumber] = useState("");
+  const [savedPhoneCountryCode, setSavedPhoneCountryCode] = useState("+63");
 
   // Sync form when user is loaded
   useEffect(() => {
@@ -341,6 +339,7 @@ export default function SettingsPage() {
       const phoneNumber = typeof profile?.phoneNumber === "string" ? profile.phoneNumber : "";
 
       setSavedPhoneNumber(phoneNumber);
+      setSavedPhoneCountryCode(phoneCountryCode);
       setSavedProfilePhotoPath(
         typeof profile?.photoPath === "string" ? profile.photoPath : "",
       );
@@ -375,8 +374,7 @@ export default function SettingsPage() {
   const handleSaveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) return;
-    setIsSavingProfile(true);
-    setProfilePhotoProgress(null);
+    const upload = photoUpload.begin();
     const previousDisplayName = user.displayName;
     const previousPhotoUrl = user.photoURL;
     const previousPhotoPath = savedProfilePhotoPath;
@@ -394,13 +392,15 @@ export default function SettingsPage() {
         const uploaded = await uploadOwnerPhoto({
           uid: user.uid,
           file: selectedProfilePhotoFile,
-          onProgress: setProfilePhotoProgress,
+          signal: upload.signal,
+          onProgress: upload.onProgress,
         });
         nextPhotoUrl = uploaded.url;
         nextPhotoPath = uploaded.path;
         uploadedPhotoPath = uploaded.path;
       }
 
+      upload.signal.throwIfAborted();
       await updateProfile(user, {
         displayName: editProfileForm.displayName,
         photoURL: nextPhotoUrl,
@@ -417,8 +417,9 @@ export default function SettingsPage() {
 
       updateAccountSetting("displayName", editProfileForm.displayName);
       setSavedPhoneNumber(phoneNumber);
+      setSavedPhoneCountryCode(editProfileForm.phoneCountryCode);
       setSavedProfilePhotoPath(nextPhotoPath);
-      setSelectedProfilePhotoFile(null);
+      if (!upload.signal.aborted) setSelectedProfilePhotoFile(null);
       try {
         await refreshUser();
       } catch (refreshError) {
@@ -426,8 +427,10 @@ export default function SettingsPage() {
         // not roll them back or delete the newly referenced Storage object.
         console.error("Failed to refresh the synchronized profile:", refreshError);
       }
-      setShowEditProfile(false);
-      addToast("Profile updated successfully", "success");
+      if (!upload.signal.aborted) {
+        setShowEditProfile(false);
+        addToast("Profile updated successfully", "success");
+      }
 
       if (previousPhotoPath && previousPhotoPath !== nextPhotoPath) {
         try {
@@ -437,6 +440,7 @@ export default function SettingsPage() {
         }
       }
     } catch (error) {
+      upload.finish();
       if (authUpdated) {
         try {
           await updateProfile(user, {
@@ -454,13 +458,13 @@ export default function SettingsPage() {
           console.error("Failed to clean up the unsaved profile photo:", cleanupError);
         }
       }
+      if (upload.signal.aborted) return;
       const message = error instanceof Error && error.message.includes("took too long")
         ? error.message
         : "We couldn't update your profile. Please try again.";
       addToast(message, "error");
     } finally {
-      setIsSavingProfile(false);
-      setProfilePhotoProgress(null);
+      upload.finish();
     }
   };
 
@@ -556,8 +560,10 @@ export default function SettingsPage() {
         event.target.value = "";
         return;
       }
+      photoUpload.reader.current?.abort();
       const reader = new FileReader();
-      reader.onloadend = () => {
+      photoUpload.reader.current = reader;
+      reader.onload = () => {
         setEditProfileForm((prev) => ({ ...prev, photo: reader.result as string }));
         setSelectedProfilePhotoFile(file);
       };
@@ -587,60 +593,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSendDeviceProvisioningToHardware = async () => {
-    const wifiSsid = deviceConfig.wifiSsid.trim();
-    const wifiPassword = deviceConfig.wifiPassword.trim();
-
-    if (!wifiSsid || !wifiPassword) {
-      addToast("Enter both the Wi-Fi name and password", "error");
-      return;
-    }
-
-    setIsSendingDeviceProvisioning(true);
-
-    try {
-      const body = buildDeviceProvisioningBody({
-        wifiSsid,
-        wifiPassword,
-        configUrl: provisioningUrl,
-      });
-
-      const response = await fetch(SETUP_DEVICE_PROVISION_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Device setup returned HTTP ${response.status}`);
-      }
-
-      let cloudSaveSucceeded = true;
-      try {
-        await saveDeviceConfig(deviceConfig);
-        updateDeviceSetting("wifiNetwork", wifiSsid);
-        updateDeviceSetting("lastSynced", "Just now");
-      } catch {
-        cloudSaveSucceeded = false;
-      }
-
-      addToast(
-        cloudSaveSucceeded
-          ? "Wi-Fi config sent to the setup device"
-          : "Sent to device. Reconnect to internet later and save to sync cloud settings.",
-        cloudSaveSucceeded ? "success" : "info",
-      );
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message.includes("HTTP")
-          ? error.message
-          : "Connect to LitterSense-Setup Wi-Fi, then try again or open 192.168.4.1.";
-      addToast(message, "error");
-    } finally {
-      setIsSendingDeviceProvisioning(false);
-    }
+  const handleSendDeviceProvisioningToHardware = () => {
+    window.open("http://192.168.4.1/", "_blank", "noopener,noreferrer");
   };
 
   const handleCopyValue = async (value: string, label: string) => {
@@ -1105,7 +1059,8 @@ export default function SettingsPage() {
       <BottomSheet
         isOpen={showEditProfile}
         onClose={() => {
-          if (isSavingProfile) return;
+          photoUpload.cancel();
+          setEditProfileForm((current) => ({ ...current, displayName: user?.displayName || settings.account.displayName, photo: user?.photoURL || null, phoneCountryCode: savedPhoneCountryCode, phoneNumber: getNationalPhoneNumber(savedPhoneNumber, savedPhoneCountryCode) }));
           setSelectedProfilePhotoFile(null);
           setShowEditProfile(false);
         }}
@@ -1257,23 +1212,39 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm font-semibold text-litter-text">ESP32 Wi-Fi Provisioning</p>
               <p className="mt-1 text-xs leading-relaxed text-theme-muted">
-                Save the owner&apos;s Wi-Fi here, then connect your phone or laptop to LitterSense-Setup
-                and send it to the ESP32. Future Wi-Fi changes sync through the Device Fetch URL.
+                Moving your litterbox? Connect your phone to LitterSense-Setup, then open the
+                device setup page below. Enter the new Wi-Fi there; no internet or account login is needed.
               </p>
             </div>
           </div>
 
           <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
-            <p className="text-sm font-medium text-litter-text">First-time hardware setup</p>
+            <p className="text-sm font-medium text-litter-text">Set up Wi-Fi at a new location</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-relaxed text-theme-muted">
-              <li>Power the ESP32 from the supply module.</li>
+              <li>Power the litterbox. If its saved Wi-Fi is unavailable, setup opens after about 30 seconds.</li>
               <li>Connect this phone or laptop to the LitterSense-Setup Wi-Fi. Password: littersense.</li>
               <li>No Internet on that setup Wi-Fi is normal.</li>
               <li>If the setup page does not open automatically, open http://192.168.4.1.</li>
-              <li>Tap Send to Setup Device after entering the owner Wi-Fi below.</li>
+              <li>Enter the new 2.4 GHz Wi-Fi details on the device page. Wait for Connected and saved, then rejoin your usual Wi-Fi.</li>
             </ol>
           </div>
 
+          <button
+            onClick={handleSendDeviceProvisioningToHardware}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-litter-primary bg-litter-card px-4 py-3 font-medium text-litter-primary transition-colors hover:bg-litter-primary-light"
+          >
+            <Wifi className="h-4 w-4" />
+            Open Device Wi-Fi Setup
+          </button>
+          <p className="text-xs leading-relaxed text-theme-muted">
+            Saving the account record does not connect the litterbox. Use the local setup page above.
+            Passwords are saved on the camera only after it connects. Hotel sign-in pages,
+            enterprise Wi-Fi and 5 GHz-only networks are not supported by this setup.
+          </p>
+
+          <details className="rounded-xl border border-litter-border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Account Wi-Fi record (optional)</summary>
+            <div className="mt-4 space-y-4">
           <div>
             <label htmlFor="deviceName" className="mb-1.5 block text-sm font-medium text-theme-secondary">
               Device Name
@@ -1355,7 +1326,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <p className="mt-2 text-xs text-theme-muted">
-              Use this token in the ESP32 sketch to fetch the latest Wi-Fi config.
+              This token is for compatible sensor firmware and account linking. Camera Wi-Fi setup does not need it.
             </p>
           </div>
 
@@ -1375,7 +1346,9 @@ export default function SettingsPage() {
               </button>
             </div>
             <p className="mt-2 text-xs text-theme-muted">
-              Last synced: {isDeviceProvisioningLoading ? "Loading..." : deviceConfig.updatedAtLabel}
+              Account record updated: {isDeviceProvisioningLoading ? "Loading..." : deviceConfig.updatedAtLabel}.
+              This URL is for legacy firmware; the camera setup page does not fetch it.
+              A PC-local address is only reachable while that PC is running on the same destination network.
             </p>
           </div>
 
@@ -1392,28 +1365,13 @@ export default function SettingsPage() {
             ) : (
               <>
                 <Wifi className="h-4 w-4" />
-                Save Device Wi-Fi
+                Save Account Wi-Fi Record
               </>
             )}
           </button>
 
-          <button
-            onClick={handleSendDeviceProvisioningToHardware}
-            disabled={isSendingDeviceProvisioning}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-litter-primary bg-litter-card px-4 py-3 font-medium text-litter-primary transition-colors hover:bg-litter-primary-light disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSendingDeviceProvisioning ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Sending to Setup Device...
-              </>
-            ) : (
-              <>
-                <Wifi className="h-4 w-4" />
-                Send to Setup Device
-              </>
-            )}
-          </button>
+            </div>
+          </details>
         </div>
       </BottomSheet>
 

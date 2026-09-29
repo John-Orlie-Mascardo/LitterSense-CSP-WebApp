@@ -8,11 +8,11 @@
  * sessions, including hardware-written sessions.
  */
 
-import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
+import type { SessionLogCounts } from "@/lib/utils/sessionLogCounts";
 import { BEHAVIOR_STATE_BY_ID, type BehaviorStateId } from "@/lib/presentation/behaviorStates";
 
 interface SessionLogSummaryProps {
-  readonly log: CatSessionLog | undefined;
+  readonly log: (SessionLogCounts & { readonly updatedAt?: string }) | undefined;
 }
 
 interface StateRow {

@@ -142,11 +142,13 @@ test("mobile state key uses a native disclosure that starts collapsed", () => {
 });
 
 test("home derives presentation states and distinguishes missing metrics from real zeroes", () => {
-  assert.match(source, /getCatDisplayState/);
+  assert.match(source, /getSessionDisplayState/);
+  assert.match(source, /getMostSevereState/);
+  assert.doesNotMatch(source, /getVisitsStatus|getDurationStatus/);
   assert.match(source, /hasEstablishedBaseline/);
   assert.match(source, /hasRecordedCatData/);
   assert.match(source, /formatMetricValue/);
-  assert.match(source, /No data yet/);
+  assert.match(source, /No baseline yet/);
   assert.match(source, /displayState=/);
 });
 

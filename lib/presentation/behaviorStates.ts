@@ -10,6 +10,8 @@
  * developer edits this single source of truth.
  */
 
+import { INCOMPLETE_SESSION_FLOOR_SECS } from "../configs/behaviorThresholds";
+
 export type BehaviorStateId =
   | "normal"
   | "watch"
@@ -145,12 +147,14 @@ export function getCatDisplayState({
 }
 
 export function getSessionDisplayState({
+  durationSecs,
   sessionStatus,
   anomaly,
   anomalyType,
   isAttributed,
   baselineEstablished,
 }: {
+  readonly durationSecs?: number | null;
   readonly sessionStatus?: string | null;
   readonly anomaly?: boolean;
   readonly anomalyType?: string | null;
@@ -160,7 +164,12 @@ export function getSessionDisplayState({
   if (!isAttributed) return "unattributed";
 
   const normalizedStatus = sessionStatus?.toUpperCase();
+  // Aggregate and active rows do not describe a completed visit's duration.
+  const hasCompletedDuration = normalizedStatus !== "DAILY_SUMMARY" &&
+    normalizedStatus !== "IN_PROGRESS" && typeof durationSecs === "number" &&
+    Number.isFinite(durationSecs) && durationSecs >= 0;
   if (
+    (hasCompletedDuration && durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) ||
     normalizedStatus === "SHORT_SESSION" ||
     normalizedStatus === "FALSE_ENTRY_IGNORED" ||
     anomalyType === "Short session"
@@ -176,7 +185,7 @@ export function getSessionDisplayState({
   ) {
     return "abnormal";
   }
-  if (normalizedStatus === "WATCH") return "watch";
+  if (normalizedStatus === "WATCH" && baselineEstablished) return "watch";
   if (normalizedStatus === "DAILY_SUMMARY" || normalizedStatus === "IN_PROGRESS") {
     return "insufficient";
   }

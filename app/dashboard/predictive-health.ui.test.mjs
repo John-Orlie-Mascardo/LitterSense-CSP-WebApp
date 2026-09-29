@@ -29,8 +29,9 @@ test("predictive analysis lives on its own per-cat page linked before notificati
   assert.match(predictivePageSource, /\/api\/predictive-health/);
 
   const analysisLinkIndex = topBarSource.indexOf('href="/dashboard/predictive-health"');
-  const notificationIndex = topBarSource.indexOf('aria-label="Notifications"');
+  const notificationIndex = topBarSource.indexOf('aria-label={`Notifications (');
 
   assert.notEqual(analysisLinkIndex, -1);
+  assert.notEqual(notificationIndex, -1);
   assert.ok(analysisLinkIndex < notificationIndex);
 });

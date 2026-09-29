@@ -21,7 +21,13 @@ function loadTs(url, imports = {}) {
   return loadedModule.exports;
 }
 
-test("RFID entry, exit, retry and authenticated owner snapshot through the route", async () => {
+test("RFID entry, exit, retry and authenticated owner snapshot through the route", async (t) => {
+  const oldUrl = process.env.ESP32_GAS_ULTRASONIC_URL;
+  process.env.ESP32_GAS_ULTRASONIC_URL = "http://old-board.test/sensors";
+  t.after(() => {
+    if (oldUrl === undefined) delete process.env.ESP32_GAS_ULTRASONIC_URL;
+    else process.env.ESP32_GAS_ULTRASONIC_URL = oldUrl;
+  });
   const docs = new Map([["deviceConfigs/cfg_abcdefghijklmnop", { data: { ownerId: "owner-a" } }]]);
   let visitIncrements = 0;
   const client = {
@@ -43,7 +49,8 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   const route = loadTs(new URL("./route.ts", import.meta.url), {
     "@/lib/utils/firestoreRest": { getFirestoreRestClient: () => client, FirestoreRestError: class extends Error {} },
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
-    "@/lib/utils/sensorEndpointDiagnostics": {},
+    "@/lib/utils/gasUltrasonic": { ...require("../../../lib/utils/gasUltrasonic.ts"), fetchGasUltrasonic: async () => ({ gasUltrasonicOnline: false }) },
+    "@/lib/utils/sensorEndpointDiagnostics": { shouldSkipServerSensorProxy: () => false },
     "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse },
     "@/lib/configs/firebase-admin": { getAdminAuth: () => ({verifyIdToken: async (token) => {
       if (token === "bad") throw new Error("bad token");
@@ -57,8 +64,38 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await post(entry)).status, 200);
   assert.equal(docs.get("users/owner-a/deviceState/current").data.sessionActive, true);
   assert.equal(visitIncrements, 0);
+  const gas = { source: "gas-ultrasonic", mq135Raw: 0, mq136Raw: 1, distanceCm: 24.5 };
+  const rfidBeforeGas = JSON.stringify(docs.get("users/owner-a/deviceState/current"));
+  assert.equal((await post(gas)).status, 200);
+  assert.ok(docs.has("users/owner-a/deviceState/gasUltrasonic"), "sensor push must save its own snapshot");
+  assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/current")), rfidBeforeGas);
+  assert.equal(visitIncrements, 0);
+  const getOwner = async (owner = "owner-a") => (await route.GET(new Request("https://test/api/sensors", {
+    headers: { Authorization: `Bearer ${owner}` },
+  }))).json();
+  let displayed = await getOwner();
+  assert.equal(displayed.gasUltrasonicOnline, true, "old polling URL must not override a pushed reading");
+  assert.equal(displayed.distanceCm, 24.5);
+  assert.equal(displayed.mq135, "Gas Detected");
+  assert.equal(displayed.sessionActive, true);
+  assert.equal((await getOwner("owner-b")).gasUltrasonicOnline, false);
+  const gasBeforeInvalid = JSON.stringify(docs.get("users/owner-a/deviceState/gasUltrasonic"));
+  for (const invalid of [{ mq135Raw: 2 }, { mq136Raw: "1" }, { distanceCm: -1 }, { distanceCm: 516 }, { distanceCm: "24" }]) {
+    assert.equal((await post({ ...gas, ...invalid })).status, 400);
+  }
+  assert.equal((await post(gas, "cfg_unknown_unknown")).status, 404);
+  assert.equal((await post(gas, "")).status, 400);
+  assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/gasUltrasonic")), gasBeforeInvalid);
+  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 31000).toISOString();
+  displayed = await getOwner();
+  assert.equal(displayed.gasUltrasonicOnline, false);
+  assert.equal(displayed.distanceCm, null);
+  assert.equal(displayed.sessionActive, true, "gas expiry must not clear RFID state");
+  assert.equal((await post({ ...gas, distanceCm: null })).status, 200);
+  assert.equal((await getOwner()).gasUltrasonicOnline, true);
   const exit = {sessionActive: false, events: [{eventId: "boot_1000_11000", status: "NORMAL", durationMs: 10000, rfidHex: entry.activeRfidHex, endedAtMs: Date.now()}]};
   assert.equal((await post(exit)).headers.get("x-litersense-ack"), "boot_1000_11000");
+  assert.equal((await getOwner()).gasUltrasonicOnline, true, "RFID exit must not erase gas readings");
   const incrementsAfterExit = visitIncrements;
   assert.ok(incrementsAfterExit > 0);
   const retry = await post(exit);

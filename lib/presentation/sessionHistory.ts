@@ -171,6 +171,7 @@ export function getHistorySessionState(
 ): BehaviorStateId {
   const isAttributed = Boolean(session.catId) && catIds.has(session.catId);
   return getSessionDisplayState({
+    durationSecs: session.durationSecs,
     sessionStatus: session.sessionStatus,
     anomaly: session.anomaly,
     anomalyType: session.anomalyType,

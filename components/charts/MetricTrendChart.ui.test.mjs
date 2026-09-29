@@ -14,9 +14,52 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const ts = require("typescript");
+const { renderToStaticMarkup } = require("react-dom/server");
+const { createElement } = require("react");
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(currentDir, "MetricTrendChart.tsx"), "utf8");
+
+test("tooltip sorts by its own axis maximum and preserves tied order", () => {
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+  });
+  const exports = {};
+  new Function("require", "exports", compiled.outputText)((id) => {
+    if (id === "@/lib/presentation/trendCharts") return {
+      getTrendMetricConfig: (metric) => ({ metricName: metric, unit: "units" }),
+      formatTrendTooltipLine: (name) => name,
+    };
+    return require(id);
+  }, exports);
+  const render = (duration, visits) => renderToStaticMarkup(createElement(exports.MetricTooltip, {
+    active: true, primaryMetric: "duration", secondaryMetric: "visits",
+    primaryMaximum: 4, secondaryMaximum: 9,
+    payload: [{ dataKey: "primaryValue", value: duration }, { dataKey: "secondaryValue", value: visits }],
+  }));
+  const higherVisits = render(0.2, 8);
+  assert.ok(higherVisits.indexOf("visits") < higherVisits.indexOf("duration"));
+  for (const html of [render(4, 1), render(2, 4.5)]) {
+    assert.ok(html.indexOf("duration") < html.indexOf("visits"));
+  }
+});
+
+test("axis text meets 4.5:1 contrast on light and dark cards", () => {
+  const luminance = (hex) => {
+    const values = hex.match(/[a-f\d]{2}/gi).map((part) => parseInt(part, 16) / 255)
+      .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+  };
+  for (const [text, background] of [["1B7A6E", "FFFFFF"], ["99501A", "FFFFFF"], ["48B6A8", "1A1A1A"], ["E8924A", "1A1A1A"]]) {
+    assert.ok(source.includes(`#${text}`));
+    const values = [luminance(text), luminance(background)].sort((a, b) => b - a);
+    assert.ok((values[0] + 0.05) / (values[1] + 0.05) >= 4.5);
+  }
+});
 
 test("the chart renders titled axes, ticks, baseline, and normal range", () => {
   assert.match(source, /CartesianGrid/);

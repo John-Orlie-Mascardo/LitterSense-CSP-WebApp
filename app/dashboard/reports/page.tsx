@@ -68,6 +68,8 @@ const dateRanges: { value: DateRangeValue; label: string }[] = [
   { value: "30", label: "Last 30 Days" },
 ];
 
+const PRINT_CHART_WIDTH = 620;
+
 const csvCell = (value: string | number | boolean) => {
   const text = String(value);
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
@@ -90,6 +92,7 @@ export default function ReportsPage() {
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showAllReports, setShowAllReports] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const hasCats = cats.length > 0;
   const visibleReports = showAllReports ? pastReports : pastReports.slice(0, 3);
@@ -106,6 +109,20 @@ export default function ReportsPage() {
       queueMicrotask(() => setSelectedCat("all"));
     }
   }, [cats, selectedCat]);
+
+  // Charts must re-render at PRINT_CHART_WIDTH before the print snapshot is taken.
+  // Recharts renders nothing until its ResizeObserver has measured the new size, so
+  // printing in this same frame would capture an empty chart - wait a beat first.
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done, { once: true });
+    const timer = setTimeout(() => window.print(), 300);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("afterprint", done);
+    };
+  }, [printing]);
 
   const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
@@ -130,7 +147,7 @@ export default function ReportsPage() {
   const handleExportPDF = () => {
     if (!currentReport) return;
     addToast("Opening print dialog. Choose Save as PDF to export.", "info");
-    window.print();
+    setPrinting(true);
   };
 
   const handleExportCSV = () => {
@@ -187,7 +204,7 @@ export default function ReportsPage() {
     addToast("Opening print dialog. Choose Save as PDF to export.", "info");
     setTimeout(() => {
       reportRef.current?.scrollIntoView({ behavior: "smooth" });
-      window.print();
+      setPrinting(true);
     }, 150);
   };
 
@@ -313,7 +330,7 @@ export default function ReportsPage() {
         {currentReport && (
           <div ref={reportRef} className="reports-print-area mb-6">
             <h2 className="reports-screen-only text-base font-bold text-litter-text mb-3">Generated Report</h2>
-            <ReportPreview report={currentReport} />
+            <ReportPreview report={currentReport} chartWidth={printing ? PRINT_CHART_WIDTH : undefined} />
 
             {/* Export Controls */}
             <div className="reports-screen-only bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
@@ -393,6 +410,8 @@ export default function ReportsPage() {
 
 interface ReportPreviewProps {
   readonly report: ReportData;
+  /** Set while printing so the trend charts render at a width that fits the page. */
+  readonly chartWidth?: number;
 }
 
 function getReportCatSnapshots(report: ReportData): ReportCatSnapshot[] {
@@ -407,7 +426,7 @@ function getReportCatSnapshots(report: ReportData): ReportCatSnapshot[] {
   }];
 }
 
-function ReportPreview({ report }: ReportPreviewProps) {
+function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
   const trendData = report.trendData;
   const reportCats = getReportCatSnapshots(report);
   const sessionGroups = buildReportSessionGroups(report.sessions, reportCats);
@@ -510,6 +529,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 reference={report.trendReferences?.visits}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
                 emptyMessage="No sessions were recorded in this 7-day period."
+                width={chartWidth}
               />
             </div>
             <div className="bg-theme-overlay rounded-xl p-4">
@@ -524,6 +544,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 reference={report.trendReferences?.duration}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
                 emptyMessage="No sessions were recorded in this 7-day period."
+                width={chartWidth}
               />
             </div>
             <div className="bg-theme-overlay rounded-xl p-4">
@@ -538,6 +559,7 @@ function ReportPreview({ report }: ReportPreviewProps) {
                 reference={report.trendReferences?.airQuality}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
                 emptyMessage="No sessions were recorded in this 7-day period."
+                width={chartWidth}
               />
             </div>
           </div>

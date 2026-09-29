@@ -204,6 +204,7 @@ async function getAccessToken(config: ServiceAccountConfig) {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
   const payloadJson = await response.json().catch(() => ({})) as {
     access_token?: string;
@@ -257,6 +258,7 @@ export class FirestoreRestClient {
     const token = await getAccessToken(this.config);
     const response = await fetch(url, {
       ...init,
+      signal: init.signal ?? AbortSignal.timeout(10_000),
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
