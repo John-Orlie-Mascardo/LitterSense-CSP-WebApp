@@ -3,6 +3,7 @@ import { shouldSkipServerSensorProxy } from "@/lib/utils/sensorEndpointDiagnosti
 const DEFAULT_ESP32_BASE_URL = "http://192.168.68.120";
 
 export async function GET(request: Request) {
+  if (process.env.VERCEL === "1") return new Response("Use the authenticated remote camera viewer.", { status: 410, headers: { "Cache-Control": "no-store" } });
   const capture = new URL(request.url).searchParams.get("capture") === "1";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);

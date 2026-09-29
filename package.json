@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test \"app/**/*.test.*\" \"components/**/*.test.*\" \"lib/**/*.test.*\"",
-    "check": "npm run lint && npm test && npm run build"
+    "check": "npm run lint && npm test && npm run test:camera-relay && npm run build",
+    "test:camera-relay": "node --test services/camera-relay/server.test.mjs"
   },
   "dependencies": {
     "firebase": "^12.11.0",

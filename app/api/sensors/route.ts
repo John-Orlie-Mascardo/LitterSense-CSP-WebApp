@@ -116,6 +116,7 @@ const readRequestBody = async (request: Request) => {
 };
 
 export async function GET(request: Request) {
+  if (process.env.VERCEL === "1" && !request.headers.get("authorization")) return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
   const response = await getPrimarySensors(request);
   const url = process.env.ESP32_GAS_ULTRASONIC_URL?.trim();
   if (!url || !response.ok) return response;

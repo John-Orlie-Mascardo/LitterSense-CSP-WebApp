@@ -9,7 +9,7 @@ registerHooks({
   },
 });
 
-test("camera proxy uses separate stream and capture endpoints and reports failures", async (t) => {
+test("local camera proxy works locally and hosted deployments require the authenticated viewer", async (t) => {
   const originalBase = process.env.ESP32_BASE_URL;
   const originalStream = process.env.ESP32_STREAM_URL;
   const originalVercel = process.env.VERCEL;
@@ -48,13 +48,13 @@ test("camera proxy uses separate stream and capture endpoints and reports failur
   process.env.ESP32_STREAM_URL = "http://192.168.4.1:81/stream";
   const previousCalls = fetchMock.mock.callCount();
   for (const suffix of ["", "?capture=1"]) {
-    assert.equal((await GET(new Request(`https://example.test/api/stream${suffix}`))).status, 503);
+    assert.equal((await GET(new Request(`https://example.test/api/stream${suffix}`))).status, 410);
   }
   assert.equal(fetchMock.mock.callCount(), previousCalls, "Vercel must not fetch LAN camera URLs");
 
   process.env.ESP32_BASE_URL = "https://camera.example.test";
   process.env.ESP32_STREAM_URL = "https://camera.example.test/stream";
-  assert.equal((await GET(new Request("https://example.test/api/stream?capture=1"))).status, 200);
+  assert.equal((await GET(new Request("https://example.test/api/stream?capture=1"))).status, 410);
 
   delete process.env.VERCEL;
   delete process.env.ESP32_STREAM_URL;

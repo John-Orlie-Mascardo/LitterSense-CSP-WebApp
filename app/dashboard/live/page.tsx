@@ -11,7 +11,8 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { RemoteCamera as LiveView } from "@/components/dashboard/RemoteCamera";
 import { motion } from "framer-motion";
 import {
   Play,
@@ -30,7 +31,7 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-const ESP32_STREAM_URL = "/api/stream";
+
 const SHOW_RECORDINGS_UI = false;
 
 type LiveStreamState = "unknown" | "connected" | "error";
@@ -138,105 +139,6 @@ function getVisibleRecordings(recordings: RecordingEvent[], showAllRecordings: b
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function LiveView({
-  onStreamStateChange,
-}: {
-  readonly onStreamStateChange: (state: LiveStreamState) => void;
-}) {
-  const [error, setError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [capture, setCapture] = useState(false);
-  const [zoomOut, setZoomOut] = useState(true);
-  const [frame, setFrame] = useState(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const imageUrl = capture ? `${ESP32_STREAM_URL}?capture=1&frame=${frame}` : ESP32_STREAM_URL;
-
-  const handleImageError = () => {
-    clearTimeout(timer.current);
-    setLoaded(false);
-    if (!capture) {
-      setCapture(true);
-    } else {
-      setError(true);
-      onStreamStateChange("error");
-    }
-  };
-
-  useEffect(() => {
-    if (error) return;
-    timer.current = setTimeout(() => {
-      setLoaded(false);
-      if (!capture) setCapture(true);
-      else {
-        setError(true);
-        onStreamStateChange("error");
-      }
-    }, 12000);
-    return () => clearTimeout(timer.current);
-  }, [capture, frame, error, onStreamStateChange]);
-
-  return (
-    <div className="relative w-full aspect-video bg-[#1C1C1C] rounded-2xl overflow-hidden shadow-lg">
-      {error ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <Radio className="w-10 h-10 text-theme-secondary" />
-          <p className="text-theme-muted text-sm">Cannot reach camera</p>
-          <p className="text-theme-secondary text-xs">{ESP32_STREAM_URL}</p>
-          <button
-            onClick={() => {
-              setError(false);
-              setLoaded(false);
-              setCapture(false);
-              setFrame(0);
-              onStreamStateChange("unknown");
-            }}
-            className="mt-2 px-3 py-1 rounded-full bg-litter-primary text-white text-xs font-medium hover:bg-[#165a4e] transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt="ESP32-CAM live stream"
-            className={`w-full h-full rotate-180 ${zoomOut ? "object-contain" : "object-cover"}`}
-            onLoad={() => {
-              clearTimeout(timer.current);
-              setError(false);
-              setLoaded(true);
-              onStreamStateChange("connected");
-              // ponytail: one capture per second; use MJPEG when the camera stream is available.
-              if (capture) timer.current = setTimeout(() => setFrame((value) => value + 1), 1000);
-            }}
-            onError={handleImageError}
-          />
-          {!loaded && (
-            <p role="status" className="absolute inset-0 flex items-center justify-center text-white text-sm">
-              Connecting to camera…
-            </p>
-          )}
-          {loaded && (
-            <button
-              onClick={() => setZoomOut((value) => !value)}
-              className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs font-semibold tracking-wide hover:bg-black/80 transition-colors"
-            >
-              {zoomOut ? "Fill" : "Full view"}
-            </button>
-          )}
-          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
-            <span className={`w-2 h-2 rounded-full animate-pulse ${loaded ? "bg-red-500" : "bg-yellow-500"}`} />
-            <span className="text-white text-xs font-semibold tracking-wide">
-              {loaded ? (capture ? "LIVE · 1s refresh" : "LIVE") : "CONNECTING"}
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
 
 function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -440,8 +342,8 @@ function DeviceGate({
         <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
           {[
             { step: "1", label: "Power on your LitterSense device" },
-            { step: "2", label: "Make sure it's on the same Wi-Fi network" },
-            { step: "3", label: "Tap Connect below to pair" },
+            { step: "2", label: "Connect the litterbox to a Wi-Fi network with internet" },
+            { step: "3", label: "Open the viewer, then choose Pair camera" },
           ].map(({ step, label }) => (
             <div key={step} className="flex items-center gap-3">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-litter-primary text-[11px] font-bold text-white">
@@ -501,7 +403,7 @@ function RecordingDeviceInfo({ selectedRecording }: { readonly selectedRecording
   return (
     <div className="flex items-center justify-between mb-4">
       <div>
-        <p className="font-semibold text-litter-text text-base">LitterSense Unit #67</p>
+        <p className="font-semibold text-litter-text text-base">LitterSense camera</p>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="w-2 h-2 rounded-full bg-litter-primary" />
           <span className="text-sm text-litter-primary font-medium">Live</span>
@@ -543,7 +445,7 @@ function DeviceStatusCard({
           </span>
           <div>
             <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
-            <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense Unit #67</p>
+            <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense camera</p>
           </div>
         </div>
         <button
@@ -767,7 +669,8 @@ export default function LivePage() {
   const [selectedCat, setSelectedCat] = useState("All Cats");
   const [selectedDate, setSelectedDate] = useState<SelectedDate>("all");
   const [showAllRecordings, setShowAllRecordings] = useState(false);
-  const [deviceConnected, setDeviceConnected] = useState(false);
+  // Open the remote viewer immediately so pairing remains available when the camera is offline.
+  const [deviceConnected, setDeviceConnected] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("unknown");
 

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: littersense-camera-relay
+    runtime: node
+    rootDir: services/camera-relay
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    numInstances: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24
+      - key: CAMERA_RELAY_SECRET
+        sync: false
+      - key: CAMERA_ALLOWED_ORIGINS
+        sync: false
