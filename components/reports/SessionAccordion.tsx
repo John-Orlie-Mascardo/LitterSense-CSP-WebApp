@@ -122,12 +122,8 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                           </div>
                           <BehaviorStateBadge state={session.displayState} compact />
                         </div>
-                        <dl className="grid grid-cols-3 gap-2 text-xs">
+                        <dl className="grid grid-cols-2 gap-2 text-xs">
                           <SessionValue label="Duration" value={formatDuration(session.durationSecs)} />
-                          <SessionValue
-                            label="Air quality change"
-                            value={session.summaryVisits ? "No data yet" : `${session.mq135Delta}%`}
-                          />
                           <SessionValue
                             label="Odor level change"
                             value={session.summaryVisits ? "No data yet" : `${session.mq136Delta}%`}
@@ -144,7 +140,6 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                           <th className="px-3 py-2 font-medium">Date</th>
                           <th className="px-3 py-2 font-medium">Time</th>
                           <th className="px-3 py-2 font-medium">Duration</th>
-                          <th className="px-3 py-2 font-medium">Air quality change</th>
                           <th className="px-3 py-2 font-medium">Odor level change</th>
                           <th className="px-3 py-2 font-medium">State</th>
                         </tr>
@@ -158,9 +153,6 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                             </td>
                             <td className="px-3 py-2 text-litter-text">
                               {formatDuration(session.durationSecs)}
-                            </td>
-                            <td className="px-3 py-2 text-litter-text">
-                              {session.summaryVisits ? "No data yet" : `${session.mq135Delta}%`}
                             </td>
                             <td className="px-3 py-2 text-litter-text">
                               {session.summaryVisits ? "No data yet" : `${session.mq136Delta}%`}

@@ -18,6 +18,7 @@ import {
   toDeviceSensorsResponse,
 } from "@/lib/utils/deviceSensorSnapshot";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
+import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type RfidEnrollment } from "@/lib/utils/rfidEnrollment";
 
 import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
 
@@ -385,8 +386,10 @@ function buildSyncResponse(args: {
   recorded: Array<{ sessionId: string; catId: string }>;
   duplicates: Array<{ sessionId: string; catId: string }>;
   unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }>;
+  enrollmentId?: string;
+  enrollmentAck?: number;
 }) {
-  const { normalized, recorded, duplicates, unmatched } = args;
+  const { normalized, recorded, duplicates, unmatched, enrollmentId = "", enrollmentAck = -1 } = args;
   const acknowledged = normalized.events.length === 1 && unmatched.length === 0 &&
     recorded.length + duplicates.length === 1 && /^[A-Za-z0-9_-]{1,96}$/.test(normalized.events[0].eventId) ? normalized.events[0].eventId : "";
   return Response.json(
@@ -399,6 +402,8 @@ function buildSyncResponse(args: {
       unmatched,
       recordedSessions: recorded,
       duplicateSessions: duplicates,
+      enrollmentId,
+      enrollmentAck,
     },
     { headers: { ...NO_STORE_HEADERS, "x-litersense-ack": acknowledged } },
   );
@@ -489,12 +494,32 @@ async function handleSensorSync(
     }
 
     const snapshotPath = `users/${ownerId}/deviceState/current`;
-    const [catDetailDocs, existingSensorSnapshot] = await Promise.all([
+    const enrollmentPath = `users/${ownerId}/${RFID_ENROLLMENT_PATH}`;
+    const [catDetailDocs, existingSensorSnapshot, enrollmentDoc] = await Promise.all([
       client.listDocuments(`users/${ownerId}/catDetails`),
       client.getDocument(snapshotPath),
+      client.getDocument(enrollmentPath),
     ]);
     const catDetails = buildCatDetails(catDetailDocs);
     const serverNow = new Date();
+    let enrollment = enrollmentDoc?.data as RfidEnrollment | undefined;
+    let enrollmentAck = -1;
+    if (enrollment && enrollment.deviceId === deviceId && isEnrollmentActive(enrollment, serverNow.getTime()) && typeof body === "object" && body !== null) {
+      const payload = body as Record<string, unknown>;
+      if (payload.enrollmentReadyId === enrollment.id && enrollment.status === "waiting") enrollment = { ...enrollment, status: "ready" };
+      const scan = payload.enrollmentScan;
+      if (typeof scan === "object" && scan !== null) {
+        const { id, sequence, tag } = scan as Record<string, unknown>;
+        if (id === enrollment.id && typeof sequence === "number" && typeof tag === "string") {
+          const normalizedTag = tag.toUpperCase();
+          const registeredTags = catDetails.map(([, details]) => String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase());
+          const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags);
+          if (next.lastScanId === sequence) enrollmentAck = sequence;
+          enrollment = next;
+        }
+      }
+      if (enrollment !== enrollmentDoc?.data) await client.commit([client.createSetWrite(enrollmentPath, enrollment)]);
+    }
     const { recorded, recordedEvents, duplicates, unmatched } =
       await processSensorEvents({
         client,
@@ -535,7 +560,7 @@ async function handleSensorSync(
       ),
     ]);
 
-    return buildSyncResponse({ normalized, recorded, duplicates, unmatched });
+    return buildSyncResponse({ normalized, recorded, duplicates, unmatched, enrollmentId: enrollment && enrollment.deviceId === deviceId && isEnrollmentActive(enrollment, serverNow.getTime()) ? enrollment.id : "", enrollmentAck });
   } catch (error) {
     const isFirestoreError = error instanceof FirestoreRestError;
     const status = isFirestoreError ? error.status : 500;

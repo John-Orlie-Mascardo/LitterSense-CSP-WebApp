@@ -14,7 +14,7 @@ import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
 
 import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Plus,
@@ -64,6 +64,7 @@ import {
 import type { Session } from "@/lib/interfaces/Session";
 
 const AVATAR_PREVIEW_SIZE = 128;
+type EnrollmentView = { id?: string; status: string; count: number; tag: string; error: string };
 
 interface PhotoOffset {
   x: number;
@@ -151,6 +152,64 @@ export default function CatsPage() {
   const [photoSize, setPhotoSize] = useState<PhotoSize | null>(null);
   const photoDragRef = useRef<PhotoDragState | null>(null);
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
+  const [enrollmentOpen, setEnrollmentOpen] = useState(false);
+  const enrollmentOpenRef = useRef(false);
+  const [enrollment, setEnrollment] = useState<EnrollmentView>({ status: "waiting", count: 0, tag: "", error: "" });
+
+  const enrollmentRequest = useCallback(async (method: "GET" | "POST" | "DELETE", id?: string) => {
+    if (!user) throw new Error("Sign in before scanning a tag.");
+    const response = await fetch("/api/rfid-enrollment", { method, cache: "no-store", headers: { Authorization: `Bearer ${await user.getIdToken()}`, ...(id ? { "Content-Type": "application/json" } : {}) }, ...(id ? { body: JSON.stringify({ id }) } : {}) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Scanner unavailable.");
+    return data as EnrollmentView;
+  }, [user]);
+
+  const startEnrollment = async () => {
+    enrollmentOpenRef.current = true;
+    setEnrollmentOpen(true);
+    setEnrollment({ status: "starting", count: 0, tag: "", error: "" });
+    try {
+      const next = await enrollmentRequest("POST");
+      if (enrollmentOpenRef.current) setEnrollment(next);
+      else void enrollmentRequest("DELETE", next.id).catch(() => {});
+    }
+    catch (error) { setEnrollment({ status: "error", count: 0, tag: "", error: error instanceof Error ? error.message : "Scanner unavailable." }); }
+  };
+
+  const closeEnrollment = () => {
+    enrollmentOpenRef.current = false;
+    setEnrollmentOpen(false);
+    if (enrollment.id && enrollment.status !== "verified") void enrollmentRequest("DELETE", enrollment.id).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!enrollmentOpen || !enrollment.id || enrollment.status === "verified" || enrollment.status === "expired") return;
+    let active = true;
+    let timer: number;
+    const poll = async () => {
+      try {
+        const state = await enrollmentRequest("GET");
+        if (active && state.id === enrollment.id) setEnrollment(state);
+        if (active && state.status === "expired") setEnrollment((current) => ({ ...current, status: "expired", error: "Scan timed out. Start again." }));
+      } catch (error) {
+        if (active) setEnrollment((current) => ({ ...current, error: error instanceof Error ? error.message : "Unable to check scanner." }));
+      } finally {
+        if (active) timer = window.setTimeout(poll, 1000);
+      }
+    };
+    void poll();
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [enrollmentOpen, enrollment.id, enrollment.status, enrollmentRequest]);
+
+  useEffect(() => {
+    if (!enrollmentOpen || enrollment.status !== "verified" || !enrollment.tag) return;
+    const timer = window.setTimeout(() => {
+      setFormData((current) => ({ ...current, rfidTag: enrollment.tag }));
+      setErrors((current) => ({ ...current, rfidTag: undefined }));
+      setEnrollmentOpen(false);
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [enrollmentOpen, enrollment.status, enrollment.tag]);
 
   const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
@@ -183,7 +242,7 @@ export default function CatsPage() {
     const existingRfids = cats
       .map((c) => contextCatDetails[c.id]?.rfidTag)
       .filter(Boolean);
-    if (formData.rfidTag && existingRfids.includes(formData.rfidTag)) {
+    if (formData.rfidTag && existingRfids.some((tag) => tag?.toUpperCase() === formData.rfidTag.trim().toUpperCase())) {
       newErrors.rfidTag = "Already registered";
     }
 
@@ -207,7 +266,7 @@ export default function CatsPage() {
       breed: formData.breed,
       gender,
       dob: formData.dob,
-      rfidTag: formData.rfidTag || "—",
+      rfidTag: formData.rfidTag.trim().toUpperCase() || "—",
       healthInsight: "",
       baseline: {
         avgVisitsPerDay: 0,
@@ -403,6 +462,7 @@ export default function CatsPage() {
       <BottomSheet
         isOpen={isModalOpen}
         onClose={() => {
+          if (enrollmentOpen) return;
           photoUpload.cancel();
           setIsModalOpen(false);
           setFormData(initialFormData);
@@ -609,7 +669,9 @@ export default function CatsPage() {
                 />
                 <button
                   type="button"
-                  title="Auto-fill from LitterSense device"
+                  title="Scan and verify RFID tag"
+                  aria-label="Scan and verify RFID tag"
+                  onClick={startEnrollment}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all"
                 >
                   <ScanLine className="w-5 h-5" />
@@ -653,6 +715,24 @@ export default function CatsPage() {
               )}
             </button>
           </div>
+        </div>
+      </BottomSheet>
+      <BottomSheet isOpen={enrollmentOpen} onClose={closeEnrollment} title="Scan RFID Tag">
+        <div className="space-y-5 text-litter-text">
+          <p className="text-sm text-litter-muted">Hold the same tag near the RFID reader three times. Remove it for at least 3 seconds between scans.</p>
+          <p className="text-xs text-litter-muted">After verification, press Save Cat to register the tag with this cat.</p>
+          <div className="flex justify-center gap-3" aria-label={`${enrollment.count} of 3 scans confirmed`}>
+            {[1, 2, 3].map((step) => <span key={step} className={`flex h-11 w-11 items-center justify-center rounded-full border-2 font-semibold transition-all duration-300 ${step <= enrollment.count ? "border-litter-primary bg-litter-primary text-white scale-110" : "border-litter-border text-litter-muted"}`}>{step <= enrollment.count ? "✓" : step}</span>)}
+          </div>
+          <div className="rounded-xl border border-litter-border bg-[var(--color-input)] p-4 text-center" aria-live="polite">
+            {enrollment.status === "starting" || enrollment.status === "waiting" ? <p className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Connecting to RFID reader…</p> : null}
+            {enrollment.status === "ready" ? <p>{enrollment.count ? `${enrollment.count} of 3 scans confirmed. Remove the tag, then scan it again.` : "Reader ready. Scan the tag now."}</p> : null}
+            {enrollment.status === "verified" ? <p className="flex items-center justify-center gap-2 text-litter-primary"><Loader2 className="h-4 w-4 animate-spin" /> Verifying three matching scans…</p> : null}
+            {enrollment.tag && <p className="mt-2 break-all font-mono text-sm">Tag code: {enrollment.tag}</p>}
+            {enrollment.error && <p className="mt-2 text-sm text-red-500" role="alert">{enrollment.error}</p>}
+          </div>
+          {(enrollment.status === "error" || enrollment.status === "expired") && <button type="button" onClick={startEnrollment} className="w-full rounded-xl bg-litter-primary px-4 py-3 font-semibold text-white">Try again</button>}
+          <button type="button" onClick={closeEnrollment} className="w-full rounded-xl border border-litter-border px-4 py-3">Cancel scan</button>
         </div>
       </BottomSheet>
     </div>

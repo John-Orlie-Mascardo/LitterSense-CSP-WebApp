@@ -30,7 +30,7 @@ test("previous report download opens the printable report instead of showing a f
   assert.doesNotMatch(source, /Downloading \$\{report\.filename\}/);
 });
 
-test("report surfaces use activity naming while filenames remain unchanged", () => {
+test("report surfaces retain activity naming and the existing CSV filename", () => {
   assert.match(source, /Litter Box Activity Reports/);
   assert.match(source, /Litter Box Activity Report/);
   assert.match(layoutSource, /Litter Box Activity Reports/);
@@ -53,23 +53,30 @@ test("session groups are single-open on screen and all expanded for print", () =
 });
 
 test("owner-facing tables and CSV exports use the same plain metric names", () => {
-  assert.match(accordionSource, /Air quality change/);
+  assert.doesNotMatch(accordionSource, /Air quality change/);
   assert.match(accordionSource, /Odor level change/);
   assert.match(accordionSource, />State</);
   assert.doesNotMatch(accordionSource, /MQ-135|MQ-136/);
-  assert.match(source, /Air quality change \(%\)/);
+  assert.doesNotMatch(source, /Air quality change/);
   assert.match(source, /Odor level change \(%\)/);
   assert.doesNotMatch(source, /MQ-135 Delta|MQ-136 Delta/);
 });
 
 test("report trends use labeled seven-day owner-facing charts", () => {
-  assert.equal(source.match(/<MetricTrendChart/g)?.length, 3);
+  assert.equal(source.match(/<MetricTrendChart/g)?.length, 2);
   assert.match(source, /Visit Frequency \(7 days\)/);
   assert.match(source, /Average Duration \(7 days\)/);
-  assert.match(source, /Air quality change \(7 days\)/);
+  assert.doesNotMatch(source, /Air quality change \(7 days\)/);
   assert.doesNotMatch(source, /Gas Quality/);
   assert.match(source, /metric="visits"/);
   assert.match(source, /metric="duration"/);
-  assert.match(source, /metric="airQuality"/);
+  assert.doesNotMatch(source, /metric="airQuality"/);
   assert.match(source, /trendReferences/);
+});
+
+test("PDF exports set and restore the requested filename and disable chart animation", () => {
+  assert.match(source, /_cat health reports/);
+  assert.match(source, /document.title = previousTitle/);
+  const chart = readFileSync(join(__dirname, "../../../components/charts/MetricTrendChart.tsx"), "utf8");
+  assert.equal(chart.match(/isAnimationActive=\{width === undefined\}/g)?.length, 2);
 });

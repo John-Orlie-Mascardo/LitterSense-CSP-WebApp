@@ -345,7 +345,7 @@ export function useReports() {
       catName,
       range: period,
       generatedOn: new Date().toISOString().split("T")[0],
-      filename: `LitterSense_${catName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+      filename: `${catName.replaceAll(/[<>:"/\\|?*]/g, "_").trim() || "All Cats"}_cat health reports.pdf`,
     };
     if (user) {
       await setDoc(doc(db, "users", user.uid, "reports", newPastReport.id), {
