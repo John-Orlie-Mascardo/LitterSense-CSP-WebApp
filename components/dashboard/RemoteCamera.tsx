@@ -27,6 +27,7 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     let renewTimer: ReturnType<typeof setTimeout>;
     let socketEverConnected = false;
     let polling = false;
+    let connectionGeneration = 0;
     let objectUrl = "";
     let frameUrl = "";
     let renewAt = 0;
@@ -129,11 +130,12 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     onStreamStateChange("unknown");
     const startSocket = async () => {
       if (stopped || document.hidden || polling) return;
+      const generation = ++connectionGeneration;
       try {
         const response = await request("/api/camera/session", { headers: { Authorization: `Bearer ${await user.getIdToken()}` } });
         const session = await response.json();
         if (!response.ok) throw new Error(session.error || "Unable to connect to camera.");
-        if (stopped || document.hidden) return;
+        if (stopped || document.hidden || generation !== connectionGeneration) return;
         frameUrl = session.frameUrl;
         renewAt = Date.now() + (session.expiresIn - 30) * 1000;
         if (!session.streamUrl) { polling = true; void tick(); return; }
@@ -185,7 +187,7 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
         };
         ws.onerror = () => ws.close();
       } catch (error) {
-        if (stopped) return;
+        if (stopped || generation !== connectionGeneration) return;
         setMessage(error instanceof Error ? error.message : "Camera unavailable.");
         onStreamStateChange("error");
         timer = setTimeout(startSocket, 5000);
@@ -193,6 +195,7 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     };
     const visibility = () => {
       if (polling) return;
+      ++connectionGeneration;
       clearTimeout(timer);
       clearTimeout(renewTimer);
       socket?.close();
@@ -212,6 +215,7 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     void startSocket();
     return () => {
       stopped = true;
+      ++connectionGeneration;
       document.removeEventListener("visibilitychange", visibility);
       clearInterval(freshness);
       clearTimeout(renewTimer);
