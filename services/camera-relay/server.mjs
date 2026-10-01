@@ -29,7 +29,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     const time = now();
     for (const [id, state] of devices) {
       if (time - state.touched > 60000) devices.delete(id);
-      else if (time - state.frameAt > 4000) state.frame = null;
+      else if (time - state.frameAt > 2000) state.frame = null;
     }
   }
   const server = http.createServer(async (req, res) => {
@@ -40,6 +40,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.has(origin)) { res.writeHead(403).end(); return; }
     if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+    if (origin) res.setHeader('Access-Control-Expose-Headers', 'X-Frame-At, X-Frame-Age-Ms');
     if (req.method === 'OPTIONS') {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
@@ -65,8 +66,9 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     if (demand) { res.writeHead(state.demandUntil > now() ? 200 : 204).end(); return; }
     if (viewing) {
       state.demandUntil = now() + 10000;
-      if (!state.frame || now() - state.frameAt > 4000) { res.writeHead(204).end(); return; }
-      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': state.frame.length });
+      const frameAgeMs = now() - state.frameAt;
+      if (!state.frame || frameAgeMs > 2000) { res.writeHead(204).end(); return; }
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': state.frame.length, 'X-Frame-At': String(state.frameAt), 'X-Frame-Age-Ms': String(Math.max(0, frameAgeMs)) });
       res.end(state.frame); return;
     }
     if (req.headers['content-type'] !== 'image/jpeg') { res.writeHead(415).end(); req.resume(); return; }
@@ -89,11 +91,12 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
           frame.at(-2) !== 0xff || frame.at(-1) !== 0xd9) { res.writeHead(400).end(); return; }
       // Expiry is checked again after receipt. Frames are never persisted or logged.
       if (!verifyTicket(token, secret, 'publish', now())) { res.writeHead(401).end(); return; }
-      if (state.demandUntil > now()) {
+      const viewerActive = state.demandUntil > now();
+      if (viewerActive) {
         state.frame = frame;
         state.frameAt = now();
       }
-      res.writeHead(204).end();
+      res.writeHead(204, { 'X-Viewer-Active': viewerActive ? '1' : '0' }).end();
     } catch {
       if (!res.headersSent) res.writeHead(400).end();
     } finally { state.uploading = false; }

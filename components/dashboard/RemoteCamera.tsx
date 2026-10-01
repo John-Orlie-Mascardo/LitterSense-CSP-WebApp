@@ -8,6 +8,7 @@ type StreamState = "unknown" | "connected" | "error";
 export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateChange: (state: StreamState) => void }) {
   const { user } = useAuth();
   const [frame, setFrame] = useState("");
+  const [stale, setStale] = useState(false);
   const [message, setMessage] = useState("Connecting to your camera...");
   const [retry, setRetry] = useState(0);
   const [fill, setFill] = useState(false);
@@ -26,6 +27,11 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     let frameUrl = "";
     let renewAt = 0;
     let lastFrame = Date.now();
+    let lastFrameId = "";
+    let metricsAt = Date.now();
+    let fetchCount = 0, fetchTotalMs = 0, fetchMaxMs = 0;
+    let newFrames = 0, duplicateFrames = 0, emptyResponses = 0;
+    let ageCount = 0, ageTotalMs = 0, ageMaxMs = 0;
     const request = async (url: string, options?: RequestInit) => {
       active = new AbortController();
       return fetch(url, { ...options, cache: "no-store", signal: AbortSignal.any([active.signal, AbortSignal.timeout(10000)]) });
@@ -35,8 +41,15 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = "";
     };
+    const markStale = () => {
+      if (stopped || Date.now() - lastFrame <= 2500) return;
+      setStale(true);
+      setMessage("Waiting for a fresh camera frame...");
+      onStreamStateChange("error");
+      if (Date.now() - lastFrame > 10000) clearFrame();
+    };
     const tick = async () => {
-      let delay = 450;
+      let delay = 250;
       try {
         if (document.hidden) { delay = 1000; return; }
         if (!frameUrl || Date.now() >= renewAt) {
@@ -47,17 +60,25 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
           renewAt = Date.now() + (session.expiresIn - 30) * 1000;
         }
         if (stopped) return;
+        const fetchAt = performance.now();
         const response = await request(frameUrl);
+        const fetchMs = Math.round(performance.now() - fetchAt);
+        fetchCount++;
+        fetchTotalMs += fetchMs;
+        fetchMaxMs = Math.max(fetchMaxMs, fetchMs);
         if (response.status === 401) { frameUrl = ""; return; }
         if (response.status === 204) {
-          if (Date.now() - lastFrame > 12000 && !stopped) {
-            clearFrame();
-            setMessage("Camera offline or waiting for its first frame. Reconnecting...");
-            onStreamStateChange("error");
-          }
+          emptyResponses++;
+          markStale();
           return;
         }
         if (!response.ok || !response.headers.get("content-type")?.startsWith("image/jpeg")) throw new Error("Camera relay unavailable. Reconnecting...");
+        const frameId = response.headers.get("x-frame-at");
+        if (frameId && frameId === lastFrameId) {
+          duplicateFrames++;
+          markStale();
+          return;
+        }
         const blob = await response.blob();
         if (stopped) return;
         const next = URL.createObjectURL(blob);
@@ -66,17 +87,41 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
         setFrame(next);
         if (previous) URL.revokeObjectURL(previous);
         lastFrame = Date.now();
+        setStale(false);
+        lastFrameId = frameId || "";
+        newFrames++;
+        const relayAgeMs = Number(response.headers.get("x-frame-age-ms"));
+        if (response.headers.has("x-frame-age-ms") && Number.isFinite(relayAgeMs)) {
+          ageCount++;
+          ageTotalMs += relayAgeMs;
+          ageMaxMs = Math.max(ageMaxMs, relayAgeMs);
+        }
         setMessage("");
         onStreamStateChange("connected");
       } catch (error) {
         if (!stopped) {
           clearFrame();
+          setStale(false);
           setMessage(error instanceof Error ? error.message : "Camera unavailable.");
           onStreamStateChange("error");
           delay = 5000;
         }
-      } finally { if (!stopped) timer = setTimeout(tick, delay); }
+      } finally {
+        if (!stopped && fetchCount && Date.now() - metricsAt >= 10000) {
+          console.info("Camera live timing", {
+            requests: fetchCount, newFrames, duplicateFrames, emptyResponses,
+            fetchAvgMs: Math.round(fetchTotalMs / fetchCount), fetchMaxMs,
+            relayAgeAvgMs: ageCount ? Math.round(ageTotalMs / ageCount) : null, relayAgeMaxMs: ageCount ? ageMaxMs : null,
+          });
+          metricsAt = Date.now();
+          fetchCount = fetchTotalMs = fetchMaxMs = 0;
+          newFrames = duplicateFrames = emptyResponses = 0;
+          ageCount = ageTotalMs = ageMaxMs = 0;
+        }
+        if (!stopped) timer = setTimeout(tick, delay);
+      }
     };
+    setStale(false);
     onStreamStateChange("unknown");
     void tick();
     return () => {
@@ -105,11 +150,11 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
       {frame && !paused ? <>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img ref={imageRef} src={frame} alt="Live view of your litterbox" className={`h-full w-full rotate-180 ${fill ? "object-cover" : "object-contain"}`} />
-        <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-white">LIVE</span>
+        <span className={`absolute left-3 top-3 rounded-full px-3 py-1 text-xs text-white ${stale ? "bg-amber-700/80" : "bg-black/70"}`}>{stale ? "WAITING" : "LIVE"}</span>
       </> : <p role="status" className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-white">{paused ? "Camera paused" : message || "Connecting to your camera..."}</p>}
     </div>
     <div className="flex flex-wrap gap-3 text-sm text-litter-primary">
-      <button onClick={() => { setPaused(value => !value); setFrame(""); onStreamStateChange("unknown"); }}>{paused ? "Resume" : "Pause"}</button>
+      <button onClick={() => { setPaused(value => !value); setFrame(""); setStale(false); onStreamStateChange("unknown"); }}>{paused ? "Resume" : "Pause"}</button>
       <button onClick={() => setFill(value => !value)}>{fill ? "Full view" : "Fill"}</button>
       <button onClick={() => setRetry(value => value + 1)}>Reconnect</button>
       <button onClick={() => setShowPairing(value => !value)}>Pair camera</button>
