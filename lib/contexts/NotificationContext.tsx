@@ -21,6 +21,7 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  runTransaction,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
@@ -68,7 +69,7 @@ export type NewNotificationData = Pick<
       AppNotification,
       "source" | "abnormalKey" | "catId" | "catName" | "route" | "status" | "visitCount" | "avgDuration"
     >
-  >;
+  > & { dedupeKey?: string };
 
 export type UpsertNotificationData = NewNotificationData &
   Required<Pick<AppNotification, "abnormalKey">>;
@@ -235,6 +236,20 @@ export function NotificationProvider({
     async (data: NewNotificationData) => {
       if (!user) return;
       if (!isNotificationAllowed(data, settings)) return;
+
+      if (data.dedupeKey) {
+        const notificationRef = doc(db, "users", user.uid, "notifications", `rfid_${getNotificationDocId(data.dedupeKey)}`);
+        await runTransaction(db, async (transaction) => {
+          if (!(await transaction.get(notificationRef)).exists()) {
+            transaction.set(notificationRef, {
+              ...buildNotificationSyncPayload(data),
+              createdAt: serverTimestamp(),
+              isRead: false,
+            });
+          }
+        });
+        return;
+      }
 
       await addDoc(collection(db, "users", user.uid, "notifications"), {
         ...buildNotificationSyncPayload(data),
