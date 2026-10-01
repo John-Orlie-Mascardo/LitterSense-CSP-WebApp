@@ -1,5 +1,4 @@
-type SensorCardStatus = "normal" | "abnormal";
-type SensorDisplayValue = "Offline" | "Syncing" | "Normal" | "Abnormal" | "Online";
+type SensorCardStatus = "normal" | "abnormal" | "offline" | "watch";
 
 export interface LiveSensorData {
   readonly online?: boolean;
@@ -10,6 +9,8 @@ export interface LiveSensorData {
   readonly mq136Raw?: number | null;
   readonly rfidEvent?: string;
   readonly lastSessionStatus?: string;
+  readonly sessionActive?: boolean;
+  readonly distanceCm?: number | null;
 }
 
 interface LiveSensorStatusInput {
@@ -19,28 +20,23 @@ interface LiveSensorStatusInput {
 }
 
 export interface SensorDisplayStatus {
-  readonly value: SensorDisplayValue;
+  readonly value: string;
   readonly status: SensorCardStatus;
   readonly label: string;
 }
 
-const getSensorErrorLabel = (error: string | null) => {
-  if (!error) return "Check IP";
-
+const getSensorErrorLabel = (error: string) => {
   const normalized = error.toLowerCase();
-  if (normalized.includes("timed out")) return "Timeout";
-  if (normalized.includes("returned 404")) return "Missing route";
-  if (
-    normalized.includes("unavailable") ||
-    normalized.includes("fetch failed") ||
-    normalized.includes("econnrefused") ||
-    normalized.includes("bad port")
-  ) {
-    return "Server down";
-  }
-
-  return "Check IP";
+  if (normalized.includes("unauthorized")) return "Sign in again";
+  if (normalized.includes("unable to read device state") || normalized.includes("quota") || normalized.includes("sensor sync failed")) return "Cloud error";
+  return "Connection error";
 };
+
+const getSensorErrorStatus = (error: string): SensorDisplayStatus => ({
+  value: "Unavailable",
+  status: "watch",
+  label: getSensorErrorLabel(error),
+});
 
 const isGasDetected = (label: string, raw: number | null | undefined) => {
   const normalized = label.toLowerCase();
@@ -61,14 +57,14 @@ const getLiveAirQualityValue = (
 
 const getUnavailableSensorStatus = (label: string): SensorDisplayStatus => ({
   value: "Offline",
-  status: "abnormal",
+  status: "offline",
   label,
 });
 
 const getLoadingSensorStatus = (): SensorDisplayStatus => ({
   value: "Syncing",
   status: "normal",
-  label: "Polling",
+  label: "Connecting",
 });
 
 const getOnlineSensorStatus = (value: "Normal" | "Abnormal"): SensorDisplayStatus => ({
@@ -82,9 +78,9 @@ export const getLiveAirQualityStatus = ({
   sensorsLoading,
   sensorsError,
 }: LiveSensorStatusInput): SensorDisplayStatus => {
-  if (sensorsError) return getUnavailableSensorStatus(getSensorErrorLabel(sensorsError));
+  if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
-  if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("No data");
+  if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
 
   return getOnlineSensorStatus(
     getLiveAirQualityValue(
@@ -101,13 +97,23 @@ export const getLiveRfidStatus = ({
   sensorsLoading,
   sensorsError,
 }: LiveSensorStatusInput): SensorDisplayStatus => {
-  if (sensorsError) return getUnavailableSensorStatus(getSensorErrorLabel(sensorsError));
+  if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
-  if (!sensorData?.online) return getUnavailableSensorStatus("No data");
+  if (!sensorData?.online) return getUnavailableSensorStatus("Offline");
 
   return {
-    value: "Online",
+    value: sensorData.sessionActive ? "Online · In use" : "Online · Idle",
     status: "normal",
-    label: "Live",
+    label: sensorData.sessionActive ? "Occupied" : "Idle",
   };
+};
+
+export const getLiveUltrasonicStatus = ({ sensorData, sensorsLoading, sensorsError }: LiveSensorStatusInput): SensorDisplayStatus => {
+  if (sensorsError) return getSensorErrorStatus(sensorsError);
+  if (sensorsLoading) return getLoadingSensorStatus();
+  if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
+  const distance = sensorData.distanceCm;
+  return typeof distance === "number" && Number.isFinite(distance) && distance > 0
+    ? { value: `${distance.toFixed(1)} cm`, status: "normal", label: "Online" }
+    : { value: "No echo", status: "watch", label: "Online" };
 };

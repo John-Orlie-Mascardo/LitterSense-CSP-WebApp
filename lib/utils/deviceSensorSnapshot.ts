@@ -4,7 +4,7 @@ import type {
 } from "@/lib/utils/sensorSync";
 
 export const DEVICE_SENSOR_SNAPSHOT_PATH = "deviceState/current";
-export const SENSOR_SNAPSHOT_STALE_AFTER_MS = 30000;
+export const SENSOR_SNAPSHOT_STALE_AFTER_MS = 180000;
 
 export interface DeviceSensorSnapshot {
   online: boolean;
@@ -89,7 +89,7 @@ const isFreshSnapshotTimestamp = (
   staleAfterMs: number,
 ) => {
   const updatedAtMs = Date.parse(updatedAt);
-  return Number.isFinite(updatedAtMs) && now.getTime() - updatedAtMs <= staleAfterMs;
+  return Number.isFinite(updatedAtMs) && now.getTime() >= updatedAtMs && now.getTime() - updatedAtMs <= staleAfterMs;
 };
 
 export function buildDeviceSensorSnapshot({

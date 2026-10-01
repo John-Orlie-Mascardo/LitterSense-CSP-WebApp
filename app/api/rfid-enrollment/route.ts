@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const snapshot = await client.getDocument(`users/${uid}/deviceState/current`);
     const deviceId = snapshot?.data.deviceId;
     const updatedAt = Date.parse(String(snapshot?.data.updatedAt ?? ""));
-    if (typeof deviceId !== "string" || !deviceId || !Number.isFinite(updatedAt) || updatedAt > Date.now() || Date.now() - updatedAt > 30_000 || snapshot?.data.sessionActive === true) {
+    if (typeof deviceId !== "string" || !deviceId || !Number.isFinite(updatedAt) || updatedAt > Date.now() || Date.now() - updatedAt > 180_000 || snapshot?.data.sessionActive === true) {
       return Response.json({ error: "RFID reader must be online and idle before scanning." }, { status: 409, headers });
     }
     const enrollment: RfidEnrollment = { id: randomUUID(), deviceId, status: "waiting", count: 0, tag: "", lastScanId: -1, error: "", expiresAt: Date.now() + RFID_ENROLLMENT_MS };
