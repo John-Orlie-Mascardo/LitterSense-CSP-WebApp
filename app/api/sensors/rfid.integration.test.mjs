@@ -52,6 +52,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     "@/lib/utils/gasUltrasonic": { ...require("../../../lib/utils/gasUltrasonic.ts"), fetchGasUltrasonic: async () => ({ gasUltrasonicOnline: false }) },
     "@/lib/utils/sensorEndpointDiagnostics": { shouldSkipServerSensorProxy: () => false },
     "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse },
+    "@/lib/utils/rfidEnrollment": require("../../../lib/utils/rfidEnrollment.ts"),
     "@/lib/configs/firebase-admin": { getAdminAuth: () => ({verifyIdToken: async (token) => {
       if (token === "bad") throw new Error("bad token");
       return {uid: token};
@@ -112,4 +113,38 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await post(exit, "cfg_unknown_unknown")).status, 404);
   const unmatched = await post({...exit, events: [{...exit.events[0], eventId: "unknown", rfidHex: "ABCD"}]});
   assert.equal(unmatched.headers.get("x-litersense-ack"), "");
+  const enrollmentPath = "users/owner-a/deviceState/rfidEnrollment";
+  const enrollmentRoute = loadTs(new URL("../rfid-enrollment/route.ts", import.meta.url), {
+    "node:crypto": require("node:crypto"),
+    "@/lib/utils/firestoreRest": { getFirestoreRestClient: () => client },
+    "@/lib/utils/rfidEnrollment": require("../../../lib/utils/rfidEnrollment.ts"),
+    "@/lib/configs/firebase-admin": { getAdminAuth: () => ({ verifyIdToken: async (token) => {
+      if (token === "bad") throw new Error("bad token");
+      return { uid: token };
+    } }) },
+  });
+  const enrollmentRequest = (method, id) => new Request("https://test/api/rfid-enrollment", { method, headers: { Authorization: "Bearer owner-a", ...(id ? { "Content-Type": "application/json" } : {}) }, ...(id ? { body: JSON.stringify({ id }) } : {}) });
+  assert.equal((await enrollmentRoute.POST(new Request("https://test/api/rfid-enrollment", { method: "POST", headers: { Authorization: "Bearer bad" } }))).status, 401);
+  docs.get("users/owner-a/deviceState/current").data.deviceId = "reader-1";
+  docs.get("users/owner-a/deviceState/current").data.updatedAt = new Date().toISOString();
+  const started = await enrollmentRoute.POST(enrollmentRequest("POST"));
+  assert.equal(started.status, 200);
+  const enrollmentId = (await started.json()).id;
+  const newTag = "AABBCCDDEEFF001122334455";
+  const heartbeat = (scan) => post({ deviceId: "reader-1", sessionActive: false, events: [], enrollmentReadyId: enrollmentId, ...(scan ? { enrollmentScan: scan } : {}) });
+  assert.equal((await (await heartbeat()).json()).enrollmentId, enrollmentId);
+  for (let sequence = 1; sequence <= 3; sequence++) {
+    const response = await heartbeat({ id: enrollmentId, sequence, tag: newTag });
+    const result = await response.json();
+    assert.equal(result.enrollmentAck, sequence);
+    assert.equal(result.recorded, 0, "enrollment must not create a visit");
+    assert.equal(docs.get(enrollmentPath).data.tag, newTag, "the dialog can display the EPC from the first scan");
+  }
+  assert.equal(docs.get(enrollmentPath).data.status, "verified");
+  assert.equal(docs.get(enrollmentPath).data.tag, newTag);
+  assert.equal((await (await enrollmentRoute.GET(enrollmentRequest("GET"))).json()).tag, newTag);
+  await enrollmentRoute.DELETE(enrollmentRequest("DELETE", "other-scan"));
+  assert.equal(docs.get(enrollmentPath).data.status, "verified", "one dialog cannot cancel another scan");
+  await enrollmentRoute.DELETE(enrollmentRequest("DELETE", enrollmentId));
+  assert.equal((await (await enrollmentRoute.GET(enrollmentRequest("GET"))).json()).status, "expired");
 });

@@ -23,7 +23,6 @@ import {
   ChevronDown,
   Loader2,
   FileSpreadsheet,
-  Wind,
   Timer,
   Clock,
   PlusCircle,
@@ -115,14 +114,17 @@ export default function ReportsPage() {
   // printing in this same frame would capture an empty chart - wait a beat first.
   useEffect(() => {
     if (!printing) return;
+    const previousTitle = document.title;
+    document.title = `${currentReport?.catName.replaceAll(/[<>:"/\\|?*]/g, "_").trim() || "All Cats"}_cat health reports`;
     const done = () => setPrinting(false);
     window.addEventListener("afterprint", done, { once: true });
     const timer = setTimeout(() => window.print(), 300);
     return () => {
+      document.title = previousTitle;
       clearTimeout(timer);
       window.removeEventListener("afterprint", done);
     };
-  }, [printing]);
+  }, [printing, currentReport]);
 
   const addToast = (message: string, type: ToastParams["type"] = "info") => {
     const id = generateId();
@@ -152,7 +154,7 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-    const headers = "Cat,Date,Time,Visits,Duration,Air quality change (%),Odor level change (%),Anomaly\n";
+    const headers = "Cat,Date,Time,Visits,Duration,Odor level change (%),Anomaly\n";
     const rows = currentReport.sessions
       .map(
         (s) =>
@@ -162,7 +164,6 @@ export default function ReportsPage() {
             csvCell(s.time || "--"),
             csvCell(s.summaryVisits ?? 1),
             csvCell(s.durationSecs),
-            csvCell(s.mq135Delta),
             csvCell(s.mq136Delta),
             csvCell(isReportSessionConcern(s) ? "Yes" : "No"),
           ].join(",")
@@ -542,21 +543,6 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
                 metric="duration"
                 hasData={hasReportData}
                 reference={report.trendReferences?.duration}
-                baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
-                emptyMessage="No sessions were recorded in this 7-day period."
-                width={chartWidth}
-              />
-            </div>
-            <div className="bg-theme-overlay rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Wind className="w-4 h-4 text-litter-primary" />
-                <span className="text-xs font-medium text-theme-secondary">Air quality change (7 days)</span>
-              </div>
-              <MetricTrendChart
-                data={getMetricTrendPoints(trendData, "airQuality")}
-                metric="airQuality"
-                hasData={hasReportData}
-                reference={report.trendReferences?.airQuality}
                 baselineMessage={report.trendReferences === undefined ? "unavailable" : report.trendReferences === null ? "building" : undefined}
                 emptyMessage="No sessions were recorded in this 7-day period."
                 width={chartWidth}

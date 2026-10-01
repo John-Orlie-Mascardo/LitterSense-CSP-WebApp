@@ -232,6 +232,7 @@ export function MetricTrendChart({
             <Area
               yAxisId={metric}
               type="monotone"
+              isAnimationActive={width === undefined}
               dataKey="primaryValue"
               name={config.metricName}
               stroke={config.color}
@@ -243,6 +244,7 @@ export function MetricTrendChart({
               <Area
                 yAxisId={secondary.metric}
                 type="monotone"
+                isAnimationActive={width === undefined}
                 dataKey="secondaryValue"
                 name={secondaryConfig.metricName}
                 stroke={secondaryConfig.color}
