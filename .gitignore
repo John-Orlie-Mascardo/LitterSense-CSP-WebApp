@@ -56,3 +56,5 @@ next-env.d.ts
 .next-dev.*.log
 
 .docs
+
+/services/camera-relay/node_modules/

@@ -23,6 +23,10 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     let active: AbortController | undefined;
+    let socket: WebSocket | undefined;
+    let renewTimer: ReturnType<typeof setTimeout>;
+    let socketEverConnected = false;
+    let polling = false;
     let objectUrl = "";
     let frameUrl = "";
     let renewAt = 0;
@@ -123,9 +127,95 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     };
     setStale(false);
     onStreamStateChange("unknown");
-    void tick();
+    const startSocket = async () => {
+      if (stopped || document.hidden || polling) return;
+      try {
+        const response = await request("/api/camera/session", { headers: { Authorization: `Bearer ${await user.getIdToken()}` } });
+        const session = await response.json();
+        if (!response.ok) throw new Error(session.error || "Unable to connect to camera.");
+        if (stopped || document.hidden) return;
+        frameUrl = session.frameUrl;
+        renewAt = Date.now() + (session.expiresIn - 30) * 1000;
+        if (!session.streamUrl) { polling = true; void tick(); return; }
+        const ws = new WebSocket(session.streamUrl);
+        socket = ws;
+        ws.binaryType = "arraybuffer";
+        const connectTimeout = setTimeout(() => ws.close(), 10000);
+        ws.onopen = () => {
+          clearTimeout(connectTimeout);
+          socketEverConnected = true;
+          setMessage("Waiting for a fresh camera frame...");
+          renewTimer = setTimeout(() => ws.close(), Math.max(1000, renewAt - Date.now()));
+        };
+        ws.onmessage = async event => {
+          if (stopped || socket !== ws || document.hidden || !(event.data instanceof ArrayBuffer) || event.data.byteLength < 12) return;
+          const next = URL.createObjectURL(new Blob([event.data.slice(8)], { type: "image/jpeg" }));
+          try {
+            const image = new Image();
+            image.src = next;
+            await image.decode();
+            if (stopped || socket !== ws || document.hidden) { URL.revokeObjectURL(next); return; }
+            const previous = objectUrl;
+            objectUrl = next;
+            setFrame(next);
+            lastFrame = Date.now();
+            newFrames++;
+            setStale(false);
+            setMessage("");
+            onStreamStateChange("connected");
+            // One outstanding frame per viewer. The relay keeps the newest frame while decoding.
+            requestAnimationFrame(() => {
+              if (previous) URL.revokeObjectURL(previous);
+              if (socket === ws && ws.readyState === WebSocket.OPEN) ws.send("ready");
+            });
+          } catch {
+            URL.revokeObjectURL(next);
+            if (ws.readyState === WebSocket.OPEN) ws.close();
+          }
+        };
+        ws.onclose = () => {
+          clearTimeout(connectTimeout);
+          if (socket !== ws) return;
+          clearTimeout(renewTimer);
+          socket = undefined;
+          if (stopped || document.hidden) return;
+          markStale();
+          if (!socketEverConnected) { polling = true; void tick(); }
+          else timer = setTimeout(startSocket, 1500);
+        };
+        ws.onerror = () => ws.close();
+      } catch (error) {
+        if (stopped) return;
+        setMessage(error instanceof Error ? error.message : "Camera unavailable.");
+        onStreamStateChange("error");
+        timer = setTimeout(startSocket, 5000);
+      }
+    };
+    const visibility = () => {
+      if (polling) return;
+      clearTimeout(timer);
+      clearTimeout(renewTimer);
+      socket?.close();
+      socket = undefined;
+      if (!document.hidden) void startSocket();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    const freshness = setInterval(() => {
+      if (document.hidden || stopped) return;
+      markStale();
+      if (!polling && Date.now() - metricsAt >= 10000) {
+        console.info("Camera live timing", { transport: "websocket", newFrames, intervalMs: Date.now() - metricsAt, lastFrameAgoMs: Date.now() - lastFrame });
+        newFrames = 0;
+        metricsAt = Date.now();
+      }
+    }, 1000);
+    void startSocket();
     return () => {
       stopped = true;
+      document.removeEventListener("visibilitychange", visibility);
+      clearInterval(freshness);
+      clearTimeout(renewTimer);
+      socket?.close();
       active?.abort();
       clearTimeout(timer);
       if (objectUrl) URL.revokeObjectURL(objectUrl);

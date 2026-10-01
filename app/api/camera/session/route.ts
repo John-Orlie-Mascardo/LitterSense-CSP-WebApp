@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     if (!camera) return Response.json({ error: "Pair your camera to enable remote viewing." }, { status: 404, headers: NO_STORE });
     const relay = cameraRelayConfig();
     const ticket = cameraTicket(camera.deviceId, "view", relay.secret);
-    return Response.json({ frameUrl: `${relay.origin}/v1/frame?ticket=${ticket}`, expiresIn: CAMERA_TTL_SECONDS }, { headers: NO_STORE });
+    return Response.json({ frameUrl: `${relay.origin}/v1/frame?ticket=${ticket}`, streamUrl: `${relay.origin.replace("https:", "wss:")}/v1/live?ticket=${ticket}`, expiresIn: CAMERA_TTL_SECONDS }, { headers: NO_STORE });
   } catch {
     return Response.json({ error: "Remote camera hosting is not configured or is unavailable." }, { status: 503, headers: NO_STORE });
   }

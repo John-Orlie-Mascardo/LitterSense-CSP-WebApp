@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { WebSocket } from 'ws';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { createRelay, verifyTicket } from './server.mjs';
@@ -67,4 +68,73 @@ test('relay enforces bounded device capacity', async t => {
   const base = `http://127.0.0.1:${server.address().port}/v1/frame?ticket=`;
   assert.equal((await fetch(base + ticket('view'))).status, 204);
   assert.equal((await fetch(base + ticket('view', other))).status, 503);
+});
+
+async function connectSocket(url, options = {}) {
+  const ws = new WebSocket(url, options);
+  const messages = [];
+  ws.on('message', (data, binary) => messages.push({ data, binary }));
+  await new Promise((resolve, reject) => { ws.once('open', resolve); ws.once('error', reject); });
+  async function next() {
+    const until = Date.now() + 2000;
+    while (!messages.length && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.ok(messages.length, 'expected a WebSocket message');
+    return messages.shift();
+  }
+  return { ws, messages, next };
+}
+async function rejectedSocket(url, options, status) {
+  const ws = new WebSocket(url, options);
+  ws.on('error', () => {});
+  await new Promise((resolve, reject) => {
+    ws.once('unexpected-response', (_req, res) => { assert.equal(res.statusCode, status); res.resume(); ws.terminate(); resolve(); });
+    ws.once('open', () => { ws.terminate(); reject(new Error('unauthorized socket opened')); });
+  });
+}
+test('WebSocket auth, viewer demand and latest-frame delivery stay bounded and private', async t => {
+  let now = Date.now();
+  const server = createRelay({ secret, origins: ['https://app.example.com'], now: () => now });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const connections = [];
+  t.after(() => { for (const ws of connections) ws.terminate(); server.closeAllConnections(); server.close(); });
+  const base = `ws://127.0.0.1:${server.address().port}`;
+  const headers = { Authorization: `Bearer ${ticket('publish', camera, now)}` };
+  const viewUrl = `${base}/v1/live?ticket=${ticket('view', camera, now)}`;
+  const viewerOptions = { origin: 'https://app.example.com' };
+  await rejectedSocket(base + '/v1/publish', {}, 401);
+  await rejectedSocket(viewUrl, { origin: 'https://evil.example.com' }, 403);
+  await rejectedSocket(viewUrl, {}, 403);
+  await rejectedSocket(base + '/v1/publish', { headers: { Authorization: `Bearer ${ticket('view', camera, now)}` } }, 401);
+  const publisher = await connectSocket(base + '/v1/publish', { headers });
+  connections.push(publisher.ws);
+  assert.equal((await publisher.next()).data.toString(), '0');
+  await rejectedSocket(base + '/v1/publish', { headers }, 409);
+  const viewer = await connectSocket(viewUrl, viewerOptions);
+  connections.push(viewer.ws);
+  assert.equal((await publisher.next()).data.toString(), '1');
+  const jpeg = n => Buffer.from([0xff, 0xd8, n, 0xff, 0xd9]);
+  publisher.ws.send(jpeg(1));
+  assert.equal((await publisher.next()).data.toString(), 'a');
+  const first = await viewer.next();
+  assert.equal(first.binary, true);
+  assert.equal(Number(first.data.readBigUInt64BE()), now);
+  assert.deepEqual(first.data.subarray(8), jpeg(1));
+  now += 200;
+  publisher.ws.send(jpeg(2));
+  await publisher.next();
+  now += 200;
+  publisher.ws.send(jpeg(3));
+  await publisher.next();
+  assert.equal(viewer.messages.length, 0, 'unacknowledged viewer must not accumulate a frame queue');
+  viewer.ws.send('ready');
+  assert.deepEqual((await viewer.next()).data.subarray(8), jpeg(3), 'slow viewer receives only newest frame');
+  const unrelated = await connectSocket(`${base}/v1/live?ticket=${ticket('view', other, now)}`, viewerOptions);
+  connections.push(unrelated.ws);
+  assert.equal(unrelated.messages.length, 0);
+  viewer.ws.close();
+  assert.equal((await publisher.next()).data.toString(), '0');
+  const closed = new Promise(resolve => publisher.ws.once('close', resolve));
+  now += 301000;
+  publisher.ws.send(jpeg(4));
+  assert.equal(await closed, 1008, 'expired publisher must stop transmitting');
 });
