@@ -22,7 +22,7 @@ export function normalizeGasUltrasonic(value: unknown) {
 
 export function toGasUltrasonicResponse(data: Record<string, unknown>, now = Date.now()) {
   const age = now - Date.parse(typeof data.updatedAt === "string" ? data.updatedAt : "");
-  return age >= 0 && age <= 30000
+  return age >= 0 && age <= 180000
     ? normalizeGasUltrasonic(data) ?? GAS_ULTRASONIC_OFFLINE
     : GAS_ULTRASONIC_OFFLINE;
 }

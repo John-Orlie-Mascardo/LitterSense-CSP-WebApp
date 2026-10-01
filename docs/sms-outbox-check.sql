@@ -1,0 +1,35 @@
+begin;
+do $$
+declare visits jsonb; result jsonb;
+begin
+ perform public.sync_sms_account('sms-step3-simulation','+639171234567','{}','[{"id":"cat-a","name":"Test cat","rfidTag":"AABB"}]',repeat('a',64));
+ visits:=jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','long-1','occurredAt',now(),'reason','Extended duration'));
+ perform public.ingest_sensor_sms(repeat('a',64),visits,null,6);
+ perform public.ingest_sensor_sms(repeat('a',64),visits,null,6);
+ perform public.ingest_sensor_sms(repeat('a',64),jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','long-2','occurredAt',now(),'reason','Extended duration')),null,6);
+ if (select count(*) from public.sms_outbox where owner_id='sms-step3-simulation')<>1 then raise exception 'Duplicate/cooldown failed'; end if;
+ perform public.ingest_sensor_sms(repeat('a',64),'[]','{"ammonia":true,"h2s":false}',6);
+ perform public.ingest_sensor_sms(repeat('a',64),'[]','{"ammonia":true,"h2s":false}',6);
+ if (select count(*) from public.sms_outbox where owner_id='sms-step3-simulation' and cat_id is null)<>1 then raise exception 'Gas dedupe failed'; end if;
+ perform public.ingest_sensor_sms(repeat('a',64),'[]','{"ammonia":false,"h2s":false}',6);
+ perform public.ingest_sensor_sms(repeat('a',64),'[]','{"ammonia":true,"h2s":false}',6);
+ if (select count(*) from public.sms_outbox where owner_id='sms-step3-simulation' and cat_id is null)<>1 then raise exception 'Gas cooldown failed'; end if;
+ perform public.sync_sms_account('sms-frequency-simulation','+639171234567','{}','[{"id":"cat-a","name":"Test cat"}]',repeat('b',64));
+ select jsonb_agg(jsonb_build_object('catId','cat-a','eventId','visit-'||n,'occurredAt',now(),'reason','')) into visits from generate_series(1,7) n;
+ perform public.ingest_sensor_sms(repeat('b',64),visits,null,6);
+ perform public.ingest_sensor_sms(repeat('b',64),visits,null,6);
+ if (select count(*) from public.sms_visits where owner_id='sms-frequency-simulation')<>7 then raise exception 'Frequency count dedupe failed'; end if;
+ if (select count(*) from public.sms_outbox where owner_id='sms-frequency-simulation' and reason='Frequent visits')<>1 then raise exception 'Frequency threshold failed'; end if;
+ perform public.sync_sms_account('sms-muted-simulation','+639171234567','{"healthAlerts":false,"ammoniaAlerts":false,"h2sAlerts":false}','[{"id":"cat-a","name":"Test cat"}]',repeat('c',64));
+ perform public.ingest_sensor_sms(repeat('c',64),jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','muted-1','occurredAt',now(),'reason','Extended duration')),'{"ammonia":true,"h2s":true}',6);
+ if exists(select 1 from public.sms_outbox where owner_id='sms-muted-simulation') then raise exception 'Preferences failed'; end if;
+ perform public.sync_sms_account('sms-percat-simulation','+639171234567','{"perCat":[{"catId":"cat-a","healthAlerts":false}]}','[{"id":"cat-a","name":"Test cat"}]',repeat('d',64));
+ perform public.ingest_sensor_sms(repeat('d',64),jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','muted-1','occurredAt',now(),'reason','Extended duration')),null,6);
+ if exists(select 1 from public.sms_outbox where owner_id='sms-percat-simulation') then raise exception 'Per-cat preference failed'; end if;
+ result:=public.ingest_sensor_sms(repeat('f',64),'[]',null,6);
+ if result->>'recognized'<>'false' then raise exception 'Unknown device allowed'; end if;
+ if has_table_privilege('anon','public.sms_outbox','select') or has_function_privilege('anon','public.ingest_sensor_sms(text,jsonb,jsonb,integer)','execute') then raise exception 'Public access allowed'; end if;
+ if exists(select 1 from public.sms_accounts where owner_id like '%simulation' and sms_enabled) then raise exception 'Sending enabled during simulation'; end if;
+end $$;
+select 'PASS: duplicate, cooldown, gas, frequency, preferences, ownership, public access and send gate checks' as result;
+rollback;

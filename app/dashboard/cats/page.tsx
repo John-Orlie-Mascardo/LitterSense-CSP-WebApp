@@ -725,7 +725,7 @@ export default function CatsPage() {
             {[1, 2, 3].map((step) => <span key={step} className={`flex h-11 w-11 items-center justify-center rounded-full border-2 font-semibold transition-all duration-300 ${step <= enrollment.count ? "border-litter-primary bg-litter-primary text-white scale-110" : "border-litter-border text-litter-muted"}`}>{step <= enrollment.count ? "✓" : step}</span>)}
           </div>
           <div className="rounded-xl border border-litter-border bg-[var(--color-input)] p-4 text-center" aria-live="polite">
-            {enrollment.status === "starting" || enrollment.status === "waiting" ? <p className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Connecting to RFID reader…</p> : null}
+            {enrollment.status === "starting" || enrollment.status === "waiting" ? <p className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Connecting to RFID reader… An idle reader may take up to 60 seconds. Wait for “Reader ready” before scanning.</p> : null}
             {enrollment.status === "ready" ? <p>{enrollment.count ? `${enrollment.count} of 3 scans confirmed. Remove the tag, then scan it again.` : "Reader ready. Scan the tag now."}</p> : null}
             {enrollment.status === "verified" ? <p className="flex items-center justify-center gap-2 text-litter-primary"><Loader2 className="h-4 w-4 animate-spin" /> Verifying three matching scans…</p> : null}
             {enrollment.tag && <p className="mt-2 break-all font-mono text-sm">Tag code: {enrollment.tag}</p>}

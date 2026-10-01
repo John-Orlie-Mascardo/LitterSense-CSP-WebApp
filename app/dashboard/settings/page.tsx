@@ -44,6 +44,7 @@ import {
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SettingsRow } from "@/components/settings/SettingsRow";
+import { SmsSettings } from "@/components/settings/SmsSettings";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -771,6 +772,8 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        <SmsSettings />
 
         {/* Data & Privacy Section */}
         <div>

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RfidVisitBridge } from "@/components/dashboard/RfidVisitBridge";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
+import { DeviceSensorsProvider } from "@/lib/hooks/useDeviceSensors";
+import { SmsAccountSync } from "@/components/dashboard/SmsAccountSync";
 
 export const metadata: Metadata = {
   title: {
@@ -18,8 +20,11 @@ export default function DashboardLayout({
   return (
     <ProtectedRoute>
       <OnboardingGate>
-        <RfidVisitBridge />
-        {children}
+        <DeviceSensorsProvider>
+          <RfidVisitBridge />
+          <SmsAccountSync />
+          {children}
+        </DeviceSensorsProvider>
       </OnboardingGate>
     </ProtectedRoute>
   );

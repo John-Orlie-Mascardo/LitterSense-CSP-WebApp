@@ -43,6 +43,8 @@ import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSenso
 import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import {
   getLiveRfidStatus,
+  getLiveAirQualityStatus,
+  getLiveUltrasonicStatus,
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
@@ -338,12 +340,14 @@ const getRecentVisits = (
 
 const getReadingStatus = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
-) => (reading.online ? reading.status : "offline");
+  connection: SensorDisplayStatus,
+) => (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable" ? connection.status : reading.status);
 
 const getReadingStatusLabel = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
+  connection: SensorDisplayStatus,
 ) => {
-  if (!reading.online) return "Offline";
+  if (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable") return connection.label;
   if (reading.status === "alert") return "Alert";
   if (reading.status === "watch") return "Watch";
   return "Normal";
@@ -442,7 +446,8 @@ function PopulatedDashboardState({
   abnormalCat,
   isDismissedAbnormalReady,
   airQualityReadings,
-  ultrasonicValue,
+  ultrasonicStatus,
+  airQualityStatus,
   rfidStatus,
   trendData,
   trendReferences,
@@ -468,7 +473,8 @@ function PopulatedDashboardState({
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
   readonly airQualityReadings: AirQualityReadings;
-  readonly ultrasonicValue: string;
+  readonly ultrasonicStatus: SensorDisplayStatus;
+  readonly airQualityStatus: SensorDisplayStatus;
   readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
   readonly trendReferences: TrendReferenceSet | null;
@@ -630,21 +636,21 @@ function PopulatedDashboardState({
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard
               icon={Droplets}
-              value={airQualityReadings.ammonia.displayValue}
+              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
               subtitle="Ammonia (NH3)"
-              status={getReadingStatus(airQualityReadings.ammonia)}
-              statusLabel={getReadingStatusLabel(airQualityReadings.ammonia)}
+              status={getReadingStatus(airQualityReadings.ammonia, airQualityStatus)}
+              statusLabel={getReadingStatusLabel(airQualityReadings.ammonia, airQualityStatus)}
             />
             <StatCard
               icon={CloudFog}
-              value={airQualityReadings.h2s.displayValue}
+              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
               label="Stool Odor"
               subtitle="Hydrogen Sulfide (H2S)"
-              status={getReadingStatus(airQualityReadings.h2s)}
-              statusLabel={getReadingStatusLabel(airQualityReadings.h2s)}
+              status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}
+              statusLabel={getReadingStatusLabel(airQualityReadings.h2s, airQualityStatus)}
             />
-            <StatCard icon={Radio} value={ultrasonicValue} label="Ultrasonic Distance" subtitle="HC-SR04" status={ultrasonicValue.endsWith(" cm") ? "normal" : "offline"} />
+            <StatCard icon={Radio} value={ultrasonicStatus.value} label="Ultrasonic Distance" subtitle="HC-SR04" status={ultrasonicStatus.status} statusLabel={ultrasonicStatus.label} />
           </div>
         </section>
 
@@ -868,6 +874,8 @@ export default function DashboardPage() {
     sensorsLoading,
     sensorsError,
   });
+  const airQualityStatus = getLiveAirQualityStatus({ sensorData, sensorsLoading, sensorsError });
+  const ultrasonicStatus = getLiveUltrasonicStatus({ sensorData, sensorsLoading, sensorsError });
   const isEmpty = !catsLoading && cats.length === 0;
   const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
   const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisit);
@@ -915,7 +923,8 @@ export default function DashboardPage() {
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
             airQualityReadings={airQualityReadings}
-            ultrasonicValue={sensorsLoading ? "Syncing" : !sensorData?.gasUltrasonicOnline || sensorsError ? "Offline" : sensorData.distanceCm == null ? "No echo" : `${sensorData.distanceCm.toFixed(1)} cm`}
+            ultrasonicStatus={ultrasonicStatus}
+            airQualityStatus={airQualityStatus}
             rfidStatus={rfidStatus}
             trendData={trendData}
             trendReferences={trendReferences}

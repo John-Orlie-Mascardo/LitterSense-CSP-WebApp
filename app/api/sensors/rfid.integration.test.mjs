@@ -47,6 +47,9 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     },
   };
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
+    "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
+    "next/server": { after: () => {} },
     "@/lib/utils/firestoreRest": { getFirestoreRestClient: () => client, FirestoreRestError: class extends Error {} },
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
     "@/lib/utils/gasUltrasonic": { ...require("../../../lib/utils/gasUltrasonic.ts"), fetchGasUltrasonic: async () => ({ gasUltrasonicOnline: false }) },
@@ -87,7 +90,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await post(gas, "cfg_unknown_unknown")).status, 404);
   assert.equal((await post(gas, "")).status, 400);
   assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/gasUltrasonic")), gasBeforeInvalid);
-  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 31000).toISOString();
+  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 181000).toISOString();
   displayed = await getOwner();
   assert.equal(displayed.gasUltrasonicOnline, false);
   assert.equal(displayed.distanceCm, null);
@@ -126,7 +129,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   const enrollmentRequest = (method, id) => new Request("https://test/api/rfid-enrollment", { method, headers: { Authorization: "Bearer owner-a", ...(id ? { "Content-Type": "application/json" } : {}) }, ...(id ? { body: JSON.stringify({ id }) } : {}) });
   assert.equal((await enrollmentRoute.POST(new Request("https://test/api/rfid-enrollment", { method: "POST", headers: { Authorization: "Bearer bad" } }))).status, 401);
   docs.get("users/owner-a/deviceState/current").data.deviceId = "reader-1";
-  docs.get("users/owner-a/deviceState/current").data.updatedAt = new Date().toISOString();
+  docs.get("users/owner-a/deviceState/current").data.updatedAt = new Date(Date.now() - 60000).toISOString();
   const started = await enrollmentRoute.POST(enrollmentRequest("POST"));
   assert.equal(started.status, 200);
   const enrollmentId = (await started.json()).id;
