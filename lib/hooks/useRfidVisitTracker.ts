@@ -32,6 +32,7 @@ export function useRfidVisitTracker(
   options: RfidVisitTrackerOptions = {},
 ) {
   const { cats, catDetails, sessions } = useCats();
+  const initialized = useRef(false);
   const lastObservedSessionKey = useRef("");
   const lastEntryNotificationKey = useRef("");
   const { addNotification, rfidVisitAlerts = true } = options;
@@ -52,9 +53,17 @@ export function useRfidVisitTracker(
     } = sensor;
     const card = (sensor.sessionActive ? activeRfidCard : rfidCard) || "";
     const hex = (sensor.sessionActive ? activeRfidHex : rfidHex) || "";
+    const entryKey = `${sensor.activeSessionStartMs ?? ""}|${card}|${hex}`;
+    const sessionKey = `${completedSessionCount ?? ""}|${lastSessionEndMs ?? ""}|${lastSessionDurationMs ?? ""}`;
+
+    if (!initialized.current) {
+      initialized.current = true;
+      if (sensor.sessionActive) lastEntryNotificationKey.current = entryKey;
+      lastObservedSessionKey.current = sessionKey;
+      return;
+    }
 
     if (sensor.sessionActive) {
-      const entryKey = `${sensor.activeSessionStartMs ?? ""}|${card}|${hex}`;
       if (entryKey && entryKey !== lastEntryNotificationKey.current) {
         const catInBox = findCatByRfid(cats, catDetails, card, hex);
         lastEntryNotificationKey.current = entryKey;
@@ -68,6 +77,9 @@ export function useRfidVisitTracker(
             catId: catInBox.id,
             catName: catInBox.name,
             route: `/dashboard/cats/${catInBox.id}`,
+            dedupeKey: sensor.activeSessionStartMs
+              ? `entry:${catInBox.id}:${sensor.activeSessionStartMs}`
+              : undefined,
           });
         }
       }
@@ -84,7 +96,6 @@ export function useRfidVisitTracker(
         lastSessionStatus === "NO_EXIT_TIMEOUT");
 
     if (sessionCompleted) {
-      const sessionKey = `${completedSessionCount}|${lastSessionEndMs ?? ""}|${lastSessionDurationMs ?? ""}`;
       if (sessionKey === lastObservedSessionKey.current) return;
 
       const catToRecord = findCatByRfid(cats, catDetails, card, hex);
@@ -96,7 +107,6 @@ export function useRfidVisitTracker(
           completedSessionCount,
           lastSessionStatus,
         });
-        lastObservedSessionKey.current = sessionKey;
         return;
       }
 
@@ -105,6 +115,14 @@ export function useRfidVisitTracker(
         Math.round((lastSessionDurationMs ?? 0) / 1000),
       );
       const endedAtIso = lastSessionEndMs ? new Date(lastSessionEndMs).toISOString() : "";
+      if (!endedAtIso || !hasMatchingRecordedSession(
+        sessions,
+        catToRecord.id,
+        durationSecs,
+        endedAtIso,
+        lastSessionStatus,
+      )) return;
+
       if (alertsEnabled && addNotification) {
         void addNotification({
           type: "cat_visit",
@@ -114,30 +132,10 @@ export function useRfidVisitTracker(
           catId: catToRecord.id,
           catName: catToRecord.name,
           route: `/dashboard/cats/${catToRecord.id}`,
+          dedupeKey: `exit:${catToRecord.id}:${sessionKey}`,
         });
       }
-
-      if (
-        endedAtIso &&
-        hasMatchingRecordedSession(
-          sessions,
-          catToRecord.id,
-          durationSecs,
-          endedAtIso,
-          lastSessionStatus,
-        )
-      ) {
-        lastObservedSessionKey.current = sessionKey;
-        console.debug("[RFID] completed visit already recorded for", catToRecord.id);
-        return;
-      }
-
       lastObservedSessionKey.current = sessionKey;
-      console.debug("[RFID] completed visit observed for server ingestion", {
-        catId: catToRecord.id,
-        completedSessionCount,
-        lastSessionStatus,
-      });
       return;
     }
 
