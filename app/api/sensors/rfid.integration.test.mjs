@@ -47,6 +47,9 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     },
   };
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
+    "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
+    "next/server": { after: () => {} },
     "@/lib/utils/firestoreRest": { getFirestoreRestClient: () => client, FirestoreRestError: class extends Error {} },
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
     "@/lib/utils/gasUltrasonic": { ...require("../../../lib/utils/gasUltrasonic.ts"), fetchGasUltrasonic: async () => ({ gasUltrasonicOnline: false }) },

@@ -1,0 +1,30 @@
+begin;
+do $$
+declare n integer; row_id uuid;
+begin
+ perform public.sync_sms_account('sms-delivery-simulation','+639171234567','{}','[{"id":"cat-a","name":"Test cat","rfidTag":"AABB"}]',repeat('a',64));
+ perform public.ingest_sensor_sms(repeat('a',64),jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','long-1','occurredAt',now(),'reason','Extended duration')),null,6);
+ if not exists(select 1 from public.sms_outbox where owner_id='sms-delivery-simulation' and token_hash=repeat('a',64)) then raise exception 'Missing device binding'; end if;
+ select count(*) into n from public.claim_sms_outbox('sms-delivery-simulation',2);
+ if n<>0 then raise exception 'Disabled recipient claimed'; end if;
+ perform public.set_sms_controls('sms-delivery-simulation','+639171234567',true);
+ select count(*) into n from public.claim_sms_outbox('sms-delivery-simulation',2);
+ if n<>0 then raise exception 'Opt-in sent stale backlog'; end if;
+ perform public.ingest_sensor_sms(repeat('a',64),jsonb_build_array(jsonb_build_object('catId','cat-a','eventId','new-1','occurredAt',now(),'reason','Abnormal activity')),null,6);
+ update public.sms_accounts set notifications='{"quietHours":{"enabled":true,"from":"00:00","to":"00:00"}}' where owner_id='sms-delivery-simulation';
+ select count(*) into n from public.claim_sms_outbox('sms-delivery-simulation',2);
+ if n<>0 then raise exception 'Quiet hours ignored'; end if;
+ update public.sms_accounts set notifications='{}' where owner_id='sms-delivery-simulation';
+ select count(*) into n from public.claim_sms_outbox('sms-delivery-simulation',2);
+ if n<>1 then raise exception 'Enabled recipient not claimed'; end if;
+ select count(*) into n from public.claim_sms_outbox('sms-delivery-simulation',2);
+ if n<>0 then raise exception 'Second worker claimed duplicate'; end if;
+ update public.sms_outbox set claimed_at=now()-interval '3 minutes' where owner_id='sms-delivery-simulation' and status='sending';
+ perform public.claim_sms_outbox('sms-delivery-simulation',2);
+ if not exists(select 1 from public.sms_outbox where owner_id='sms-delivery-simulation' and status='unknown') then raise exception 'Interrupted send not flagged'; end if;
+ if has_function_privilege('anon','public.configure_sms_worker(text,boolean)','execute') then raise exception 'Public cron setup allowed'; end if;
+ delete from public.sms_devices where token_hash=repeat('a',64);
+ if exists(select 1 from public.sms_outbox where owner_id='sms-delivery-simulation' and token_hash=repeat('a',64)) then raise exception 'Revoked device retains queued alerts'; end if;
+end $$;
+select 'PASS: device binding, opt-in, stale backlog, quiet hours, exclusive claims, interrupted worker, public access, and revocation' as result;
+rollback;

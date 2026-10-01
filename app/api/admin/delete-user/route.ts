@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getApps } from "firebase-admin/app";
+import { smsStoreRequest } from "@/lib/utils/smsAccountSync";
 
 const MASTER_ADMIN_EMAIL = "maclaurenz.cultura@gmail.com";
 
@@ -86,6 +87,10 @@ export async function POST(req: NextRequest) {
     const db = getFirestore(getApps()[0]);
 
     // 3. Delete Firestore sub-collections first (cats, catDetails)
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+      const removed = await smsStoreRequest(`sms_accounts?owner_id=eq.${encodeURIComponent(userId)}`, { method: "DELETE" });
+      if (!removed.ok) throw new Error("Could not remove SMS account data; deletion stopped.");
+    }
     await deleteCollection(db, `users/${userId}/cats`);
     await deleteCollection(db, `users/${userId}/catDetails`);
 

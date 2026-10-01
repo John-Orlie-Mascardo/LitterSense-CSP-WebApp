@@ -21,8 +21,12 @@ import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type RfidEnrollment } from "@/lib/utils/rfidEnrollment";
 
 import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
+import { queueSensorSms } from "@/lib/utils/sensorSms";
+import { processSmsOutbox } from "@/lib/utils/smsDelivery";
+import { after } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const ESP32_SENSOR_URL =
   process.env.ESP32_SENSOR_URL ?? "http://192.168.68.131/sensors";
@@ -313,7 +317,27 @@ export async function POST(request: Request) {
     new Date(),
   );
 
-  return handleSensorSync(body, configToken, normalized);
+  const response = await handleSensorSync(body, configToken, normalized);
+  // During a Firestore outage, use the previously verified device ownership backup.
+  // Preserve the original status and ack: SMS storage never acknowledges visit history.
+  if (response.ok || response.status === 429 || response.status === 503) {
+    try {
+      const queued = await queueSensorSms(body, configToken, normalized);
+      if (queued.recognized && "ownerId" in queued && queued.ownerId) {
+        const ownerId = queued.ownerId;
+        after(async () => {
+          try { await processSmsOutbox(ownerId); }
+          catch { console.warn("Queued SMS will be processed on the next worker run."); }
+        });
+      }
+    }
+    catch (error) {
+      console.warn("SMS queue unavailable:", getErrorMessage(error));
+      // A saved visit can be retried safely; do not discard its unsaved SMS alert.
+      if (response.ok) return Response.json({ ok: false, error: "SMS queue unavailable. Retry sensor sync." }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  }
+  return response;
 }
 
 async function getRequestBodyOrError(
