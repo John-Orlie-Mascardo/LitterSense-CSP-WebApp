@@ -2,10 +2,15 @@
 
 ## Current checkpoint
 
-Tasks 1–4 implement server-only Supabase storage, confirmed profile/catalog copying,
-visit mirroring, an authorized outage queue, and protected recovery. Display fallback
-and production release verification remain Tasks 5–6. Task 4 does not deploy or enable
-recovery. Firebase remains primary; the existing Supabase project is reused.
+Tasks 1–5 implement server-only Supabase storage, confirmed profile/catalog copying,
+visit mirroring, an authorized outage queue, protected recovery and owner-scoped
+display fallback. Firebase remains primary; the existing Supabase project is reused.
+The release must pass the Task 6 checks below before recovery is enabled.
+
+An initial copy can be verified against Firebase, but a later confirmed Firebase
+visit may fail to mirror if Supabase is unavailable. During a Firebase outage,
+the display therefore marks backed-up history **incomplete** even when the last
+copy cycle completed. It never claims that an unseen new visit is present.
 
 ## Recovery configuration
 
@@ -97,3 +102,19 @@ cascades remove these new owner backups. Device rotation deletes the old public
 Firebase configuration; the transactional current-token check blocks its queued
 replay without deleting saved history. No provisioning or account-removal changes
 were needed for Task 4.
+
+## Task 6 release record
+
+- Previous production deployment: `dpl_9GMqQ8aRa8Cq8DRnxs2fZDS5z57X`.
+- The storage migration was already present. `cat-history-backup-read-visits-fix.sql`
+  corrects a row-alias bug that returned null visit IDs. Apply that migration
+  before verifying or releasing history reads.
+- Before release, the verified owner had three cats and 93 Firebase sessions.
+  The bounded initial copy reproduced all three cat IDs and all 93 exact session
+  IDs in Supabase. The rolled-back storage assertions left no synthetic accounts.
+- `CAT_HISTORY_PROCESS_SECRET` is distinct from the SMS secret and is server-only.
+  Keep `CAT_HISTORY_RECOVERY_ENABLED=false` until deployed ownership, route,
+  sensor and controlled recovery checks pass.
+- On rollback, pause the cat-history scheduler first, restore the previous app
+  deployment, and retain history tables and queued rows for investigation. The
+  SMS and sensor tables must remain in place.

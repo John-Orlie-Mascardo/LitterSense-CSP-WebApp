@@ -128,5 +128,7 @@ export async function readCatHistory(ownerId: string, query: HistoryQuery): Prom
     more = consumed < ordered.length || primaryRows.length === 100 || backupRows.length === 100;
     if (selected.length === query.limit || !more) break;
   }
-  return { rows: selected, nextCursor: more && key ? encodeCursor(ownerId, filters, sourceSignature, key) : null, source: primary ? pendingCount > 0 ? 'mixed' : 'firebase' : 'supabase', complete, backedUpAt, pendingCount };
+  // A successful initial copy cannot prove later primary saves were mirrored: the
+  // mirror may have been unavailable before Firebase itself became unavailable.
+  return { rows: selected, nextCursor: more && key ? encodeCursor(ownerId, filters, sourceSignature, key) : null, source: primary ? pendingCount > 0 ? 'mixed' : 'firebase' : 'supabase', complete: primary && complete, backedUpAt, pendingCount };
 }

@@ -163,9 +163,9 @@ begin
       and (v_cursor is null or (v_sort='asc' and (data->>'date',session_id)>(v_cursor->>'date',v_cursor->>'id')) or (v_sort='desc' and (data->>'date',session_id)<(v_cursor->>'date',v_cursor->>'id')))
     order by case when v_sort='asc' then data->>'date' end asc,case when v_sort='asc' then session_id end asc,case when v_sort='desc' then data->>'date' end desc,case when v_sort='desc' then session_id end desc limit v_limit+1
   ), numbered as (select c.*,row_number() over(order by case when v_sort='asc' then data->>'date' end asc,case when v_sort='asc' then session_id end asc,case when v_sort='desc' then data->>'date' end desc,case when v_sort='desc' then session_id end desc) n from candidates c)
-  select coalesce(jsonb_agg(public.cat_history_visit_json(to_jsonb(n)) order by n.n) filter(where n.n<=v_limit),'[]'::jsonb),count(*)::integer,
-    max(jsonb_build_object('owner',p_owner_id,'query',p_query-'cursor','date',data->>'date','id',session_id)::text) filter(where n.n=v_limit)
-    into v_rows,v_total,v_next from numbered n;
+  select coalesce(jsonb_agg(public.cat_history_visit_json(to_jsonb(entry)) order by entry.n) filter(where entry.n<=v_limit),'[]'::jsonb),count(*)::integer,
+    max(jsonb_build_object('owner',p_owner_id,'query',p_query-'cursor','date',data->>'date','id',session_id)::text) filter(where entry.n=v_limit)
+    into v_rows,v_total,v_next from numbered entry;
   return jsonb_build_object('rows',v_rows,'nextCursor',case when v_total>v_limit then v_next else null end,'source','supabase','complete',coalesce((select complete from public.cat_history_backup_progress where owner_id=p_owner_id),false),'backedUpAt',(select max(backed_up_at) from public.cat_visit_backups where owner_id=p_owner_id),'pendingCount',(select count(*) from public.cat_visit_backups where owner_id=p_owner_id and state in ('pending','claimed')));
 end $$;
 

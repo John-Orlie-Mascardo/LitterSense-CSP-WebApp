@@ -49,7 +49,13 @@ function revisionAfter(value: unknown) {
 }
 
 function normalizedCatalog(catalog: CatalogBackup): CatalogBackup {
-  return { ...catalog, profiles: catalog.profiles.map(sanitizeProfileBackup) };
+  return { ...catalog, profiles: catalog.profiles.map(profile => sanitizeProfileBackup({ ...profile, details: backupDetails(profile.details) })) };
+}
+
+function backupDetails(source: Record<string, unknown>): Record<string, unknown> {
+  const { weightKg, ...details } = source;
+  if (details.weight === undefined && weightKg !== undefined) details.weight = weightKg;
+  return details;
 }
 
 // Collection queries and the revision are read together; a failed read never produces an empty catalog.
@@ -63,8 +69,9 @@ export async function captureCatalog(ownerId: string): Promise<CatalogBackup> {
     const detailMap = new Map(details.docs.map(doc => [doc.id, doc.data()]));
     const catIds = new Set(cats.docs.map(doc => doc.id));
     if (details.docs.some(doc => !catIds.has(doc.id))) throw new Error('Catalog has unmatched details; backup incomplete');
-    const catalog = normalizedCatalog({ revision: revisionAfter(revision.data()?.revision), sourceReadAt: new Date().toISOString(), complete: true, profiles: cats.docs.map(doc => ({ catId: doc.id, cat: doc.data(), details: detailMap.get(doc.id) ?? {} })) });
-    tx.set(db.doc(`${root}/backupState/catalog`), { revision: catalog.revision });
+    const existingRevision = revision.data()?.revision;
+    const catalog = normalizedCatalog({ revision: existingRevision === undefined ? 1 : existingRevision, sourceReadAt: new Date().toISOString(), complete: true, profiles: cats.docs.map(doc => ({ catId: doc.id, cat: doc.data(), details: detailMap.get(doc.id) ?? {} })) });
+    if (existingRevision === undefined) tx.set(db.doc(`${root}/backupState/catalog`), { revision: catalog.revision });
     return catalog;
   });
 }
