@@ -117,7 +117,28 @@ were needed for Task 4.
   the stored date, with a regression test for the boundary.
 - `CAT_HISTORY_PROCESS_SECRET` is distinct from the SMS secret and is server-only.
   Keep `CAT_HISTORY_RECOVERY_ENABLED=false` until deployed ownership, route,
-  sensor and controlled recovery checks pass.
+  initial-copy and controlled recovery checks pass. Verify fresh sensor
+  heartbeats separately before closing release acceptance.
+- The release repair migration keeps the one-minute scheduler but checks a
+  completed copy hourly. Incomplete copying continues one bounded page each
+  minute; retry failures retain the capped backoff. This avoids repeatedly
+  reading the entire Firebase history every five minutes after completion.
+- Final production deployment: `dpl_DmA7FPfVUkCa67kaNjgNd49yn3VF`, from
+  source commit `2b1680e`. Production checks returned 401 without an owner
+  token, 403 for a foreign history cursor, 3 owner profiles and 93 distinct
+  history visits across five pages, with no repeated IDs. The sensor route
+  returned 200, but both hardware receipts were stale while the boards were
+  powered off; fresh hardware display still needs acceptance.
+- Controlled primary-failure reads against the real backup returned three
+  profiles and 93 unique visits with `complete=false`. The manual recovery
+  call restored zero visits, repaired 93 existing rows, and sent no synthetic
+  alert. It does not prove a real live outage or pending-visit replay.
+- `littersense-cat-history-worker` runs every minute using a separate Vault
+  secret. Its first scheduled request returned HTTP 200. At the release check,
+  Supabase held 93 visits, zero pending visits and zero synthetic accounts.
+- A signed-in visual browser check and fresh RFID/gas heartbeats remain
+  outstanding. The owner has been asked to power the boards on. API checks
+  prove authenticated data reads but do not substitute for that UI check.
 - On rollback, pause the cat-history scheduler first, restore the previous app
   deployment, and retain history tables and queued rows for investigation. The
   SMS and sensor tables must remain in place.

@@ -226,4 +226,29 @@ Import `BehaviorStateId` from the existing behavior-state presentation module. A
 
 ## Execution Handoff
 
+### Task 6 release status (2026-10-04)
+
+Independent review found and fixed a false backup-completeness claim after a
+failed mirror and an avoidable Firebase write on each catalog read. Live copy
+verification exposed a Supabase row-alias bug and a history page-boundary
+duplicate; both were corrected before the final deployment. A legacy
+`weightKg` profile field is mapped into the supported backup field. The
+completed-copy repair interval is hourly to protect the Firebase read quota.
+
+The reviewed migration and follow-up fixes are applied. One verified owner has
+3 catalog profiles and 93 exact Firebase/Supabase visit IDs and digests;
+rolled-back SQL checks left no synthetic rows. Local and Vercel `npm run check`
+passed. Production deployment `dpl_DmA7FPfVUkCa67kaNjgNd49yn3VF` returned
+3 profiles and 93 unique visits across five owner-scoped pages, and denied
+unauthenticated/foreign-cursor reads. A controlled Firebase failure read all
+93 backed-up visits with an incomplete marker. The protected manual worker
+restored zero pending visits and repaired 93 rows. The separate one-minute
+Vault-backed scheduler's first HTTP request succeeded.
+
+Open acceptance: both physical boards were off, so fresh RFID/gas heartbeats
+and signed-in visual dashboard checks remain. No live Firebase outage or
+naturally pending visit occurred, so real outage replay remains unverified.
+The release is deployed and scheduled, but Task 6 is not marked fully complete
+until those acceptance checks are reported.
+
 Six implementation tasks, each followed by the user's approval gate. Recommended execution: **native**, keeping one implementer for the shared ID/revision/lease contract, with a final independent reviewer before release. This preserves the prior working approach and avoids per-task delegation overhead. No implementation begins until the user reviews this plan and confirms the execution method.

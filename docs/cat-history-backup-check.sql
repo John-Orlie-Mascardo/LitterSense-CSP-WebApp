@@ -103,6 +103,16 @@ begin
  rejected:=false;
  begin perform public.cat_history_finish_repair_owner(claim,'success'); exception when others then rejected:=true; end;
  if not rejected then raise exception 'Stale repair claim accepted'; end if;
+ update public.cat_history_backup_progress set repair_due_at=clock_timestamp()-interval '1 second' where owner_id=owner_a;
+ update public.cat_history_backup_progress set repair_due_at=clock_timestamp()+interval '1 day' where owner_id=owner_b;
+ a:=public.cat_history_claim_repair_owner();
+ if a->>'ownerId'<>owner_a then raise exception 'Wrong repair owner'; end if;
+ perform public.cat_history_finish_repair_owner((a->>'claimId')::uuid,'success');
+ if (select repair_due_at from public.cat_history_backup_progress where owner_id=owner_a) not between clock_timestamp()+interval '59 seconds' and clock_timestamp()+interval '61 seconds' then raise exception 'Incomplete repair cadence wrong'; end if;
+ update public.cat_history_backup_progress set complete=true,repair_due_at=clock_timestamp()-interval '1 second' where owner_id=owner_a;
+ a:=public.cat_history_claim_repair_owner();
+ perform public.cat_history_finish_repair_owner((a->>'claimId')::uuid,'success');
+ if (select repair_due_at from public.cat_history_backup_progress where owner_id=owner_a) not between clock_timestamp()+interval '3599 seconds' and clock_timestamp()+interval '3601 seconds' then raise exception 'Complete repair cadence wrong'; end if;
  -- Role ACL + RLS assertions cover every new object including helpers.
  if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('cat_backup_catalogs','cat_profile_backups','cat_visit_backups','cat_history_backup_progress') and (not c.relrowsecurity or has_table_privilege('anon',c.oid,'SELECT') or has_table_privilege('authenticated',c.oid,'SELECT') or has_table_privilege('anon',c.oid,'INSERT') or has_table_privilege('authenticated',c.oid,'UPDATE'))) then raise exception 'Browser table access'; end if;
  if exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'cat_history_%' and (p.prosecdef or has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('authenticated',p.oid,'EXECUTE') or not has_function_privilege('service_role',p.oid,'EXECUTE'))) then raise exception 'Browser RPC access'; end if;
