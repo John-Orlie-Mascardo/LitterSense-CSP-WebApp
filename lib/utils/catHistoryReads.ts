@@ -85,7 +85,13 @@ export async function readCatHistory(ownerId: string, query: HistoryQuery): Prom
     const primaryPromise = primary ? (async () => {
       let collection = db.collection(`users/${ownerId}/sessions`).where('date', '>=', query.startDate).where('date', '<=', query.endDate).orderBy('date', query.sort).orderBy(FieldPath.documentId(), query.sort);
       if (key) collection = collection.startAfter(key.date, key.id);
-      return (await collection.limit(100).get()).docs.map(doc => buildVisitBackup(doc.id, normalizeSessionDocument(doc.id, doc.data()) as unknown as Record<string, unknown>, null, 'primary_saved'));
+      return (await collection.limit(100).get()).docs.map(doc => {
+        const stored = doc.data();
+        const normalized = normalizeSessionDocument(doc.id, stored);
+        // Firestore pages by the persisted date. Keep that key in the transport
+        // row even when presentation derives a different local activity date.
+        return buildVisitBackup(doc.id, { ...normalized, date: stored.date }, null, 'primary_saved');
+      });
     })() : Promise.resolve([] as VisitBackup[]);
     const [primaryResult, backupResult] = await Promise.allSettled([primaryPromise, backupPromise]);
     if (primaryResult.status === 'rejected') {

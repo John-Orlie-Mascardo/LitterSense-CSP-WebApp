@@ -112,6 +112,9 @@ were needed for Task 4.
 - Before release, the verified owner had three cats and 93 Firebase sessions.
   The bounded initial copy reproduced all three cat IDs and all 93 exact session
   IDs in Supabase. The rolled-back storage assertions left no synthetic accounts.
+- The first deployed read check found a repeated visit across history pages when
+  a stored query date differed from the presentation date. Cursor keys now use
+  the stored date, with a regression test for the boundary.
 - `CAT_HISTORY_PROCESS_SECRET` is distinct from the SMS secret and is server-only.
   Keep `CAT_HISTORY_RECOVERY_ENABLED=false` until deployed ownership, route,
   sensor and controlled recovery checks pass.
