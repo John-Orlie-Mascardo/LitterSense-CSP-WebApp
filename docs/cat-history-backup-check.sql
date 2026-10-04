@@ -1,5 +1,9 @@
 -- Assertions use synthetic owners and roll back all rows. No SMS queue writes.
 begin;
+-- Seed progress from the application receipt, not a potentially faster database clock.
+select public.cat_history_save_catalog('cat-backup-clock-test',jsonb_build_object('revision',1,'sourceReadAt',clock_timestamp()-interval '2 seconds','complete',true,'profiles','[]'::jsonb));
+select public.cat_history_save_progress('cat-backup-clock-test',jsonb_build_object('cursor',null,'scanned',0,'complete',false,'checkedAt',clock_timestamp()-interval '1 second','lastError',null));
+delete from public.sms_accounts where owner_id='cat-backup-clock-test';
 do $$
 declare c jsonb; v jsonb; r jsonb; q jsonb; a jsonb; b jsonb; item jsonb; i integer; claim uuid; old_claim uuid; rejected boolean; owner_a text:='cat-backup-test-a'; owner_b text:='cat-backup-test-b';
 begin

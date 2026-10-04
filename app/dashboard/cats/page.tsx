@@ -312,7 +312,7 @@ export default function CatsPage() {
     } catch (error) {
       upload.finish();
       console.error("Failed to add cat profile:", error);
-      if (uploadedPhotoUrl) {
+      if (uploadedPhotoUrl && !(error instanceof Error && "saveUnconfirmed" in error && error.saveUnconfirmed === true)) {
         try {
           await deleteCatPhoto(user.uid, newCatId);
         } catch (cleanupError) {
@@ -322,7 +322,7 @@ export default function CatsPage() {
       if (upload.signal.aborted) return;
       setErrors((current) => ({
         ...current,
-        photo: "We couldn't upload that photo. Please try again.",
+        photo: error instanceof Error && error.name === "CatProfileSaveError" ? error.message : "We couldn't upload that photo. Please try again.",
       }));
     } finally {
       upload.finish();

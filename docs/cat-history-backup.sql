@@ -94,7 +94,7 @@ begin
   insert into public.cat_profile_backups(owner_id,cat_id,revision,cat,details)
     select p_owner_id,value->>'catId',v_revision,value->'cat',value->'details' from jsonb_array_elements(p_catalog->'profiles')
     on conflict(owner_id,cat_id) do update set revision=excluded.revision,cat=excluded.cat,details=excluded.details,deleted=false;
-  insert into public.cat_history_backup_progress(owner_id) values(p_owner_id) on conflict do nothing;
+  insert into public.cat_history_backup_progress(owner_id,checked_at) values(p_owner_id,v_read) on conflict do nothing;
   return jsonb_build_object('applied',true);
 end $$;
 
@@ -181,7 +181,7 @@ declare v_old public.cat_history_backup_progress; v_scanned bigint:=(p_progress-
 begin
  perform public.cat_history_validate_owner(p_owner_id);
  if v_scanned is null or v_scanned<0 or v_checked is null or v_checked>clock_timestamp()+interval '5 seconds' or jsonb_typeof(p_progress->'complete') is distinct from 'boolean' or length(p_progress->>'cursor')>4096 or length(p_progress->>'lastError')>1000 then raise exception 'Invalid progress'; end if;
- insert into public.cat_history_backup_progress(owner_id) values(p_owner_id) on conflict do nothing;
+ insert into public.cat_history_backup_progress(owner_id,checked_at) values(p_owner_id,v_checked) on conflict do nothing;
  select * into v_old from public.cat_history_backup_progress where owner_id=p_owner_id for update;
  v_reset:=v_old.complete and v_scanned=0 and p_progress->>'cursor' is null and p_progress->'complete'='false'::jsonb;
  if v_checked<v_old.checked_at or (not v_reset and (v_scanned<v_old.scanned or (v_scanned=v_old.scanned and p_progress->>'cursor' is distinct from v_old.cursor))) then raise exception 'Stale progress'; end if;

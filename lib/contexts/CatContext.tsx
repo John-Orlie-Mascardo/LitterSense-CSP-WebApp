@@ -27,7 +27,6 @@ import {
   onSnapshot,
   runTransaction,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -48,6 +47,7 @@ import type {
 } from "@/lib/data/mockData";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
+import type { CatProfileMutation } from "@/lib/utils/catCatalogSync";
 
 interface FirebaseCatStatsDoc {
   catId?: string;
@@ -420,6 +420,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     Record<string, FirebaseCatStatsDoc[]>
   >({});
   const [isLoading, setIsLoading] = useState(true);
+  const [profileBackupNotice, setProfileBackupNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -689,19 +690,34 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     [catDailyStats, catStats, firebaseCatStats, rawCats, sessions],
   );
 
+  const saveProfile = async (mutation: CatProfileMutation) => {
+    if (!user) throw new Error("Please sign in again before saving this cat.");
+    try {
+      const response = await fetch("/api/cats", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+        body: JSON.stringify(mutation),
+      });
+      const result = await response.json();
+      if (!response.ok || result.saved !== true) {
+        const error = Object.assign(new Error(result.error || "Could not confirm the cat profile save. Please try again."), { name: "CatProfileSaveError", saveUnconfirmed: response.status >= 500 });
+        throw error;
+      }
+      setProfileBackupNotice(result.backupPending ? user.uid : null);
+    } catch (error) {
+      if (error instanceof Error && error.name === "CatProfileSaveError") throw error;
+      throw Object.assign(new Error("Could not confirm the cat profile save. Check your connection and refresh before trying again."), { name: "CatProfileSaveError", saveUnconfirmed: true });
+    }
+  };
+
   const addCat = async (cat: Cat, stats?: CatStats, details?: CatDetails) => {
     if (!user) return;
-
-    await setDoc(doc(db, "users", user.uid, "cats", cat.id), {
-      name: cat.name,
-      status: cat.status,
-      avatar: cat.avatar,
-      isOnline: cat.isOnline,
+    await saveProfile({
+      action: "create", catId: cat.id,
+      cat: { name: cat.name, status: cat.status, avatar: cat.avatar, isOnline: cat.isOnline },
+      ...(details ? { details: { ...details } } : {}),
     });
-
-    if (details) {
-      await setDoc(doc(db, "users", user.uid, "catDetails", cat.id), details);
-    }
 
     if (stats) {
       setCatStats((prev) => ({ ...prev, [cat.id]: stats }));
@@ -712,11 +728,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const today = getLocalDateKey();
 
-    await deleteDoc(doc(db, "users", user.uid, "cats", id));
-    await deleteDoc(doc(db, "users", user.uid, "catDetails", id));
-    await deleteDoc(doc(db, "users", user.uid, "catStats", id));
-    await deleteDoc(doc(db, "users", user.uid, "dailyCatStats", today, "cats", id));
-    await deleteDoc(doc(db, "users", user.uid, "catSessionLog", id));
+    await saveProfile({ action: "delete", catId: id, today });
     await deleteCatPhoto(user.uid, id);
 
     setCatStats((prev) => {
@@ -728,14 +740,14 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
   const updateCat = async (id: string, updates: Partial<Cat>) => {
     if (!user) return;
-    await updateDoc(doc(db, "users", user.uid, "cats", id), updates);
+    const { id: ignoredId, ...catUpdates } = updates;
+    void ignoredId;
+    await saveProfile({ action: "update", catId: id, cat: catUpdates });
   };
 
   const updateDetails = async (id: string, updates: Partial<CatDetails>) => {
     if (!user) return;
-    await setDoc(doc(db, "users", user.uid, "catDetails", id), updates, {
-      merge: true,
-    });
+    await saveProfile({ action: "update", catId: id, details: { ...updates } });
   };
 
   const addHealthLog = async (
@@ -887,6 +899,12 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         isLoading,
       }}
     >
+      {profileBackupNotice === uid && (
+        <div role="status" className="fixed bottom-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-amber-500/40 bg-litter-surface p-4 text-sm shadow-lg">
+          Cat profile saved. Its backup is pending and will be retried when backup service is available.
+          <button type="button" className="ml-3 underline" onClick={() => setProfileBackupNotice(null)}>Dismiss</button>
+        </div>
+      )}
       {children}
     </CatContext.Provider>
   );
