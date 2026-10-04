@@ -143,7 +143,8 @@ were needed for Task 4.
   `rfidState=online` and `gasUltrasonicState=online` with current timestamps.
   The same check returned 96 distinct visits across five pages with no repeat
   IDs, and an exact ID/digest comparison found all 96 visits in both Firebase
-  and Supabase. The signed-in visual browser check remains outstanding.
+  and Supabase. The owner refreshed the signed-in dashboard and History page
+  and confirmed both sensors show online and recent visits are visible.
 - On rollback, pause the cat-history scheduler first, restore the previous app
   deployment, and retain history tables and queued rows for investigation. The
   SMS and sensor tables must remain in place.

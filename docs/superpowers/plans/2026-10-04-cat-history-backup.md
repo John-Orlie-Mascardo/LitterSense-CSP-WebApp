@@ -254,6 +254,10 @@ at that point.
 After the boards were powered on, authenticated production reads showed both
 RFID and gas/ultrasonic online with fresh timestamps. History returned 96
 distinct visits with no repeated IDs; exact Firebase/Supabase ID and digest
-comparison found 96 on each side. Signed-in browser acceptance is still open.
+comparison found 96 on each side.
+The owner subsequently refreshed the signed-in dashboard and History page and
+confirmed both sensors show online and recent visits are visible. Task 6
+operational acceptance is complete; a naturally occurring Firebase outage and
+queued replay have not been observed.
 
 Six implementation tasks, each followed by the user's approval gate. Recommended execution: **native**, keeping one implementer for the shared ID/revision/lease contract, with a final independent reviewer before release. This preserves the prior working approach and avoids per-task delegation overhead. No implementation begins until the user reviews this plan and confirms the execution method.
