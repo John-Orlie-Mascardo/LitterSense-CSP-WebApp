@@ -1,6 +1,8 @@
 type SensorCardStatus = "normal" | "abnormal" | "offline" | "watch";
 
 export interface LiveSensorData {
+  readonly rfidCloudError?: boolean;
+  readonly gasUltrasonicCloudError?: boolean;
   readonly rfidState?: "online" | "stale" | "unknown";
   readonly gasUltrasonicState?: "online" | "stale" | "unknown";
   readonly rfidUpdatedAt?: string;
@@ -37,8 +39,8 @@ const getSensorErrorLabel = (error: string) => {
   return "Connection error";
 };
 
-const getStoredStatus = (state: "online" | "stale" | "unknown" | undefined, lastUpdatedAt?: string): SensorDisplayStatus | null => {
-  if (state === "unknown") return { value: "Status unavailable", status: "watch", label: "No sensor data" };
+const getStoredStatus = (state: "online" | "stale" | "unknown" | undefined, lastUpdatedAt?: string, cloudError?: boolean): SensorDisplayStatus | null => {
+  if (state === "unknown") return { value: "Status unavailable", status: "watch", label: cloudError ? "Cloud error" : "No sensor data" };
   if (state === "stale") return { value: "Stale", status: "watch", label: "No recent heartbeat", lastUpdatedAt };
   return null;
 };
@@ -91,7 +93,7 @@ export const getLiveAirQualityStatus = ({
 }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
-  const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt);
+  const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt, sensorData?.gasUltrasonicCloudError);
   if (stored) return stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
 
@@ -112,7 +114,7 @@ export const getLiveRfidStatus = ({
 }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
-  const stored = getStoredStatus(sensorData?.rfidState, sensorData?.rfidUpdatedAt);
+  const stored = getStoredStatus(sensorData?.rfidState, sensorData?.rfidUpdatedAt, sensorData?.rfidCloudError);
   if (stored) return stored;
   if (!sensorData?.online) return getUnavailableSensorStatus("Offline");
 
@@ -126,7 +128,7 @@ export const getLiveRfidStatus = ({
 export const getLiveUltrasonicStatus = ({ sensorData, sensorsLoading, sensorsError }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
-  const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt);
+  const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt, sensorData?.gasUltrasonicCloudError);
   if (stored) return stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
   const distance = sensorData.distanceCm;

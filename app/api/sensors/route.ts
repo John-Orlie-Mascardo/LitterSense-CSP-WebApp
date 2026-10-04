@@ -161,11 +161,13 @@ async function getPrimarySensors(request: Request) {
       let now = Date.now();
       const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= 180000;
       let mirrors: StoredSensorSnapshot[] = [];
+      let mirrorUnavailable = false;
       if (!firebase.every(fresh)) {
         try {
           mirrors = await readSensorMirrors(ownerId);
         } catch {
-          if (results.some((result) => result.status === "rejected")) throw new Error("Sensor stores unavailable");
+          mirrorUnavailable = true;
+          if (results.every((result) => result.status === "rejected")) throw new Error("Sensor stores unavailable");
         }
       }
       now = Date.now();
@@ -183,6 +185,8 @@ async function getPrimarySensors(request: Request) {
         gasUltrasonicDataSource: gas ? gas === firebase[1] ? "firebase" : "supabase" : undefined,
         rfidState: !rfid ? "unknown" : fresh(rfid) && rfidResponse.online ? "online" : "stale",
         gasUltrasonicState: !gas ? "unknown" : fresh(gas) && normalizeGasUltrasonic(gas.data) ? "online" : "stale",
+        rfidCloudError: mirrorUnavailable && results[0].status === "rejected",
+        gasUltrasonicCloudError: mirrorUnavailable && results[1].status === "rejected",
       }, { headers: NO_STORE_HEADERS });
     } catch {
       return Response.json({ error: "Unable to read device state" }, { status: 503, headers: NO_STORE_HEADERS });

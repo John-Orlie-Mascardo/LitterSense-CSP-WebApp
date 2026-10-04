@@ -66,3 +66,13 @@ Checks: `npm run check` (lint, app tests, relay tests, build), `node --test lib/
 Supabase informational notices for RLS without policies are intentional: browser roles have no table/function privileges; server access uses the secret key. [Supabase explanation](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
 
 Provider references: [IPROG API](https://www.iprogsms.com/api/v1/documentation), [delivery status guide](https://www.iprogsms.com/blog/building-sms-notifications-into-your-app-developers-guide). Scheduling: [Supabase Cron and Vault](https://supabase.com/docs/guides/functions/schedule-functions). Response lifecycle: [Next.js after](https://nextjs.org/docs/app/api-reference/functions/after).
+
+## Sensor display fallback
+
+The same Supabase project holds a separate `sensor_snapshots` table. Validated RFID and gas/ultrasonic uploads mirror live fields after the device response. Trusted device mappings come from verified Firestore ownership; no SMS opt-in is required. Browser roles cannot read the table directly.
+
+Authenticated `/api/sensors` reads use fresh Firestore data first and consult the mirror when primary data is missing, stale, or affected by a quota/service error. Each source keeps its own original receipt time and 180-second freshness window. Expired readings show **Stale / No recent heartbeat** and their last update. Unreadable cloud data shows **Unavailable / Cloud error**, rather than declaring the hardware offline. One readable source remains visible during a failure of the other source.
+
+This protects live display only: history, RFID enrollment, cat/profile loading and Firebase Auth remain on their existing paths. Mirroring never acknowledges an unsaved visit. On recovery, subsequent board uploads refresh Firestore normally; no bulk replication or database role switching is performed. Unknown or revoked device mappings cannot authorize outage uploads.
+
+Database assertions: `docs/sensor-snapshot-check.sql` runs in a rolled-back transaction and sends no SMS. Migration rollback: `docs/sensor-snapshot-rollback.sql` removes only mirror objects and restores the previous mapping function; existing SMS tables/data remain. Restore the previous app deployment **before** applying SQL rollback.

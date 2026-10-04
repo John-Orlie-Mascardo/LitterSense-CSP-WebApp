@@ -4,6 +4,8 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 export type DeviceSensors = {
+  rfidCloudError?: boolean;
+  gasUltrasonicCloudError?: boolean;
   rfidUpdatedAt?: string;
   gasUltrasonicUpdatedAt?: string;
   rfidDataSource?: "firebase" | "supabase";

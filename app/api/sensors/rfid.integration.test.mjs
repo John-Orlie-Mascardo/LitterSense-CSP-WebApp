@@ -25,7 +25,7 @@ const { selectSensorSnapshot } = loadTs(new URL("../../../lib/utils/sensorSnapsh
 
 test("authenticated display falls back during quota and recovery, preserving source age and owner isolation", async () => {
   class FirestoreRestError extends Error { constructor(status) { super("failure"); this.status = status; } }
-  let failure = 429, backupFailure = false, reads = 0;
+  let failure = 429, backupFailure = false, reads = 0, gasOnlyFailure = false;
   const fresh = new Date(Date.now() - 1000).toISOString(), old = new Date(Date.now() - 181000).toISOString();
   let receipt = fresh, primaryReceipt = old;
   const route = loadTs(new URL("./route.ts", import.meta.url), {
@@ -35,7 +35,7 @@ test("authenticated display falls back during quota and recovery, preserving sou
       return owner === "owner-a" ? [{ source: "rfid", receivedAt: receipt, data: { online: true, sessionActive: true } }, { source: "gas-ultrasonic", receivedAt: fresh, data: { mq135Raw: 1, mq136Raw: 0, distanceCm: 15 } }] : [];
     } },
     "@/lib/utils/firestoreRest": { FirestoreRestError, getFirestoreRestClient: () => ({ getDocument: async (path) => {
-      if (failure) throw new FirestoreRestError(failure);
+      if (failure && (!gasOnlyFailure || path.endsWith("gasUltrasonic"))) throw new FirestoreRestError(failure);
       return { data: path.endsWith("current") ? { online: true, sessionActive: false, updatedAt: primaryReceipt } : { mq135Raw: 1, mq136Raw: 1, distanceCm: 20, updatedAt: fresh } };
     } }) },
     "@/lib/utils/sensorSync": {}, "@/lib/utils/sensorEndpointDiagnostics": {},
@@ -79,6 +79,13 @@ test("authenticated display falls back during quota and recovery, preserving sou
   assert.equal(reads, before);
   failure = 503; backupFailure = true;
   assert.equal((await get()).status, 503);
+  gasOnlyFailure = true;
+  response = await get();
+  assert.equal(response.status, 200, "an unavailable gas store must not hide fresh RFID");
+  data = await response.json();
+  assert.equal(data.rfidState, "online");
+  assert.equal(data.gasUltrasonicState, "unknown");
+  assert.equal(data.gasUltrasonicCloudError, true);
 });
 
 test("RFID entry, exit, retry and authenticated owner snapshot through the route", async (t) => {
