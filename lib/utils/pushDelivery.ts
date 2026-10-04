@@ -1,10 +1,11 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { createHash } from 'node:crypto';
 import { getAdminAuth, getAdminFirestore, getAdminMessaging } from '@/lib/configs/firebase-admin';
 import { smsStoreRequest } from './smsAccountSync';
 import { smsDeliveryDecision } from './smsDelivery';
 import { buildAlertMessage, type AlertContext } from './smsTemplates';
 
-type PushRecord = { id: string; owner_id: string; cat_id: string | null; reason: string; event_key: string; context: AlertContext & { title?: string; body?: string; url?: string; source?: string }; created_at: string };
+type PushRecord = { id: string; owner_id: string; cat_id: string | null; reason: string; event_key: string; context: AlertContext & { title?: string; body?: string; url?: string; source?: string; targetTokenHash?: string }; created_at: string };
 type PushAccount = { fcm_tokens: string[]; phone_number: string; notifications: Omit<Parameters<typeof smsDeliveryDecision>[0]['notifications'], 'perCat'> & { rfidVisitAlerts?: boolean; litterLevelWarnings?: boolean; perCat?: Array<{ catId: string; healthAlerts?: boolean; visitAlerts?: boolean }> }; cats: Array<{ id: string; name?: string }> };
 export function invalidPushToken(code?: string) {
   return code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token';
@@ -41,7 +42,8 @@ export async function processPushOutbox(ownerId?: string) {
       const deleted = typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/user-not-found';
       await patch(deleted ? 'cancelled' : 'pending'); continue;
     }
-    const tokens = account.fcm_tokens.slice(0, 20);
+    const tokens = account.fcm_tokens.filter(token => !record.context.targetTokenHash || createHash('sha256').update(token).digest('hex') === record.context.targetTokenHash).slice(0, 20);
+    if (!tokens.length) { await patch('cancelled'); continue; }
     let result;
     try {
       result = await getAdminMessaging().sendEachForMulticast({ tokens, notification: { title: record.context.title ?? 'LitterSense Alert', body: record.context.body ?? buildAlertMessage(record.reason, { ...record.context, occurredAt: record.context.occurredAt ?? record.created_at, catName: account.cats.find(cat => cat.id === record.cat_id)?.name }) }, data: { eventKey: record.event_key, url: record.context.url?.startsWith('/dashboard') ? record.context.url : '/dashboard' }, webpush: { headers: { TTL: '3600' } } });

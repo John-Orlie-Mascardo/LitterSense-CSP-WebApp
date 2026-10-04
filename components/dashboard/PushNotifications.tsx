@@ -41,9 +41,10 @@ export function PushNotificationSettings() {
     try {
       const token = await getFirebaseMessagingToken();
       if (!token) throw new Error('Enable push on this device first.');
-      const response = await fetch('/api/push/dispatch', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true }) });
-      if (!response.ok) throw new Error('Unable to queue the push test.');
-      setStatus('Push test queued. One test per hour per account.');
+      const response = await fetch('/api/push/dispatch', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true, token }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Unable to queue the push test.');
+      setStatus('Push test queued for this device. One test per hour per device.');
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Unable to send push test.'); }
     finally { setBusy(false); }
   };
