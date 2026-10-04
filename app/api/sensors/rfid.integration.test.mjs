@@ -47,6 +47,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     },
   };
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/sensorSnapshotStore": { rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
     "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
     "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
     "next/server": { after: () => {} },
@@ -150,4 +151,83 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal(docs.get(enrollmentPath).data.status, "verified", "one dialog cannot cancel another scan");
   await enrollmentRoute.DELETE(enrollmentRequest("DELETE", enrollmentId));
   assert.equal((await (await enrollmentRoute.GET(enrollmentRequest("GET"))).json()).status, "expired");
+});
+
+test("live upload mirroring survives quota but never acknowledges unsaved visits or invalid ownership", async (t) => {
+  const previous = [process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY];
+  process.env.SUPABASE_URL = "https://mirror.test"; process.env.SUPABASE_SECRET_KEY = "test";
+  t.after(() => { for (const [index, key] of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"].entries()) { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; } });
+  class FirestoreRestError extends Error { constructor(status) { super("Storage failure"); this.status = status; this.detail = "test failure"; } }
+  let failure = 0, missing = false, mirrorFailure = false, queueFailure = false;
+  const remembered = [], mirrored = [], background = [];
+  const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/sensorSnapshotStore": {
+      rememberSensorDevice: async (...args) => { remembered.push(args); },
+      saveSensorMirror: async (...args) => { mirrored.push(args); if (mirrorFailure) throw new Error("Mirror unavailable"); return args[0] === "cfg_abcdefghijklmnop"; },
+    },
+    "@/lib/utils/firestoreRest": { FirestoreRestError, getFirestoreRestClient: () => ({
+      getDocument: async (path) => { if (failure) throw new FirestoreRestError(failure); return path.startsWith("deviceConfigs/") ? missing ? null : { data: { ownerId: "owner-a" } } : null; },
+      listDocuments: async () => [], createSetWrite: (path, data) => ({ path, data }), commit: async () => {},
+    }) },
+    "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
+    "@/lib/utils/gasUltrasonic": require("../../../lib/utils/gasUltrasonic.ts"),
+    "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse },
+    "@/lib/utils/sensorEndpointDiagnostics": {}, "@/lib/configs/firebase-admin": {},
+    "@/lib/utils/rfidEnrollment": require("../../../lib/utils/rfidEnrollment.ts"),
+    "@/lib/utils/sensorSms": { queueSensorSms: async () => { if (queueFailure) throw new Error("SMS unavailable"); return { recognized: false }; } },
+    "@/lib/utils/smsDelivery": {}, "next/server": { after: (callback) => { background.push(callback); } },
+  });
+  const rawPost = (body, token = "cfg_abcdefghijklmnop") => route.POST(new Request("https://test/api/sensors", { method: "POST", headers: { "Content-Type": "application/json", "x-device-config-token": token }, body: JSON.stringify(body) }));
+  const post = async (body, token) => { const response = await rawPost(body, token); for (const callback of background.splice(0)) await callback(); return response; };
+  const gas = { source: "gas-ultrasonic", mq135Raw: 1, mq136Raw: 1, distanceCm: 20 };
+  await rawPost(gas);
+  assert.equal(mirrored.length, 0, "mirror calls must wait until after the device response");
+  assert.equal(background.length, 1);
+  await background.shift()();
+  assert.equal((await post(gas)).status, 200);
+  assert.equal(remembered[0]?.[0], "owner-a");
+  assert.equal(mirrored[0]?.[1], "gas-ultrasonic");
+  assert.equal(mirrored[0]?.[2].distanceCm, 20);
+  assert.ok(Number.isFinite(Date.parse(mirrored[0]?.[3])));
+  mirrorFailure = true;
+  assert.equal((await post(gas)).status, 200, "mirror failure must preserve primary success");
+  mirrorFailure = false; failure = 429;
+  const visit = { sessionActive: true, activeRfidHex: "AABB", activeSessionStartMs: 1000, activeSessionDurationMs: 4000, events: [{ eventId: "one", status: "NORMAL", durationSecs: 300, rfidHex: "AABB" }] };
+  const beforeOwners = remembered.length;
+  let response = await post(visit);
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("x-litersense-ack"), null);
+  assert.equal(remembered.length, beforeOwners, "outage cannot create a trusted ownership mapping");
+  assert.equal(mirrored.at(-1)[1], "rfid");
+  assert.equal(mirrored.at(-1)[2].sessionActive, true);
+  assert.equal(mirrored.at(-1)[2].activeRfidHex, "AABB");
+  assert.equal(mirrored.at(-1)[2].completedSessionCount, undefined, "outage cannot invent persisted history");
+  assert.equal(mirrored.at(-1)[2].lastSessionStatus, undefined);
+  await post({ events: [] });
+  assert.equal(mirrored.at(-1)[2].sessionActive, undefined, "partial heartbeat must preserve previous live state");
+  await post({ activeRfidHex: "AABB", activeSessionDurationMs: 5000, events: [] });
+  assert.equal(mirrored.at(-1)[2].activeRfidHex, "AABB");
+  assert.equal(mirrored.at(-1)[2].activeSessionDurationMs, 5000);
+  failure = 503; const beforeService = mirrored.length;
+  assert.equal((await post(gas)).status, 503);
+  assert.equal(mirrored.length, beforeService + 1);
+  const beforeInvalid = mirrored.length;
+  assert.equal((await post({ ...gas, mq135Raw: 9 })).status, 400);
+  assert.equal((await post({ ...visit, sessionActive: "true" })).status, 400);
+  assert.equal(mirrored.length, beforeInvalid);
+  assert.equal((await post(gas, "bad")).status, 400);
+  failure = 403;
+  assert.equal((await post(gas)).status, 403);
+  assert.equal(mirrored.length, beforeInvalid, "Firestore permission errors must not authorize fallback");
+  failure = 0; missing = true;
+  assert.equal((await post(gas)).status, 404);
+  assert.equal(mirrored.length, beforeInvalid);
+  missing = false; queueFailure = true;
+  response = await post(gas);
+  assert.equal(response.status, 503, "existing SMS retry semantics are preserved");
+  assert.equal(mirrored.length, beforeInvalid + 1, "SMS failure must not prevent mirror storage");
+  failure = 429; queueFailure = false;
+  response = await post(visit, "cfg_unknown_unknown");
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("x-litersense-ack"), null);
 });
