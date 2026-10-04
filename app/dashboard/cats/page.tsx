@@ -663,8 +663,9 @@ export default function CatsPage() {
                 <input
                   type="text"
                   value={formData.rfidTag}
-                  onChange={(event) => setFormData((prev) => ({ ...prev, rfidTag: event.target.value }))}
-                  placeholder="Scan or enter RFID tag"
+                  readOnly
+                  aria-label="Scanned RFID tag ID"
+                  placeholder="No tag scanned yet"
                   className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />
                 <button
@@ -672,7 +673,7 @@ export default function CatsPage() {
                   title="Scan and verify RFID tag"
                   aria-label="Scan and verify RFID tag"
                   onClick={startEnrollment}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all"
+                  className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-litter-primary hover:bg-litter-primary/10 transition-all"
                 >
                   <ScanLine className="w-5 h-5" />
                 </button>

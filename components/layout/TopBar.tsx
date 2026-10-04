@@ -273,7 +273,7 @@ export function TopBar() {
             aria-label="Predictive Health Analysis"
             aria-current={pathname === "/dashboard/predictive-health" ? "page" : undefined}
             title="Predictive Health Analysis"
-            className={`relative rounded-xl p-2 transition-colors hover:bg-litter-bg ${
+            className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-litter-bg ${
               pathname === "/dashboard/predictive-health"
                 ? "bg-litter-primary-light text-litter-primary"
                 : "text-litter-text"
@@ -288,7 +288,7 @@ export function TopBar() {
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: "spring", stiffness: 600, damping: 25 }}
-              className="relative p-2 rounded-xl transition-colors"
+              className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors"
               style={{ color: "var(--color-text)", background: dropdownOpen ? "var(--color-bg)" : "transparent" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg)"; }}
               onMouseLeave={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "transparent"; }}

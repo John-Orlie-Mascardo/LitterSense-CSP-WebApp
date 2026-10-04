@@ -14,7 +14,7 @@ export function buildSmsVisits(account: SmsAccount, normalized: SensorSyncReques
     if (matches.length !== 1) return [];
     const catId = matches[0][0];
     const reason = event.status === "NO_EXIT_TIMEOUT" ? "No exit timeout" : event.durationSecs >= DASHBOARD_DURATION_UPPER_MINS * 60 ? "Extended duration" : event.status === "ABNORMAL" ? "Abnormal activity" : "";
-    return [{ catId, eventId: event.eventId, occurredAt: event.endedAt, reason }];
+    return [{ catId, eventId: event.eventId, occurredAt: event.endedAt, durationSecs: event.durationSecs, reason }];
   });
 }
 

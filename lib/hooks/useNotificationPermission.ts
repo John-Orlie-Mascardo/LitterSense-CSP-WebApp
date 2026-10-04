@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getFirebaseMessagingToken } from '@/lib/utils/firebaseMessaging';
 
 type PermissionStatus = "idle" | "granted" | "denied" | "dismissed";
 
@@ -108,6 +109,7 @@ export function useNotificationPermission() {
       localStorage.setItem(STORAGE_KEY, "granted");
       localStorage.removeItem(DISMISSED_KEY);
       await registerServiceWorker();
+      await getFirebaseMessagingToken();
     } else if (result === "denied") {
       setPermissionState({
         status: "denied",

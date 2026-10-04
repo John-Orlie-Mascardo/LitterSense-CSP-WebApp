@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test \"app/**/*.test.*\" \"components/**/*.test.*\" \"lib/**/*.test.*\"",
+    "test": "node --test \"app/**/*.test.*\" \"components/**/*.test.*\" \"lib/**/*.test.*\" \"public/**/*.test.*\"",
     "check": "npm run lint && npm test && npm run test:camera-relay && npm run build",
     "test:camera-relay": "node --test services/camera-relay/server.test.mjs"
   },

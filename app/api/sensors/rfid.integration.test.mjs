@@ -9,7 +9,7 @@ import { loadVisitWriter } from '../../../lib/utils/testing/catVisitWriter.mjs';
 const require = createRequire(import.meta.url);
 const { buildDeviceSensorSnapshot, toDeviceSensorsResponse } = require("../../../lib/utils/deviceSensorSnapshot.ts");
 function loadTs(url, imports = {}) {
-  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
+  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
   const { outputText } = ts.transpileModule(readFileSync(url, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
@@ -128,6 +128,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async () => [], rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
     "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
     "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
+    "@/lib/utils/pushDelivery": { processPushOutbox: async () => ({ processed: 0 }) },
     "next/server": { after: () => {} },
     "@/lib/utils/firestoreRest": { getFirestoreRestClient: () => client, FirestoreRestError: class extends Error {} },
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),

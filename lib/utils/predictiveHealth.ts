@@ -33,6 +33,8 @@ type PredictiveSession = {
 };
 
 export interface PredictiveHealthRequest {
+  readonly environment?: { readonly ammonia: "detected" | "clear" | "unavailable"; readonly h2s: "detected" | "clear" | "unavailable" };
+  readonly evidenceDays?: number;
   readonly idToken: string;
   readonly catName: string;
   readonly displayState: BehaviorStateId;
@@ -48,6 +50,8 @@ export interface PredictiveHealthRequest {
 }
 
 export interface PredictiveHealthAnalysis {
+  readonly confidence?: "low" | "medium" | "high";
+  readonly preliminary?: boolean;
   readonly summary: string;
   readonly baselineComparison: string;
   readonly observedChanges: readonly string[];
@@ -66,7 +70,9 @@ const isReportText = (value: unknown) =>
 export function isPredictiveHealthAnalysis(
   value: unknown,
 ): value is PredictiveHealthAnalysis {
-  if (!isRecord(value) || !Array.isArray(value.observedChanges)) return false;
+    if (!isRecord(value) || !Array.isArray(value.observedChanges)) return false;
+    if (value.confidence !== undefined && !['low', 'medium', 'high'].includes(String(value.confidence))) return false;
+    if (value.preliminary !== undefined && typeof value.preliminary !== 'boolean') return false;
   return (
     isReportText(value.summary) &&
     isReportText(value.baselineComparison) &&
@@ -133,6 +139,10 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   } = value;
   const safeBaseline = parseBaseline(baseline);
   const safeSessionCounts = parseSessionCounts(sessionCounts);
+  const environment = value.environment;
+  const states = ["detected", "clear", "unavailable"];
+  if (environment !== undefined && (!isRecord(environment) || !states.includes(String(environment.ammonia)) || !states.includes(String(environment.h2s)))) return null;
+  if (value.evidenceDays !== undefined && !isFiniteNumberInRange(value.evidenceDays, 0, 7)) return null;
   if (
     typeof idToken !== "string" || idToken.length < 1 || idToken.length > 4096 ||
     typeof catName !== "string" || catName.trim().length < 1 || catName.length > 80 ||
@@ -166,6 +176,8 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   if (safeTrendData.some((point) => point === null)) return null;
 
   return {
+    ...(environment ? { environment: environment as PredictiveHealthRequest["environment"] } : {}),
+    ...(typeof value.evidenceDays === "number" ? { evidenceDays: value.evidenceDays } : {}),
     idToken,
     catName: catName.trim(),
     displayState: displayState as BehaviorStateId,
@@ -276,6 +288,10 @@ export function buildPredictiveHealthEvidence(
     : "No established baseline is available, so a reliable comparison cannot be made yet.";
 
   const observedChanges: string[] = [];
+  if (request.environment) {
+    if (request.todayVisits !== null) observedChanges.push(`Today: ${pluralize(request.todayVisits, "visit")}${request.todayAvgDurationSecs === null ? "" : `; average duration ${formatDuration(request.todayAvgDurationSecs)}`}.`);
+    observedChanges.push(`Environment: Ammonia ${request.environment.ammonia}; hydrogen sulfide ${request.environment.h2s}. These are box readings, not measurements of this cat's health.`);
+  }
   const activeTrend = trendData.filter((point) => point.visits > 0 || point.avgDuration > 0);
   if (activeTrend.length >= 2) {
     const first = activeTrend[0];
@@ -307,7 +323,7 @@ export function buildPredictiveHealthEvidence(
 
   return {
     baselineComparison,
-    observedChanges,
+    observedChanges: observedChanges.slice(0, 5),
     dataQuality,
     safeNextStep: getSafeNextStep(request.displayState),
   };
@@ -319,7 +335,7 @@ export function buildPredictiveHealthPrompt(request: PredictiveHealthRequest) {
     "Write a plain-language behavioral health summary for a cat owner in two or three sentences and at most 90 words.",
     `The app's official behavior state is \"${request.displayState}\". Explain it, but never change or contradict it.`,
     "Use only the supplied verified evidence. Do not diagnose, predict a disease, name illnesses, invent causes, invent measurements, or claim certainty about the cat's health.",
-    "If the official state is insufficient, clearly say that a reliable prediction cannot be made until more completed sessions establish a baseline.",
+    "When no personal baseline exists, give a useful preliminary early read using the available visits and environment. Label it preliminary and do not claim a personal baseline comparison. Even zero visits can support setup steps and available environment guidance.",
     "State meanings: normal = matches the cat's usual pattern and limits; watch = within limits but different from the usual pattern; abnormal = a set activity limit was crossed; insufficient = more sessions are needed; incomplete = visit too short; unattributed = no collar tag was read.",
     `Verified evidence: ${JSON.stringify({
       catName: request.catName,
@@ -336,7 +352,8 @@ export function createPredictiveHealthAnalysis(
   request: PredictiveHealthRequest,
   summary: string,
 ): PredictiveHealthAnalysis {
-  return { summary, ...buildPredictiveHealthEvidence(request) };
+  const confidence = (request.evidenceDays ?? 0) >= 7 ? request.baseline && request.sessionCounts.completed >= 14 ? "high" : "medium" : "low";
+  return { summary, ...buildPredictiveHealthEvidence(request), confidence, preliminary: !request.baseline };
 }
 
 export function parseGeminiSummary(value: unknown) {

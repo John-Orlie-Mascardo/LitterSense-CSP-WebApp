@@ -1,35 +1,30 @@
-// public/sw.js
-// LitterSense Service Worker — handles push notification display
-
-globalThis.addEventListener("push", (event) => {
-  const data = event.data?.json() ?? {};
-  const title = data.title || "LitterSense Alert";
-  const options = {
-    body: data.body || "Your cat needs attention.",
-    icon: "/icons/icon-192x192.png",
-    badge: "/icons/badge-72x72.png",
-    tag: data.tag || "littersense-alert",
-    renotify: true,
-    data: {
-      url: data.url || "/dashboard",
-    },
-  };
-  event.waitUntil(globalThis.registration.showNotification(title, options));
+globalThis.addEventListener('install', () => globalThis.skipWaiting());
+globalThis.addEventListener('activate', event => event.waitUntil(clients.claim()));
+function notificationUrl(value) {
+  const url = new URL(value || '/dashboard', location.origin);
+  return url.origin === location.origin ? url.href : new URL('/dashboard', location.origin).href;
+}
+globalThis.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data?.json() ?? {}; } catch { /* Keep a usable notification for malformed payloads. */ }
+  const notification = payload.notification ?? payload;
+  const data = payload.data ?? payload;
+  const title = notification.title || 'LitterSense Alert';
+  const body = notification.body || 'Open LitterSense to review the alert.';
+  const url = notificationUrl(data.url);
+  event.waitUntil((async () => {
+    await globalThis.registration.showNotification(title, { body, icon: '/icons/icon-192x192.png', badge: '/icons/icon-192x192.png', tag: data.eventKey || data.tag || undefined, data: { url } });
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) if (client.visibilityState === 'visible') client.postMessage({ type: 'littersense-push', title, body, url });
+  })());
 });
-
-globalThis.addEventListener("notificationclick", (event) => {
+globalThis.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = event.notification.data?.url || "/dashboard";
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(url) && "focus" in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
-    })
-  );
+  const url = notificationUrl(event.notification.data?.url);
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const current = windows.find(client => client.url === url);
+    if (current) return current.focus();
+    return clients.openWindow(url);
+  })());
 });

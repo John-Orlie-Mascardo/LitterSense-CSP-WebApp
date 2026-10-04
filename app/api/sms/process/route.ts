@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
+import { processPushOutbox } from '@/lib/utils/pushDelivery';
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -8,6 +9,6 @@ export async function POST(request: Request) {
   const expectedBytes = Buffer.from(expected);
   const suppliedBytes = Buffer.from(supplied);
   if (!expected || suppliedBytes.length !== expectedBytes.length || !timingSafeEqual(suppliedBytes, expectedBytes)) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  try { return Response.json(await processSmsOutbox(), { headers: { "Cache-Control": "no-store" } }); }
+  try { const [sms, push] = await Promise.allSettled([processSmsOutbox(), processPushOutbox()]); return Response.json({ sms: sms.status === 'fulfilled' ? sms.value : { error: 'Unavailable' }, push: push.status === 'fulfilled' ? push.value : { error: 'Unavailable' } }, { status: sms.status === 'rejected' || push.status === 'rejected' ? 503 : 200, headers: { "Cache-Control": "no-store" } }); }
   catch { return Response.json({ error: "SMS processing unavailable" }, { status: 503 }); }
 }

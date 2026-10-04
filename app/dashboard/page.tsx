@@ -24,7 +24,6 @@ import {
   Clock,
   CloudFog,
   Droplets,
-  Radio,
   Timer,
 } from "lucide-react";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
@@ -42,9 +41,7 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import {
-  getLiveRfidStatus,
   getLiveAirQualityStatus,
-  getLiveUltrasonicStatus,
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
@@ -450,9 +447,7 @@ function PopulatedDashboardState({
   abnormalCat,
   isDismissedAbnormalReady,
   airQualityReadings,
-  ultrasonicStatus,
   airQualityStatus,
-  rfidStatus,
   trendData,
   trendReferences,
   recentVisits,
@@ -477,9 +472,7 @@ function PopulatedDashboardState({
   readonly abnormalCat: Cat | undefined;
   readonly isDismissedAbnormalReady: boolean;
   readonly airQualityReadings: AirQualityReadings;
-  readonly ultrasonicStatus: SensorDisplayStatus;
   readonly airQualityStatus: SensorDisplayStatus;
-  readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
   readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
@@ -620,14 +613,6 @@ function PopulatedDashboardState({
               status={selectedDisplayState}
               statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
-            <StatCard
-              icon={Radio}
-              value={rfidStatus.value}
-              label="RFID Reader"
-              subtitle={sensorSubtitle("", rfidStatus)}
-              status={rfidStatus.status}
-              statusLabel={rfidStatus.label}
-            />
           </div>
         </section>
 
@@ -655,7 +640,6 @@ function PopulatedDashboardState({
               status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s, airQualityStatus)}
             />
-            <StatCard icon={Radio} value={ultrasonicStatus.value} label="Ultrasonic Distance" subtitle={sensorSubtitle("HC-SR04", ultrasonicStatus)} status={ultrasonicStatus.status} statusLabel={ultrasonicStatus.label} />
           </div>
         </section>
 
@@ -874,13 +858,7 @@ export default function DashboardPage() {
     }
   }, [hasRealAnomaly, triggerOnAnomaly]);
 
-  const rfidStatus = getLiveRfidStatus({
-    sensorData,
-    sensorsLoading,
-    sensorsError,
-  });
   const airQualityStatus = getLiveAirQualityStatus({ sensorData, sensorsLoading, sensorsError });
-  const ultrasonicStatus = getLiveUltrasonicStatus({ sensorData, sensorsLoading, sensorsError });
   const isEmpty = !catsLoading && cats.length === 0;
   const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
   const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisit);
@@ -928,9 +906,7 @@ export default function DashboardPage() {
             abnormalCat={abnormalCat}
             isDismissedAbnormalReady={isDismissedAbnormalReady}
             airQualityReadings={airQualityReadings}
-            ultrasonicStatus={ultrasonicStatus}
             airQualityStatus={airQualityStatus}
-            rfidStatus={rfidStatus}
             trendData={trendData}
             trendReferences={trendReferences}
             recentVisits={recentVisits}

@@ -25,11 +25,21 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
+import { auth } from '@/lib/configs/firebase';
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useSettings } from "@/lib/hooks/useSettings";
 import type { Cat } from "@/lib/data/mockData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+async function dispatchPush(notificationId: string) {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const response = await fetch('/api/push/dispatch', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ notificationId }) });
+    if (!response.ok) console.warn('[push] Notification delivery could not be queued.');
+  } catch { console.warn('[push] Notification delivery could not be queued.'); }
+}
 
 export type NotificationType = "health" | "system" | "cat_visit";
 export type NotificationSource =
@@ -248,14 +258,16 @@ export function NotificationProvider({
             });
           }
         });
+        void dispatchPush(notificationRef.id);
         return;
       }
 
-      await addDoc(collection(db, "users", user.uid, "notifications"), {
+      const saved = await addDoc(collection(db, "users", user.uid, "notifications"), {
         ...buildNotificationSyncPayload(data),
         createdAt: serverTimestamp(),
         isRead: false,
       });
+      void dispatchPush(saved.id);
     },
     [settings, user]
   );
@@ -276,6 +288,7 @@ export function NotificationProvider({
           createdAt: serverTimestamp(),
           isRead: false,
         });
+        void dispatchPush(notificationRef.id);
         return;
       }
 

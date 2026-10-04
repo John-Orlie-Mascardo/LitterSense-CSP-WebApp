@@ -23,6 +23,7 @@ import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type Rf
 import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
 import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
+import { processPushOutbox } from '@/lib/utils/pushDelivery';
 import { rememberSensorDevice, saveSensorMirror, readSensorMirrors, selectSensorSnapshot, type StoredSensorSnapshot } from "@/lib/utils/sensorSnapshotStore";
 import { after } from "next/server";
 import { backupSensorVisits, preserveFirmwareVisitTime } from "@/lib/utils/catVisitIngestion";
@@ -406,6 +407,8 @@ export async function POST(request: Request) {
         after(async () => {
           try { await processSmsOutbox(ownerId); }
           catch { console.warn("Queued SMS will be processed on the next worker run."); }
+          try { await processPushOutbox(ownerId); }
+          catch { console.warn('Queued push alerts will be processed on the next worker run.'); }
         });
       }
     }

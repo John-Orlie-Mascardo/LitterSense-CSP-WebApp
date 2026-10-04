@@ -43,8 +43,9 @@ import {
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { PushNotificationSettings } from '@/components/dashboard/PushNotifications';
+import { unregisterFirebaseMessagingToken } from '@/lib/utils/firebaseMessaging';
 import { SettingsRow } from "@/components/settings/SettingsRow";
-import { SmsSettings } from "@/components/settings/SmsSettings";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -541,6 +542,7 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     setIsSigningOut(true);
     try {
+      await unregisterFirebaseMessagingToken().catch(() => {});
       await signOut(auth);
       setShowSignOutConfirm(false);
       router.push("/login");
@@ -773,7 +775,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <SmsSettings />
+
+        <div className="rounded-2xl border border-litter-border bg-litter-card"><PushNotificationSettings /></div>
 
         {/* Data & Privacy Section */}
         <div>
