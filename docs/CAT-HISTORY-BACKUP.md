@@ -136,9 +136,14 @@ were needed for Task 4.
 - `littersense-cat-history-worker` runs every minute using a separate Vault
   secret. Its first scheduled request returned HTTP 200. At the release check,
   Supabase held 93 visits, zero pending visits and zero synthetic accounts.
-- A signed-in visual browser check and fresh RFID/gas heartbeats remain
-  outstanding. The owner has been asked to power the boards on. API checks
+- At initial release, a signed-in visual browser check and fresh RFID/gas
+  heartbeats remained outstanding because the boards were off. API checks
   prove authenticated data reads but do not substitute for that UI check.
+- After the boards were powered on, an authenticated production check returned
+  `rfidState=online` and `gasUltrasonicState=online` with current timestamps.
+  The same check returned 96 distinct visits across five pages with no repeat
+  IDs, and an exact ID/digest comparison found all 96 visits in both Firebase
+  and Supabase. The signed-in visual browser check remains outstanding.
 - On rollback, pause the cat-history scheduler first, restore the previous app
   deployment, and retain history tables and queued rows for investigation. The
   SMS and sensor tables must remain in place.

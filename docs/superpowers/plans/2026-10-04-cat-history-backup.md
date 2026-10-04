@@ -245,10 +245,15 @@ unauthenticated/foreign-cursor reads. A controlled Firebase failure read all
 restored zero pending visits and repaired 93 rows. The separate one-minute
 Vault-backed scheduler's first HTTP request succeeded.
 
-Open acceptance: both physical boards were off, so fresh RFID/gas heartbeats
-and signed-in visual dashboard checks remain. No live Firebase outage or
+At initial release, both physical boards were off, so fresh RFID/gas heartbeats
+and signed-in visual dashboard checks remained. No live Firebase outage or
 naturally pending visit occurred, so real outage replay remains unverified.
-The release is deployed and scheduled, but Task 6 is not marked fully complete
-until those acceptance checks are reported.
+The release is deployed and scheduled, but Task 6 was not marked fully complete
+at that point.
+
+After the boards were powered on, authenticated production reads showed both
+RFID and gas/ultrasonic online with fresh timestamps. History returned 96
+distinct visits with no repeated IDs; exact Firebase/Supabase ID and digest
+comparison found 96 on each side. Signed-in browser acceptance is still open.
 
 Six implementation tasks, each followed by the user's approval gate. Recommended execution: **native**, keeping one implementer for the shared ID/revision/lease contract, with a final independent reviewer before release. This preserves the prior working approach and avoids per-task delegation overhead. No implementation begins until the user reviews this plan and confirms the execution method.
