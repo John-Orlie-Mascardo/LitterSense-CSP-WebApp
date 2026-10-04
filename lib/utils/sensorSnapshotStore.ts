@@ -28,15 +28,15 @@ function owner(ownerId: string) {
   return ownerId;
 }
 
-async function rpc(path: string, body: Record<string, unknown>) {
+async function rpc(path: string, body: Record<string, unknown>, returnsJson = true) {
   const response = await smsStoreRequest(`rpc/${path}`, { method: "POST", body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`Sensor mirror storage returned ${response.status}`);
-  return response.json();
+  return returnsJson ? response.json() : undefined;
 }
 
 // Call only after Firestore has verified the token's owner. This does not rotate other mappings.
 export async function rememberSensorDevice(ownerId: string, configToken: string): Promise<void> {
-  await rpc("remember_sensor_device", { p_owner_id: owner(ownerId), p_token_hash: tokenHash(configToken) });
+  await rpc("remember_sensor_device", { p_owner_id: owner(ownerId), p_token_hash: tokenHash(configToken) }, false);
 }
 
 export async function saveSensorMirror(configToken: string, source: SensorSource, data: Record<string, unknown>, receivedAt: string): Promise<boolean> {
