@@ -38,6 +38,7 @@ interface VisitWritePlanInput {
   event: NormalizedSensorSyncEvent;
   sessionId: string;
   serverNow: Date;
+  activityDay?: string;
 }
 
 export interface VisitWritePlan {
@@ -330,10 +331,11 @@ export function buildVisitWritePlan({
   event,
   sessionId,
   serverNow,
+  activityDay,
 }: VisitWritePlanInput): VisitWritePlan {
   const endedAt = new Date(event.endedAt);
   const eventDate = Number.isNaN(endedAt.getTime()) ? serverNow : endedAt;
-  const dateKey = getLocalDateKey(eventDate);
+  const dateKey = activityDay ?? getLocalDateKey(eventDate);
   const nowIso = serverNow.toISOString();
   const anomaly = getVisitAnomaly(event.durationSecs, event.status);
   const summaryPaths = [

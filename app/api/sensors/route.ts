@@ -25,6 +25,10 @@ import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
 import { rememberSensorDevice, saveSensorMirror, readSensorMirrors, selectSensorSnapshot, type StoredSensorSnapshot } from "@/lib/utils/sensorSnapshotStore";
 import { after } from "next/server";
+import { backupSensorVisits, preserveFirmwareVisitTime } from "@/lib/utils/catVisitIngestion";
+import { buildVisitBackup } from "@/lib/utils/catHistoryNormalization";
+import { readVisitBackupsById } from "@/lib/utils/catHistoryStore";
+import type { VisitBackup } from "@/lib/interfaces/CatHistoryBackup";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -333,7 +337,7 @@ async function getPrimarySensors(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const mirror: SensorMirrorContext = { receivedAt: new Date(), fallbackAllowed: false };
+  const mirror: SensorMirrorContext = { receivedAt: new Date(), fallbackAllowed: false, saved: [] };
   const bodyResult = await getRequestBodyOrError(request);
   if (bodyResult instanceof Response) {
     return bodyResult;
@@ -359,7 +363,7 @@ export async function POST(request: Request) {
       ...(typeof body === "object" && body !== null ? body : {}),
       configToken,
     },
-    new Date(),
+    mirror.receivedAt,
   );
 
   const response = await handleSensorSync(body, configToken, normalized, mirror);
@@ -375,6 +379,20 @@ export async function POST(request: Request) {
         console.warn("Sensor mirror unavailable; original sensor response preserved.");
       }
     });
+  }
+  if (!mirror.fallbackAllowed && mirror.saved.length && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    after(async () => {
+      try {
+        const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: false }, mirror.receivedAt);
+        if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
+      } catch { console.warn("Confirmed visit backup is pending; repair will retry it."); }
+    });
+  }
+  if (mirror.fallbackAllowed && payload.source !== "gas-ultrasonic" && normalized.events.length && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    try {
+      const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: true }, mirror.receivedAt);
+      if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
+    } catch { console.warn("Outage visit backup unavailable; original device retry response preserved."); }
   }
   // During a Firestore outage, use the previously verified device ownership backup.
   // Preserve the original status and ack: SMS storage never acknowledges visit history.
@@ -403,6 +421,7 @@ interface SensorMirrorContext {
   ownerId?: string;
   snapshot?: Record<string, unknown>;
   fallbackAllowed: boolean;
+  saved: VisitBackup[];
 }
 
 function buildOutageRfidSnapshot(payload: Record<string, unknown>, now: Date): Record<string, unknown> {
@@ -524,8 +543,9 @@ async function processSensorEvents(args: {
   ownerId: string;
   configToken: string;
   serverNow: Date;
+  saved: VisitBackup[];
 }) {
-  const { client, normalized, catDetails, ownerId, configToken, serverNow } =
+  const { client, normalized, catDetails, ownerId, configToken, serverNow, saved } =
     args;
   const recorded: Array<{ sessionId: string; catId: string }> = [];
   const recordedEvents: typeof normalized.events = [];
@@ -533,7 +553,8 @@ async function processSensorEvents(args: {
   const unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
 
   for (const event of normalized.events) {
-    const catId = findCatIdByRfid(catDetails, event.rfidCard, event.rfidHex);
+    const matches = catDetails.filter(tag => findCatIdByRfid([tag], event.rfidCard, event.rfidHex));
+    const catId = matches.length === 1 ? matches[0][0] : null;
     if (!catId) {
       unmatched.push({
         eventId: event.eventId,
@@ -544,7 +565,7 @@ async function processSensorEvents(args: {
     }
 
     const sessionId = buildSessionDocumentId(configToken, event);
-    const plan = buildVisitWritePlan({
+    let plan = buildVisitWritePlan({
       userId: ownerId,
       catId,
       configToken,
@@ -554,8 +575,21 @@ async function processSensorEvents(args: {
     });
     const existingSession = await client.getDocument(plan.sessionPath);
     if (existingSession) {
+      try { saved.push(buildVisitBackup(sessionId, existingSession.data, null, "primary_saved")); }
+      catch { console.warn("Existing visit could not be serialized; history repair requires review."); }
       duplicates.push({ sessionId, catId });
       continue;
+    }
+
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+      try {
+        const original = (await readVisitBackupsById(ownerId, [sessionId]))[0];
+        if (original) {
+          const candidate = buildVisitBackup(sessionId, plan.sessionData, null, "primary_saved");
+          const preserved = preserveFirmwareVisitTime(candidate, original);
+          if (preserved !== candidate) plan = buildVisitWritePlan({ userId: ownerId, catId, configToken, sessionId, serverNow, activityDay: preserved.data.date as string, event: { ...event, startedAt: preserved.data.startedAt as string, endedAt: preserved.data.endedAt as string } });
+        }
+      } catch { console.warn("Visit backup lookup unavailable; primary persistence continues."); }
     }
 
     await client.commit([
@@ -569,6 +603,8 @@ async function processSensorEvents(args: {
         }),
       ),
     ]);
+    try { saved.push(buildVisitBackup(sessionId, plan.sessionData, null, "primary_saved")); }
+    catch { console.warn("Confirmed visit could not be serialized; history repair requires review."); }
     recorded.push({ sessionId, catId });
     recordedEvents.push(event);
   }
@@ -611,7 +647,9 @@ async function handleSensorSync(
       client.getDocument(snapshotPath),
       client.getDocument(enrollmentPath),
     ]);
-    const catDetails = buildCatDetails(catDetailDocs);
+    const allCatDetails = buildCatDetails(catDetailDocs);
+    const activeCats = normalized.events.length ? new Set((await client.listDocuments(`users/${ownerId}/cats`)).map(cat => cat.id)) : null;
+    const catDetails = activeCats ? allCatDetails.filter(([catId]) => activeCats.has(catId)) : allCatDetails;
     const serverNow = mirror.receivedAt;
     let enrollment = enrollmentDoc?.data as RfidEnrollment | undefined;
     let enrollmentAck = -1;
@@ -623,7 +661,7 @@ async function handleSensorSync(
         const { id, sequence, tag } = scan as Record<string, unknown>;
         if (id === enrollment.id && typeof sequence === "number" && typeof tag === "string") {
           const normalizedTag = tag.toUpperCase();
-          const registeredTags = catDetails.map(([, details]) => String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase());
+          const registeredTags = allCatDetails.map(([, details]) => String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase());
           const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags);
           if (next.lastScanId === sequence) enrollmentAck = sequence;
           enrollment = next;
@@ -639,6 +677,7 @@ async function handleSensorSync(
         ownerId,
         configToken,
         serverNow,
+        saved: mirror.saved,
       });
 
     const sensorSnapshot = buildDeviceSensorSnapshot({

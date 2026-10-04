@@ -52,6 +52,17 @@ export async function readVisitBackups(ownerId: string, query: HistoryQuery): Pr
 export async function readBackupProgress(ownerId: string): Promise<BackupProgress | null> {
   return rpc('read_progress', { p_owner_id: owner(ownerId) });
 }
+export async function readVisitBackupsById(ownerId: string, sessionIds: string[]): Promise<VisitBackup[]> {
+  owner(ownerId);
+  if (sessionIds.length > 100) throw new Error('Visit lookup batch too large');
+  sessionIds.forEach(validateBackupId);
+  if (!sessionIds.length) return [];
+  const filter = `(${sessionIds.map(id => JSON.stringify(id)).join(',')})`;
+  const response = await smsStoreRequest(`cat_visit_backups?owner_id=eq.${encodeURIComponent(ownerId)}&session_id=in.${encodeURIComponent(filter)}&select=session_id,cat_id,data,digest,token_hash,state`);
+  if (!response.ok) throw new Error(`Cat backup storage returned ${response.status}`);
+  const rows = await response.json() as Array<{ session_id: string; cat_id: string; data: Record<string, unknown>; digest: string; token_hash: string | null; state: VisitBackup['state'] }>;
+  return rows.map(row => ({ sessionId: row.session_id, catId: row.cat_id, data: row.data, digest: row.digest, tokenHash: row.token_hash, state: row.state }));
+}
 export async function saveBackupProgress(ownerId: string, progress: BackupProgress): Promise<void> {
   owner(ownerId); receipt(progress.checkedAt);
   if (!Number.isSafeInteger(progress.scanned) || progress.scanned < 0 || (progress.cursor !== null && (typeof progress.cursor !== 'string' || progress.cursor.length > 4096)) || typeof progress.complete !== 'boolean' || (progress.lastError !== null && (typeof progress.lastError !== 'string' || progress.lastError.length > 1000))) throw new Error('Invalid backup progress');

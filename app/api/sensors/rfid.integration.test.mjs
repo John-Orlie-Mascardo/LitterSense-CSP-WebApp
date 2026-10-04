@@ -16,7 +16,7 @@ function loadTs(url, imports = {}) {
     module: loadedModule, exports: loadedModule.exports, require: (name) => {
       if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
       return imports[name];
-    }, Request, Response, URL, URLSearchParams, Date, process, console, setTimeout, clearTimeout,
+    }, Request, Response, URL, URLSearchParams, Date, Buffer, process, console, setTimeout, clearTimeout,
   });
   return loadedModule.exports;
 }
@@ -29,6 +29,7 @@ test("authenticated display falls back during quota and recovery, preserving sou
   const fresh = new Date(Date.now() - 1000).toISOString(), old = new Date(Date.now() - 181000).toISOString();
   let receipt = fresh, primaryReceipt = old;
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/catVisitIngestion": {}, "@/lib/utils/catHistoryNormalization": {}, "@/lib/utils/catHistoryStore": {},
     "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async (owner) => {
       reads++;
       if (backupFailure) throw new Error("backup unavailable");
@@ -100,6 +101,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   const client = {
     getDocument: async (path) => docs.get(path),
     listDocuments: async (path) => {
+      if (path === "users/owner-a/cats") return [{ id: "cat-a", data: { name: "Cat" } }];
       assert.equal(path, "users/owner-a/catDetails");
       return [{ id: "cat-a", data: { rfidTag: "300833B2DDD9014000000001" } }];
     },
@@ -114,6 +116,9 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     },
   };
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/catVisitIngestion": { backupSensorVisits: async () => ({ inserted: 0, duplicates: 0, conflicts: 0 }) },
+    "@/lib/utils/catHistoryStore": { readVisitBackupsById: async () => [] },
+    "@/lib/utils/catHistoryNormalization": loadTs(new URL("../../../lib/utils/catHistoryNormalization.ts", import.meta.url), { "node:crypto": require("node:crypto") }),
     "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async () => [], rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
     "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
     "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
@@ -230,6 +235,7 @@ test("live upload mirroring survives quota but never acknowledges unsaved visits
   let failure = 0, missing = false, mirrorFailure = false, queueFailure = false;
   const remembered = [], mirrored = [], background = [];
   const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/catVisitIngestion": { backupSensorVisits: async () => ({ inserted: 0, duplicates: 0, conflicts: 0 }) }, "@/lib/utils/catHistoryNormalization": {}, "@/lib/utils/catHistoryStore": {},
     "@/lib/utils/sensorSnapshotStore": {
       rememberSensorDevice: async (...args) => { remembered.push(args); },
       saveSensorMirror: async (...args) => { mirrored.push(args); if (mirrorFailure) throw new Error("Mirror unavailable"); return args[0] === "cfg_abcdefghijklmnop"; },
@@ -299,4 +305,98 @@ test("live upload mirroring survives quota but never acknowledges unsaved visits
   response = await post(visit, "cfg_unknown_unknown");
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("x-litersense-ack"), null);
+});
+
+test("queueDoesNotAckHistory; durable outage visits and actual primary records mirror without changing enrollment, SMS or live sensors", async (t) => {
+  const previous = [process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY];
+  process.env.SUPABASE_URL = "https://backup.test"; process.env.SUPABASE_SECRET_KEY = "test";
+  t.after(() => { for (const [index, key] of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"].entries()) { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; } });
+  class FirestoreRestError extends Error { constructor(status) { super('Storage unavailable'); this.status = status; } }
+  const rows = new Map(), docs = new Map(), background = [], snapshots = [];
+  let failure = 429, revoked = false, catalogComplete = true, storeFailure = false, increments = 0, smsCalls = 0, senderCalls = 0, beforeStore = null, duplicateTag = false, snapshotFailure = false;
+  const token = 'cfg_abcdefghijklmnop';
+  const tokenHash = require('node:crypto').createHash('sha256').update(token).digest('hex');
+  const normalization = loadTs(new URL('../../../lib/utils/catHistoryNormalization.ts', import.meta.url), { 'node:crypto': require('node:crypto') });
+  const sync = loadTs(new URL('../../../lib/utils/sensorSync.ts', import.meta.url));
+  const backup = loadTs(new URL('../../../lib/utils/catVisitIngestion.ts', import.meta.url), {
+    'node:crypto': require('node:crypto'), './sensorSync': sync, './catHistoryNormalization': normalization,
+    './catHistoryStore': {
+      resolveCatBackupDevice: async supplied => supplied === token && !revoked ? { ownerId: 'owner-a', tokenHash, catalog: { complete: catalogComplete, profiles: [{ catId: 'cat-a', cat: { name: 'Cat' }, details: { rfidTag: 'AABB' } }] } } : null,
+      readVisitBackupsById: async (_owner, ids) => ids.flatMap(id => rows.has(id) ? [rows.get(id)] : []),
+      saveVisitBackups: async (owner, visits) => {
+        assert.equal(owner, 'owner-a'); if (beforeStore) await beforeStore(); if (storeFailure) throw new Error('Private failure detail');
+        const counts = { inserted: 0, duplicates: 0, conflicts: 0 };
+        for (const visit of visits) { const old = rows.get(visit.sessionId); if (!old) { rows.set(visit.sessionId, visit); counts.inserted++; } else if (old.digest === visit.digest) { counts.duplicates++; if (visit.state === 'primary_saved') rows.set(visit.sessionId, visit); } else counts.conflicts++; }
+        return counts;
+      },
+    },
+  });
+  const client = {
+    getDocument: async path => { if (failure) throw new FirestoreRestError(failure); return path.startsWith('deviceConfigs/') ? { data: { ownerId: 'owner-a' } } : docs.get(path); },
+    listDocuments: async path => path.endsWith('/cats') ? [{ id: 'cat-a', data: { name: 'Cat' } }, ...(duplicateTag ? [{ id: 'cat-b', data: { name: 'Other' } }] : [])] : [{ id: 'cat-a', data: { rfidTag: 'AABB' } }, ...(duplicateTag ? [{ id: 'cat-b', data: { rfidTag: 'AABB' } }] : [])],
+    createSetWrite: (path, data) => ({ path, data }), createIncrementWrite: (path, data, change) => ({ path, data, change }),
+    commit: async writes => { for (const write of writes) { if (snapshotFailure && write.path.endsWith('/deviceState/current')) throw new Error('Snapshot failed'); docs.set(write.path, { data: write.data }); if (write.change) increments += write.change.visits; } },
+  };
+  const route = loadTs(new URL('./route.ts', import.meta.url), {
+    '@/lib/utils/catVisitIngestion': backup, '@/lib/utils/catHistoryNormalization': normalization,
+    '@/lib/utils/catHistoryStore': { readVisitBackupsById: async (_owner, ids) => ids.flatMap(id => rows.has(id) ? [rows.get(id)] : []) },
+    '@/lib/utils/firestoreRest': { FirestoreRestError, getFirestoreRestClient: () => client }, '@/lib/utils/sensorSync': sync,
+    '@/lib/utils/deviceSensorSnapshot': { buildDeviceSensorSnapshot, toDeviceSensorsResponse }, '@/lib/utils/gasUltrasonic': require('../../../lib/utils/gasUltrasonic.ts'),
+    '@/lib/utils/sensorSnapshotStore': { rememberSensorDevice: async () => {}, saveSensorMirror: async (...args) => snapshots.push(args) },
+    '@/lib/utils/rfidEnrollment': require('../../../lib/utils/rfidEnrollment.ts'), '@/lib/utils/sensorEndpointDiagnostics': {}, '@/lib/configs/firebase-admin': {},
+    '@/lib/utils/sensorSms': { queueSensorSms: async () => { smsCalls++; return { recognized: false }; } }, '@/lib/utils/smsDelivery': { processSmsOutbox: async () => { senderCalls++; } },
+    'next/server': { after: callback => background.push(callback) },
+  });
+  const event = { eventId: '12345678_1000_33000', status: 'NORMAL', durationSecs: 32, rfidHex: 'AABB', endedAt: '2026-10-04T08:00:32Z' };
+  const rawPost = (events, supplied = token) => route.POST(new Request('https://test/api/sensors', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-config-token': supplied }, body: JSON.stringify({ events, sessionActive: false, enrollmentScan: { id: 'scan', sequence: 3, tag: 'AABB' } }) }));
+  const flush = async () => { for (const callback of background.splice(0)) await callback(); };
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  beforeStore = () => gate;
+  let answered = false;
+  const waiting = rawPost([event]).then(response => { answered = true; return response; });
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(answered, false, 'Outage response must await durable visit storage');
+  release(); beforeStore = null;
+  let response = await waiting;
+  assert.equal(response.status, 429); assert.equal(rows.size, 1);
+  assert.equal(response.headers.get('x-litersense-ack'), null);
+  assert.equal((await response.json()).enrollmentAck, undefined);
+  await flush();
+  response = await rawPost([event]); await flush();
+  assert.equal(rows.size, 1); assert.equal(response.headers.get('x-litersense-ack'), null);
+  assert.equal([...rows.values()][0].state, 'pending');
+  assert.equal(snapshots.at(-1)[1], 'rfid'); assert.equal(increments, 0);
+  revoked = true; await rawPost([{ ...event, eventId: 'revoked' }]); await flush();
+  revoked = false; catalogComplete = false; await rawPost([{ ...event, eventId: 'partial' }]); await flush();
+  assert.equal(rows.size, 1);
+  catalogComplete = true; storeFailure = true;
+  response = await rawPost([{ ...event, eventId: 'unsaved' }]); await flush();
+  assert.equal(response.status, 429); assert.equal(response.headers.get('x-litersense-ack'), null);
+  assert.equal(rows.size, 1);
+  storeFailure = false; failure = 403;
+  response = await rawPost([{ ...event, eventId: 'forbidden' }]); await flush();
+  assert.equal(response.status, 403); assert.equal(rows.size, 1);
+  assert.equal((await rawPost([event], 'bad')).status, 400);
+  failure = 0;
+  response = await rawPost([{ ...event, endedAt: '2026-10-04T08:00:32.500Z' }]);
+  assert.equal(response.headers.get('x-litersense-ack'), event.eventId);
+  assert.equal([...rows.values()][0].state, 'pending', 'Confirmed mirroring runs after the primary response');
+  await flush();
+  assert.equal([...rows.values()][0].state, 'primary_saved');
+  const afterFirst = increments;
+  response = await rawPost([event]); await flush();
+  assert.equal(response.headers.get('x-litersense-ack'), event.eventId);
+  assert.equal(increments, afterFirst);
+  assert.equal(rows.size, 1);
+  duplicateTag = true;
+  response = await rawPost([{ ...event, eventId: 'ambiguous' }]); await flush();
+  assert.equal(response.headers.get('x-litersense-ack'), '');
+  assert.equal(rows.size, 1); assert.equal(increments, afterFirst);
+  duplicateTag = false; snapshotFailure = true;
+  response = await rawPost([{ ...event, eventId: 'snapshot-failed' }]);
+  assert.equal(response.status, 503); assert.equal(response.headers.get('x-litersense-ack'), null);
+  await flush();
+  assert.equal(rows.get('sync_snapshot-failed').state, 'primary_saved', 'A later snapshot failure cannot lose the confirmed visit backup');
+  assert.ok(smsCalls > 0); assert.equal(senderCalls, 0);
 });
