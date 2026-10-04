@@ -20,6 +20,7 @@ test('callerCannotChooseOwner; unavailable primary rejects edits and pending mir
       mutateCatProfile: async (owner, body) => { calls.push({ owner, body }); if (unavailable) throw new Error(); return { revision: 1, backupPending }; },
     },
     '@/lib/utils/catHistoryStore': { saveCatalogBackup: async () => {} },
+    '@/lib/utils/catHistoryReads': { readCatCatalog: async owner => { calls.push(`read:${owner}`); return unavailable ? { catalog: { complete: false, revision: 0, profiles: [], sourceReadAt: '' }, source: 'supabase', backupPending: true } : { catalog: { complete: true, revision: 1, profiles: [], sourceReadAt: '2026-10-04T00:00:00Z' }, source: 'firebase', backupPending }; } },
   });
   const request = (token, body) => new Request('https://test/api/cats', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
   const mutation = { action: 'create', catId: 'cat-a', cat: { name: 'Cat' } };
@@ -33,7 +34,9 @@ test('callerCannotChooseOwner; unavailable primary rejects edits and pending mir
   unavailable = true;
   const failed = await route.POST(request('good', mutation));
   assert.equal(failed.status, 503); assert.equal((await failed.json()).saved, undefined);
-  assert.equal((await route.GET(new Request('https://test/api/cats', { headers: { Authorization: 'Bearer good' } }))).status, 503);
+  const fallback = await route.GET(new Request('https://test/api/cats', { headers: { Authorization: 'Bearer good' } }));
+  assert.equal(fallback.status, 200); assert.equal((await fallback.json()).complete, false);
+  assert.ok(calls.includes('read:owner-a'));
 });
 test('only four client profile mutations switch to confirmed requests; photo cleanup remains after deletion', () => {
   const source = readFileSync(new URL('../../../lib/contexts/CatContext.tsx', import.meta.url), 'utf8');
@@ -49,7 +52,7 @@ test('only four client profile mutations switch to confirmed requests; photo cle
 test('real client profile methods require confirmed responses, show pending backup and preserve photos on rejected deletion', async () => {
   let mode = 'success';
   const calls = [], photoDeletes = [], stateChanges = [];
-  const react = { createContext: () => ({ Provider: 'provider' }), useEffect: () => {}, useMemo: fn => fn(), useCallback: fn => fn, useState: initial => [initial, value => stateChanges.push(value)], createElement: (type, props) => ({ type, props }) };
+  const react = { createContext: () => ({ Provider: 'provider' }), useEffect: () => {}, useMemo: fn => fn(), useCallback: fn => fn, useRef: initial => ({ current: initial }), useState: initial => [initial, value => stateChanges.push(value)], createElement: (type, props) => ({ type, props }) };
   const loaded = { exports: {} };
   const imports = {
     react: { default: react, ...react },
@@ -57,6 +60,7 @@ test('real client profile methods require confirmed responses, show pending back
     'firebase/firestore': { setDoc: () => { throw new Error('Client profile writes forbidden'); } },
     '@/lib/configs/firebase': { db: {} },
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user: { uid: 'owner-a', getIdToken: async () => 'good' }, loading: false }) },
+    '@/lib/hooks/useCatBackup': { useCatBackup: () => ({ snapshot: null, error: null, refresh: () => {} }) },
     '@/lib/utils/catPhoto': { deleteCatPhoto: async (...args) => photoDeletes.push(args) },
     '@/lib/utils/sessionDate': { getLocalDateKey: () => '2026-10-04' },
   };

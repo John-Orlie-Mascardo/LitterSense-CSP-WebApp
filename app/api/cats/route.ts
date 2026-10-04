@@ -1,6 +1,6 @@
 import { getAdminAuth } from '@/lib/configs/firebase-admin';
-import { captureCatalog, mutateCatProfile, validateCatMutation } from '@/lib/utils/catCatalogSync';
-import { saveCatalogBackup } from '@/lib/utils/catHistoryStore';
+import { mutateCatProfile, validateCatMutation } from '@/lib/utils/catCatalogSync';
+import { readCatCatalog } from '@/lib/utils/catHistoryReads';
 
 export const runtime = 'nodejs';
 const headers = { 'Cache-Control': 'no-store' };
@@ -12,10 +12,8 @@ export async function GET(request: Request) {
   const uid = await owner(request);
   if (!uid) return Response.json({ error: 'Unauthorized' }, { status: 401, headers });
   try {
-    const catalog = await captureCatalog(uid);
-    let backupPending = false;
-    try { await saveCatalogBackup(uid, catalog); } catch { backupPending = true; }
-    return Response.json({ ...catalog, source: 'firebase', backupPending }, { headers });
+    const result = await readCatCatalog(uid);
+    return Response.json({ ...result.catalog, source: result.source, backupPending: result.backupPending }, { headers });
   } catch { return Response.json({ error: 'Cat profiles are temporarily unavailable. Please try again.' }, { status: 503, headers }); }
 }
 export async function POST(request: Request) {

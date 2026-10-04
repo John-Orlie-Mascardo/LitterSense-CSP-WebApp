@@ -54,7 +54,7 @@ export function useSessionHistory(
   filters: HistoryFilters,
 ): SessionHistoryResult {
   const { user } = useAuth();
-  const { cats, catDetails } = useCats();
+  const { cats, catDetails, sessions: contextSessions, backupStatus } = useCats();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -62,7 +62,11 @@ export function useSessionHistory(
   const [hasAnySessions, setHasAnySessions] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
+  const [historySource, setHistorySource] = useState<'firebase' | 'backup'>('firebase');
   const cursorRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const backupCursorRef = useRef<string | null>(null);
+  const sourceRef = useRef<'firebase' | 'backup'>('firebase');
+  const ownerRef = useRef<string | null>(null);
   const loadingRef = useRef(false);
   const requestGenerationRef = useRef(0);
 
@@ -92,6 +96,9 @@ export function useSessionHistory(
     ),
     [baselineCatIdsKey],
   );
+  const backupRows = useMemo(() => backupStatus.pendingCount > 0 || backupStatus.mode
+    ? filterAndSortHistorySessions(contextSessions, stableFilters, catIds, baselineCatIds)
+    : [], [backupStatus.pendingCount, backupStatus.mode, contextSessions, stableFilters, catIds, baselineCatIds]);
   const fetchPage = useCallback(async (reset: boolean) => {
     if (!user || (!reset && loadingRef.current)) return;
 
@@ -102,6 +109,7 @@ export function useSessionHistory(
     setError(null);
     if (reset) {
       cursorRef.current = null;
+      backupCursorRef.current = null;
       setSessions([]);
       setHasMore(true);
       setIsInitialLoading(true);
@@ -110,6 +118,45 @@ export function useSessionHistory(
     }
 
     try {
+      const loadBackup = async (firstPage: boolean) => {
+        const token = await user.getIdToken();
+        const params = new URLSearchParams({ startDate: stableFilters.startDate, endDate: stableFilters.endDate, sort: stableFilters.sort, catId: stableFilters.catId });
+        if (stableFilters.states.length) params.set('states', stableFilters.states.join(','));
+        let cursor = firstPage ? null : backupCursorRef.current;
+        const collected: Session[] = [];
+        let hasNext = true;
+        for (let batch = 0; batch < 50 && collected.length < HISTORY_BATCH_SIZE && hasNext; batch++) {
+          if (cursor) params.set('cursor', cursor); else params.delete('cursor');
+          const response = await fetch(`/api/cat-history?${params}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+          if (response.status === 409 && (await response.json()).resetRequired === true) {
+            backupCursorRef.current = null;
+            sourceRef.current = 'firebase';
+            setHistorySource('firebase');
+            setRetryVersion(value => value + 1);
+            return;
+          }
+          if (!response.ok) throw new Error('Cat history backup request failed');
+          const page = await response.json() as { rows: { sessionId: string; data: Record<string, unknown> }[]; nextCursor: string | null; complete: boolean };
+          if (generation !== requestGenerationRef.current) return;
+          collected.push(...page.rows.map(row => normalizeSessionDocument(row.sessionId, row.data)));
+          if (page.nextCursor === cursor) throw new Error('Cat history backup cursor did not advance');
+          cursor = page.nextCursor;
+          hasNext = Boolean(cursor);
+          if (!hasNext && collected.length === 0) setHasAnySessions(page.complete ? false : null);
+        }
+        if (generation !== requestGenerationRef.current) return;
+        backupCursorRef.current = cursor;
+        setHasMore(hasNext);
+        setSessions(current => {
+          const rows = firstPage ? collected : [...current, ...collected];
+          return Array.from(new Map(rows.map(row => [row.id, row])).values());
+        });
+        if (collected.length > 0) setHasAnySessions(true);
+      };
+      if (sourceRef.current === 'backup') {
+        await loadBackup(reset);
+        return;
+      }
       const collected: Session[] = [];
       let nextCursor = reset ? null : cursorRef.current;
       let serverHasMore = true;
@@ -162,7 +209,13 @@ export function useSessionHistory(
     } catch (loadError) {
       if (generation !== requestGenerationRef.current) return;
       console.error("Failed to load session history:", loadError);
-      setError("We couldn't load session history. Please try again.");
+      const code = (loadError as { code?: string })?.code ?? '';
+      if (sourceRef.current === 'firebase' && /resource-exhausted|unavailable|deadline-exceeded|internal|aborted/.test(code)) {
+        sourceRef.current = 'backup';
+        setHistorySource('backup');
+        backupCursorRef.current = null;
+        setRetryVersion(value => value + 1);
+      } else setError("We couldn't load session history. Please try again.");
     } finally {
       if (generation === requestGenerationRef.current) {
         loadingRef.current = false;
@@ -173,6 +226,13 @@ export function useSessionHistory(
   }, [baselineCatIds, catIds, stableFilters, user]);
 
   useEffect(() => {
+    if (ownerRef.current !== (user?.uid ?? null)) {
+      ownerRef.current = user?.uid ?? null;
+      sourceRef.current = 'firebase';
+      setHistorySource('firebase');
+      backupCursorRef.current = null;
+      requestGenerationRef.current++;
+    }
     if (!user) {
       queueMicrotask(() => {
         setSessions([]);
@@ -205,11 +265,25 @@ export function useSessionHistory(
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user || (historySource !== 'backup' && backupStatus.pendingCount === 0)) return;
+    const timer = setTimeout(() => {
+      if (!loadingRef.current) setRetryVersion(value => value + 1);
+    }, document.hidden ? 60_000 : 30_000);
+    return () => clearTimeout(timer);
+  }, [user, historySource, backupStatus.pendingCount, retryVersion]);
+
   const loadMore = useCallback(() => fetchPage(false), [fetchPage]);
   const retry = useCallback(() => setRetryVersion((current) => current + 1), []);
+  const visibleSessions = useMemo(() => {
+    if (ownerRef.current !== user?.uid) return [];
+    const merged = new Map(backupRows.map(row => [row.id, row]));
+    for (const row of sessions) merged.set(row.id, row);
+    return filterAndSortHistorySessions([...merged.values()], stableFilters, catIds, baselineCatIds);
+  }, [backupRows, sessions, stableFilters, catIds, baselineCatIds, user?.uid]);
 
   return {
-    sessions,
+    sessions: visibleSessions,
     isInitialLoading,
     isLoadingMore,
     hasMore,
