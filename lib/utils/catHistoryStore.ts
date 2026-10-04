@@ -70,7 +70,11 @@ export async function saveBackupProgress(ownerId: string, progress: BackupProgre
 }
 export async function resolveCatBackupDevice(configToken: string): Promise<{ ownerId: string; tokenHash: string; catalog: CatalogBackup } | null> {
   if (!/^[A-Za-z0-9_-]{16,256}$/.test(configToken)) throw new Error('Invalid device token');
-  return rpc('resolve_device', { p_token_hash: createHash('sha256').update(configToken).digest('hex') });
+  return resolveCatBackupDeviceHash(createHash('sha256').update(configToken).digest('hex'));
+}
+export async function resolveCatBackupDeviceHash(tokenHash: string): Promise<{ ownerId: string; tokenHash: string; catalog: CatalogBackup } | null> {
+  if (!/^[a-f0-9]{64}$/.test(tokenHash)) throw new Error('Invalid device hash');
+  return rpc('resolve_device', { p_token_hash: tokenHash });
 }
 export async function claimPendingVisits(limit: number): Promise<ClaimedVisit[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 5) throw new Error('Invalid claim limit');

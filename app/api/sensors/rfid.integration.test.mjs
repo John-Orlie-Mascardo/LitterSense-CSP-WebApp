@@ -4,10 +4,12 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { loadVisitWriter } from '../../../lib/utils/testing/catVisitWriter.mjs';
 
 const require = createRequire(import.meta.url);
 const { buildDeviceSensorSnapshot, toDeviceSensorsResponse } = require("../../../lib/utils/deviceSensorSnapshot.ts");
 function loadTs(url, imports = {}) {
+  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
   const { outputText } = ts.transpileModule(readFileSync(url, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
@@ -115,8 +117,12 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
       }
     },
   };
+  const normalization = loadTs(new URL('../../../lib/utils/catHistoryNormalization.ts', import.meta.url), { 'node:crypto': require('node:crypto') });
+  const sync = loadTs(new URL('../../../lib/utils/sensorSync.ts', import.meta.url));
+  const ingestion = loadTs(new URL('../../../lib/utils/catVisitIngestion.ts', import.meta.url), { 'node:crypto': require('node:crypto'), './catHistoryNormalization': normalization, './catHistoryStore': {}, './sensorSync': sync });
   const route = loadTs(new URL("./route.ts", import.meta.url), {
     "@/lib/utils/catVisitIngestion": { backupSensorVisits: async () => ({ inserted: 0, duplicates: 0, conflicts: 0 }) },
+    '@/lib/utils/catVisitRecovery': loadVisitWriter(client, 'cfg_abcdefghijklmnop', sync, ingestion, normalization),
     "@/lib/utils/catHistoryStore": { readVisitBackupsById: async () => [] },
     "@/lib/utils/catHistoryNormalization": loadTs(new URL("../../../lib/utils/catHistoryNormalization.ts", import.meta.url), { "node:crypto": require("node:crypto") }),
     "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async () => [], rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
@@ -313,7 +319,7 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
   t.after(() => { for (const [index, key] of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"].entries()) { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; } });
   class FirestoreRestError extends Error { constructor(status) { super('Storage unavailable'); this.status = status; } }
   const rows = new Map(), docs = new Map(), background = [], snapshots = [];
-  let failure = 429, revoked = false, catalogComplete = true, storeFailure = false, increments = 0, smsCalls = 0, senderCalls = 0, beforeStore = null, duplicateTag = false, snapshotFailure = false;
+  let failure = 429, revoked = false, catalogComplete = true, storeFailure = false, increments = 0, smsCalls = 0, senderCalls = 0, beforeStore = null, duplicateTag = false, snapshotFailure = false, sdkFailure = 0;
   const token = 'cfg_abcdefghijklmnop';
   const tokenHash = require('node:crypto').createHash('sha256').update(token).digest('hex');
   const normalization = loadTs(new URL('../../../lib/utils/catHistoryNormalization.ts', import.meta.url), { 'node:crypto': require('node:crypto') });
@@ -335,10 +341,11 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
     getDocument: async path => { if (failure) throw new FirestoreRestError(failure); return path.startsWith('deviceConfigs/') ? { data: { ownerId: 'owner-a' } } : docs.get(path); },
     listDocuments: async path => path.endsWith('/cats') ? [{ id: 'cat-a', data: { name: 'Cat' } }, ...(duplicateTag ? [{ id: 'cat-b', data: { name: 'Other' } }] : [])] : [{ id: 'cat-a', data: { rfidTag: 'AABB' } }, ...(duplicateTag ? [{ id: 'cat-b', data: { rfidTag: 'AABB' } }] : [])],
     createSetWrite: (path, data) => ({ path, data }), createIncrementWrite: (path, data, change) => ({ path, data, change }),
-    commit: async writes => { for (const write of writes) { if (snapshotFailure && write.path.endsWith('/deviceState/current')) throw new Error('Snapshot failed'); docs.set(write.path, { data: write.data }); if (write.change) increments += write.change.visits; } },
+    commit: async writes => { if (sdkFailure) throw Object.assign(new Error('Private SDK failure'), { code: sdkFailure }); for (const write of writes) { if (snapshotFailure && write.path.endsWith('/deviceState/current')) throw new Error('Snapshot failed'); docs.set(write.path, { data: write.data }); if (write.change) increments += write.change.visits; } },
   };
   const route = loadTs(new URL('./route.ts', import.meta.url), {
     '@/lib/utils/catVisitIngestion': backup, '@/lib/utils/catHistoryNormalization': normalization,
+    '@/lib/utils/catVisitRecovery': loadVisitWriter(client, token, sync, backup, normalization),
     '@/lib/utils/catHistoryStore': { readVisitBackupsById: async (_owner, ids) => ids.flatMap(id => rows.has(id) ? [rows.get(id)] : []) },
     '@/lib/utils/firestoreRest': { FirestoreRestError, getFirestoreRestClient: () => client }, '@/lib/utils/sensorSync': sync,
     '@/lib/utils/deviceSensorSnapshot': { buildDeviceSensorSnapshot, toDeviceSensorsResponse }, '@/lib/utils/gasUltrasonic': require('../../../lib/utils/gasUltrasonic.ts'),
@@ -389,6 +396,9 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
   assert.equal(response.headers.get('x-litersense-ack'), event.eventId);
   assert.equal(increments, afterFirst);
   assert.equal(rows.size, 1);
+  response = await rawPost([{ ...event, durationSecs: 33 }]); await flush();
+  assert.equal(response.status, 409, 'Meaningful primary identity conflict must not acknowledge a saved visit');
+  assert.equal(response.headers.get('x-litersense-ack'), null); assert.equal(increments, afterFirst);
   duplicateTag = true;
   response = await rawPost([{ ...event, eventId: 'ambiguous' }]); await flush();
   assert.equal(response.headers.get('x-litersense-ack'), '');
@@ -398,5 +408,11 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
   assert.equal(response.status, 503); assert.equal(response.headers.get('x-litersense-ack'), null);
   await flush();
   assert.equal(rows.get('sync_snapshot-failed').state, 'primary_saved', 'A later snapshot failure cannot lose the confirmed visit backup');
+  snapshotFailure = false; sdkFailure = 14;
+  response = await rawPost([{ ...event, eventId: 'sdk-unavailable' }]); await flush();
+  assert.equal(response.status, 503); assert.equal(response.headers.get('x-litersense-ack'), null); assert.equal(rows.get('sync_sdk-unavailable').state, 'pending');
+  sdkFailure = 7;
+  response = await rawPost([{ ...event, eventId: 'sdk-forbidden' }]); await flush();
+  assert.equal(response.status, 403); assert.equal(rows.has('sync_sdk-forbidden'), false);
   assert.ok(smsCalls > 0); assert.equal(senderCalls, 0);
 });

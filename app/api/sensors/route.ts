@@ -29,6 +29,8 @@ import { backupSensorVisits, preserveFirmwareVisitTime } from "@/lib/utils/catVi
 import { buildVisitBackup } from "@/lib/utils/catHistoryNormalization";
 import { readVisitBackupsById } from "@/lib/utils/catHistoryStore";
 import type { VisitBackup } from "@/lib/interfaces/CatHistoryBackup";
+import { createHash } from 'node:crypto';
+import { persistVisitOnce, primaryVisitFailureStatus, VisitAuthorityError, VisitConflictError } from '@/lib/utils/catVisitRecovery';
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -573,14 +575,6 @@ async function processSensorEvents(args: {
       sessionId,
       serverNow,
     });
-    const existingSession = await client.getDocument(plan.sessionPath);
-    if (existingSession) {
-      try { saved.push(buildVisitBackup(sessionId, existingSession.data, null, "primary_saved")); }
-      catch { console.warn("Existing visit could not be serialized; history repair requires review."); }
-      duplicates.push({ sessionId, catId });
-      continue;
-    }
-
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
       try {
         const original = (await readVisitBackupsById(ownerId, [sessionId]))[0];
@@ -592,19 +586,19 @@ async function processSensorEvents(args: {
       } catch { console.warn("Visit backup lookup unavailable; primary persistence continues."); }
     }
 
-    await client.commit([
-      client.createSetWrite(plan.sessionPath, plan.sessionData, {
-        exists: false,
-      }),
-      ...plan.summaryPaths.map((path) =>
-        client.createIncrementWrite(path, plan.summaryData, {
-          visits: 1,
-          totalDurationSecs: plan.durationSecs,
-        }),
-      ),
-    ]);
-    try { saved.push(buildVisitBackup(sessionId, plan.sessionData, null, "primary_saved")); }
-    catch { console.warn("Confirmed visit could not be serialized; history repair requires review."); }
+    const candidate = buildVisitBackup(sessionId, plan.sessionData, createHash('sha256').update(configToken).digest('hex'), 'primary_saved');
+    const outcome = await persistVisitOnce(ownerId, candidate);
+    if (outcome === 'conflict') throw new VisitConflictError();
+    if (outcome === 'duplicate') {
+      const existingSession = await client.getDocument(plan.sessionPath);
+      if (existingSession) {
+        try { saved.push(buildVisitBackup(sessionId, existingSession.data, candidate.tokenHash, 'primary_saved')); }
+        catch { console.warn('Existing visit could not be serialized; history repair requires review.'); }
+      }
+      duplicates.push({ sessionId, catId });
+      continue;
+    }
+    saved.push(candidate);
     recorded.push({ sessionId, catId });
     recordedEvents.push(event);
   }
@@ -714,9 +708,10 @@ async function handleSensorSync(
     return buildSyncResponse({ normalized, recorded, duplicates, unmatched, enrollmentId: enrollment && enrollment.deviceId === deviceId && isEnrollmentActive(enrollment, serverNow.getTime()) ? enrollment.id : "", enrollmentAck });
   } catch (error) {
     const isFirestoreError = error instanceof FirestoreRestError;
-    const status = isFirestoreError ? error.status : 500;
-    mirror.fallbackAllowed = isFirestoreError && (status === 429 || status >= 500);
-    const message = getErrorMessage(error);
+    const sdkStatus = primaryVisitFailureStatus(error);
+    const status = isFirestoreError ? error.status : error instanceof VisitAuthorityError ? 403 : error instanceof VisitConflictError ? 409 : sdkStatus ?? 500;
+    mirror.fallbackAllowed = (isFirestoreError || sdkStatus !== null) && (status === 429 || status >= 500);
+    const message = !isFirestoreError && (sdkStatus !== null || error instanceof VisitAuthorityError || error instanceof VisitConflictError) ? 'Visit persistence failed; retry or review the device authority and session identity.' : getErrorMessage(error);
 
     console.error("ESP32 sensor sync failed.", {
       status,
