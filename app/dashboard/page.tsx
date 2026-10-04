@@ -341,17 +341,21 @@ const getRecentVisits = (
 const getReadingStatus = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
   connection: SensorDisplayStatus,
-) => (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable" ? connection.status : reading.status);
+) => (!reading.online || reading.displayValue === "Syncing" || ["Unavailable", "Status unavailable", "Stale"].includes(connection.value) ? connection.status : reading.status);
 
 const getReadingStatusLabel = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
   connection: SensorDisplayStatus,
 ) => {
-  if (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable") return connection.label;
+  if (!reading.online || reading.displayValue === "Syncing" || ["Unavailable", "Status unavailable", "Stale"].includes(connection.value)) return connection.label;
   if (reading.status === "alert") return "Alert";
   if (reading.status === "watch") return "Watch";
   return "Normal";
 };
+
+const sensorSubtitle = (name: string, status: SensorDisplayStatus) => status.lastUpdatedAt
+  ? `${name ? `${name} · ` : ""}Last update: ${new Date(status.lastUpdatedAt).toLocaleString()}`
+  : name;
 
 function CatAvatar({
   cat,
@@ -620,6 +624,7 @@ function PopulatedDashboardState({
               icon={Radio}
               value={rfidStatus.value}
               label="RFID Reader"
+              subtitle={sensorSubtitle("", rfidStatus)}
               status={rfidStatus.status}
               statusLabel={rfidStatus.label}
             />
@@ -636,21 +641,21 @@ function PopulatedDashboardState({
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard
               icon={Droplets}
-              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
+              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
-              subtitle="Ammonia (NH3)"
+              subtitle={sensorSubtitle("Ammonia (NH3)", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.ammonia, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.ammonia, airQualityStatus)}
             />
             <StatCard
               icon={CloudFog}
-              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
+              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
               label="Stool Odor"
-              subtitle="Hydrogen Sulfide (H2S)"
+              subtitle={sensorSubtitle("Hydrogen Sulfide (H2S)", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s, airQualityStatus)}
             />
-            <StatCard icon={Radio} value={ultrasonicStatus.value} label="Ultrasonic Distance" subtitle="HC-SR04" status={ultrasonicStatus.status} statusLabel={ultrasonicStatus.label} />
+            <StatCard icon={Radio} value={ultrasonicStatus.value} label="Ultrasonic Distance" subtitle={sensorSubtitle("HC-SR04", ultrasonicStatus)} status={ultrasonicStatus.status} statusLabel={ultrasonicStatus.label} />
           </div>
         </section>
 

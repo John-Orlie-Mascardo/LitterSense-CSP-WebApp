@@ -4,6 +4,17 @@ import { smsStoreRequest } from "./smsAccountSync";
 export type SensorSource = "rfid" | "gas-ultrasonic";
 export type StoredSensorSnapshot = { source: SensorSource; data: Record<string, unknown>; receivedAt: string };
 
+export function selectSensorSnapshot(source: SensorSource, firebase: StoredSensorSnapshot | null, mirrors: StoredSensorSnapshot[], now: number): StoredSensorSnapshot | null {
+  let selected: StoredSensorSnapshot | null = null;
+  for (const snapshot of [firebase, ...mirrors]) {
+    if (!snapshot || snapshot.source !== source) continue;
+    const receipt = Date.parse(snapshot.receivedAt);
+    if (!Number.isFinite(receipt) || receipt > now) continue;
+    if (!selected || receipt > Date.parse(selected.receivedAt)) selected = snapshot;
+  }
+  return selected;
+}
+
 const RFID_FIELDS = ["online", "rfidHex", "rfidCard", "lastRfidMs", "rfidEvent", "sessionActive", "activeRfidHex", "activeRfidCard", "activeSessionStartMs", "activeSessionDurationMs", "currentSessionStatus", "lastSessionStatus", "lastSessionDurationMs", "lastSessionEndMs", "completedSessionCount", "falseEntryCount", "noExitTimeoutCount", "noExitTimeoutMs", "lastRecordedEventId"];
 const GAS_FIELDS = ["gasUltrasonicOnline", "mq135", "mq136", "mq135Raw", "mq136Raw", "distanceCm"];
 

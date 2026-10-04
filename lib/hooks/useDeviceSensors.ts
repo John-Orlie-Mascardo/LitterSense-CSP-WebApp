@@ -4,6 +4,12 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 import { useAuth } from "@/lib/contexts/AuthContext";
 
 export type DeviceSensors = {
+  rfidUpdatedAt?: string;
+  gasUltrasonicUpdatedAt?: string;
+  rfidDataSource?: "firebase" | "supabase";
+  gasUltrasonicDataSource?: "firebase" | "supabase";
+  rfidState?: "online" | "stale" | "unknown";
+  gasUltrasonicState?: "online" | "stale" | "unknown";
   online: boolean;
   gasUltrasonicOnline?: boolean;
   distanceCm?: number | null;

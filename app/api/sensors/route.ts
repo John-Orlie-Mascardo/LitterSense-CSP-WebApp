@@ -23,7 +23,7 @@ import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type Rf
 import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
 import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
-import { rememberSensorDevice, saveSensorMirror } from "@/lib/utils/sensorSnapshotStore";
+import { rememberSensorDevice, saveSensorMirror, readSensorMirrors, selectSensorSnapshot, type StoredSensorSnapshot } from "@/lib/utils/sensorSnapshotStore";
 import { after } from "next/server";
 
 export const runtime = "nodejs";
@@ -145,13 +145,44 @@ async function getPrimarySensors(request: Request) {
     }
     try {
       const client = getFirestoreRestClient();
-      const [snapshot, gasSnapshot] = await Promise.all([
+      const results = await Promise.allSettled([
         client.getDocument(`users/${ownerId}/deviceState/current`),
         client.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
       ]);
+      for (const result of results) {
+        if (result.status === "rejected" && !(result.reason instanceof FirestoreRestError && (result.reason.status === 429 || result.reason.status >= 500))) throw result.reason;
+      }
+      const sources = ["rfid", "gas-ultrasonic"] as const;
+      const firebase = results.map((result, index): StoredSensorSnapshot | null => {
+        if (result.status !== "fulfilled" || !result.value) return null;
+        const data = result.value.data;
+        return { source: sources[index], data, receivedAt: getString(data.updatedAt) };
+      });
+      let now = Date.now();
+      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= 180000;
+      let mirrors: StoredSensorSnapshot[] = [];
+      if (!firebase.every(fresh)) {
+        try {
+          mirrors = await readSensorMirrors(ownerId);
+        } catch {
+          if (results.some((result) => result.status === "rejected")) throw new Error("Sensor stores unavailable");
+        }
+      }
+      now = Date.now();
+      const rfid = selectSensorSnapshot("rfid", firebase[0], mirrors, now);
+      const gas = selectSensorSnapshot("gas-ultrasonic", firebase[1], mirrors, now);
+      const rfidResponse = toDeviceSensorsResponse(rfid ? { ...rfid.data, updatedAt: rfid.receivedAt } : {}, { now: new Date(now) });
       return Response.json({
-        ...toDeviceSensorsResponse(snapshot?.data ?? {}),
-        ...(gasSnapshot ? toGasUltrasonicResponse(gasSnapshot.data) : {}),
+        ...rfidResponse,
+        sessionActive: rfidResponse.online && rfidResponse.sessionActive,
+        updatedAt: rfid?.receivedAt ?? "",
+        ...toGasUltrasonicResponse(gas ? { ...gas.data, updatedAt: gas.receivedAt } : {}, now),
+        rfidUpdatedAt: rfid?.receivedAt ?? "",
+        gasUltrasonicUpdatedAt: gas?.receivedAt ?? "",
+        rfidDataSource: rfid ? rfid === firebase[0] ? "firebase" : "supabase" : undefined,
+        gasUltrasonicDataSource: gas ? gas === firebase[1] ? "firebase" : "supabase" : undefined,
+        rfidState: !rfid ? "unknown" : fresh(rfid) && rfidResponse.online ? "online" : "stale",
+        gasUltrasonicState: !gas ? "unknown" : fresh(gas) && normalizeGasUltrasonic(gas.data) ? "online" : "stale",
       }, { headers: NO_STORE_HEADERS });
     } catch {
       return Response.json({ error: "Unable to read device state" }, { status: 503, headers: NO_STORE_HEADERS });

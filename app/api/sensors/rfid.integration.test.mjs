@@ -21,6 +21,66 @@ function loadTs(url, imports = {}) {
   return loadedModule.exports;
 }
 
+const { selectSensorSnapshot } = loadTs(new URL("../../../lib/utils/sensorSnapshotStore.ts", import.meta.url), { "node:crypto": {}, "./smsAccountSync": {} });
+
+test("authenticated display falls back during quota and recovery, preserving source age and owner isolation", async () => {
+  class FirestoreRestError extends Error { constructor(status) { super("failure"); this.status = status; } }
+  let failure = 429, backupFailure = false, reads = 0;
+  const fresh = new Date(Date.now() - 1000).toISOString(), old = new Date(Date.now() - 181000).toISOString();
+  let receipt = fresh, primaryReceipt = old;
+  const route = loadTs(new URL("./route.ts", import.meta.url), {
+    "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async (owner) => {
+      reads++;
+      if (backupFailure) throw new Error("backup unavailable");
+      return owner === "owner-a" ? [{ source: "rfid", receivedAt: receipt, data: { online: true, sessionActive: true } }, { source: "gas-ultrasonic", receivedAt: fresh, data: { mq135Raw: 1, mq136Raw: 0, distanceCm: 15 } }] : [];
+    } },
+    "@/lib/utils/firestoreRest": { FirestoreRestError, getFirestoreRestClient: () => ({ getDocument: async (path) => {
+      if (failure) throw new FirestoreRestError(failure);
+      return { data: path.endsWith("current") ? { online: true, sessionActive: false, updatedAt: primaryReceipt } : { mq135Raw: 1, mq136Raw: 1, distanceCm: 20, updatedAt: fresh } };
+    } }) },
+    "@/lib/utils/sensorSync": {}, "@/lib/utils/sensorEndpointDiagnostics": {},
+    "@/lib/utils/deviceSensorSnapshot": { toDeviceSensorsResponse },
+    "@/lib/utils/gasUltrasonic": require("../../../lib/utils/gasUltrasonic.ts"),
+    "@/lib/utils/rfidEnrollment": {}, "@/lib/utils/sensorSms": {}, "@/lib/utils/smsDelivery": {}, "next/server": {},
+    "@/lib/configs/firebase-admin": { getAdminAuth: () => ({ verifyIdToken: async (token) => { if (token === "bad") throw new Error("bad"); return { uid: token }; } }) },
+  });
+  const get = (owner = "owner-a") => route.GET(new Request("https://test/api/sensors", { headers: { Authorization: `Bearer ${owner}` } }));
+  let response = await get(), data = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(data.rfidDataSource, "supabase");
+  assert.equal(data.online, true);
+  assert.equal(data.gasUltrasonicOnline, true);
+  assert.equal(data.rfidUpdatedAt, fresh);
+  assert.equal(data.mq136, "Gas Detected");
+  data = await (await get("owner-b")).json();
+  assert.equal(data.rfidState, "unknown");
+  assert.equal(data.online, false);
+  assert.equal(data.rfidUpdatedAt, "", "empty storage must not invent a current heartbeat");
+  failure = 0;
+  data = await (await get()).json();
+  assert.equal(data.rfidDataSource, "supabase", "recovery must not replace a newer backup with old Firebase data");
+  assert.equal(data.gasUltrasonicDataSource, "firebase", "Firebase wins equal receipts");
+  receipt = old;
+  data = await (await get()).json();
+  assert.equal(data.rfidState, "stale");
+  assert.equal(data.sessionActive, false);
+  assert.equal(data.gasUltrasonicState, "online");
+  assert.equal(data.rfidUpdatedAt, old);
+  primaryReceipt = fresh;
+  const beforeHealthy = reads;
+  data = await (await get()).json();
+  assert.equal(data.rfidDataSource, "firebase");
+  assert.equal(reads, beforeHealthy, "fresh Firebase readings should not require backup reads");
+  failure = 403;
+  const before = reads;
+  assert.equal((await get()).status, 503);
+  assert.equal(reads, before, "permission failures must not enable fallback");
+  assert.equal((await get("bad")).status, 401);
+  assert.equal(reads, before);
+  failure = 503; backupFailure = true;
+  assert.equal((await get()).status, 503);
+});
+
 test("RFID entry, exit, retry and authenticated owner snapshot through the route", async (t) => {
   const oldUrl = process.env.ESP32_GAS_ULTRASONIC_URL;
   process.env.ESP32_GAS_ULTRASONIC_URL = "http://old-board.test/sensors";
@@ -47,7 +107,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     },
   };
   const route = loadTs(new URL("./route.ts", import.meta.url), {
-    "@/lib/utils/sensorSnapshotStore": { rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
+    "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async () => [], rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
     "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
     "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
     "next/server": { after: () => {} },
@@ -94,6 +154,8 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 181000).toISOString();
   displayed = await getOwner();
   assert.equal(displayed.gasUltrasonicOnline, false);
+  assert.equal(displayed.gasUltrasonicState, "stale");
+  assert.equal(displayed.rfidState, "online");
   assert.equal(displayed.distanceCm, null);
   assert.equal(displayed.sessionActive, true, "gas expiry must not clear RFID state");
   assert.equal((await post({ ...gas, distanceCm: null })).status, 200);
