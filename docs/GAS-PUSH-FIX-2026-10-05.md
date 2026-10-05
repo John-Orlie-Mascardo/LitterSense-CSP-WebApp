@@ -8,7 +8,7 @@
 - Both gas preferences are enabled, quiet hours are disabled, and two devices are registered on the affected account.
 - User reports that the latest NH3 notice appeared only inside the app. Closed-phone delivery is not considered verified by the database's aggregate status.
 
-## Prepared changes
+## Implemented changes
 
 1. `docs/gas-push-cooldown.sql`: replace only the existing ingestion function. On a new Clear -> Detected transition, each gas can queue push again after one minute. SMS remains limited to once per gas per hour. Continuous detection and repeated uploads do not repeat alerts. Preferences still apply; existing workers still enforce quiet hours. No historical alerts are requeued, and no tables or existing visit records change.
 2. `lib/utils/pushDelivery.ts`: request `Urgency: high` for gas alerts only, retain the existing one-hour TTL, and save each gas target's provider acceptance/error under `context.pushDelivery`. Device tokens are represented by SHA-256 hashes, never raw tokens. A PC acceptance no longer hides a phone rejection in diagnostic evidence. Partial batches are not blindly resent.
@@ -26,9 +26,18 @@ The dashboard inbox bridge remains unchanged. An inbox item is not a delivery re
 
 Urgency asks the push service to prioritize an important message; it cannot guarantee a display or bypass browser/phone restrictions. Reference: https://web.dev/articles/push-notifications-web-push-protocol#urgency
 
-## Publishing and physical verification remaining
+## Production publishing completed
 
-Apply the reviewed `gas-push-cooldown.sql` migration to the existing Supabase project and deploy the tested app after publishing approval. No new Supabase project is needed.
+- User approved publishing. Migration `gas_push_independent_cooldown` applied successfully to the existing Supabase project `yrshzmpyiibchtznbjkv` on October 5, 2026.
+- Live function checks confirm the one-minute push limit, separate hourly SMS limit, and server-only execution permissions (service role allowed; anonymous and signed-in browser roles denied).
+- Implementation checkpoint: `17691a1`.
+- Production deployment: `dpl_88Gb2Jfex3j4yS193qqHYchPaxwR`, state READY; alias `https://litter-sense-csp-web-app.vercel.app` verified against that deployment.
+- Vercel reran lint, all 282 app tests, 4 camera relay tests, TypeScript and the production build successfully.
+- Live public asset check confirms the dashboard includes the accessible dismiss-button label and the root push worker and PWA manifest remain available. This is an asset check, not a phone delivery or visual interaction test.
+- Runtime-error log lookup timed out; it did not establish the presence or absence of errors.
+- No synthetic production gas events or extra test messages were sent during publishing. The latest observed gas snapshot before deployment verification showed both raw readings at 1 (Clear).
+
+## Physical verification remaining
 
 After deployment:
 
