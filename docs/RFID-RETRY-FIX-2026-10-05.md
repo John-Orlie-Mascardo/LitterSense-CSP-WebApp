@@ -24,4 +24,14 @@ The accompanying SQL is a reviewed, guarded recovery operation, not a schema mig
 
 Focused tests: 22 passed. Full gate: 280 application tests and 4 camera-relay tests passed; lint, TypeScript and the production build passed. The initial sandboxed camera gate could not complete its socket tests; the approved socket-capable rerun passed them.
 
-No firmware, sensor configuration, gas cooldown, SMS templates, UI or production database was changed. Publishing and executing the guarded recovery operation require the user's staged release approval. Physical timing and closed-app delivery remain unverified until deployed and tested with the real board.
+No firmware, sensor configuration, gas cooldown, SMS templates or UI was changed. Physical timing and closed-app delivery still require a real board test.
+
+## Approved production release
+
+After user approval, checkpoint `d8765ce475ad8cb1c4349b6ecfe09b2c4d791468` was deployed as `dpl_4v1qxZBrv8kQy22HDrzSPE7mfyrU` and aliased to https://litter-sense-csp-web-app.vercel.app. Vercel repeated the complete gate: 280 application tests, 4 camera tests, lint, TypeScript and production build passed.
+
+The guarded SQL completed successfully for both unchanged fingerprints. Both original timestamps and digests remain unchanged; their conflict flags were cleared and the existing recovery worker subsequently claimed them. Firebase restoration is not yet confirmed while quota errors persist. A manual recovery request returned 401 because the local environment lacks `CAT_HISTORY_PROCESS_SECRET`; no credential was changed, and the existing production worker already claimed the rows.
+
+New-deployment runtime logs show board POSTs returning HTTP 200 through the durable backup path even while their primary Firebase operation reports quota errors. Idle or other unacknowledged uploads can still return 429. This does not prove physical delivery timing; the user was asked to perform a fresh entry/exit test.
+
+A failed local release-export attempt created an empty separate Vercel project named `rfid-repair-d8765ce`; it never replaced the LitterSense alias and was removed during this turn. The corrected release archive was verified to contain `package.json`, the existing project link, and no `.env.local` before the actual deployment.
