@@ -25,8 +25,8 @@ export async function processPushOutbox(ownerId?: string) {
   if (!claimed.ok) throw new Error('Unable to claim push alerts');
   const records = await claimed.json() as PushRecord[];
   for (const record of records) {
-    const patch = async (status: string) => {
-      const response = await smsStoreRequest(`sms_outbox?id=eq.${encodeURIComponent(record.id)}&push_status=eq.sending`, { method: 'PATCH', body: JSON.stringify({ push_status: status }) });
+    const patch = async (status: string, context?: Record<string, unknown>) => {
+      const response = await smsStoreRequest(`sms_outbox?id=eq.${encodeURIComponent(record.id)}&push_status=eq.sending`, { method: 'PATCH', body: JSON.stringify({ push_status: status, ...(context ? { context } : {}) }) });
       if (!response.ok) throw new Error('Unable to record push delivery');
     };
     const response = await smsStoreRequest(`sms_accounts?owner_id=eq.${encodeURIComponent(record.owner_id)}&select=fcm_tokens,phone_number,notifications,cats`);
@@ -44,12 +44,21 @@ export async function processPushOutbox(ownerId?: string) {
     }
     const tokens = account.fcm_tokens.filter(token => !record.context.targetTokenHash || createHash('sha256').update(token).digest('hex') === record.context.targetTokenHash).slice(0, 20);
     if (!tokens.length) { await patch('cancelled'); continue; }
+    const gasAlert = record.reason === 'Ammonia detected' || record.reason === 'Hydrogen sulfide detected';
     let result;
     try {
-      result = await getAdminMessaging().sendEachForMulticast({ tokens, notification: { title: record.context.title ?? 'LitterSense Alert', body: record.context.body ?? buildAlertMessage(record.reason, { ...record.context, occurredAt: record.context.occurredAt ?? record.created_at, catName: account.cats.find(cat => cat.id === record.cat_id)?.name }) }, data: { eventKey: record.event_key, url: record.context.url?.startsWith('/dashboard') ? record.context.url : '/dashboard' }, webpush: { headers: { TTL: '3600' } } });
+      result = await getAdminMessaging().sendEachForMulticast({ tokens, notification: { title: record.context.title ?? 'LitterSense Alert', body: record.context.body ?? buildAlertMessage(record.reason, { ...record.context, occurredAt: record.context.occurredAt ?? record.created_at, catName: account.cats.find(cat => cat.id === record.cat_id)?.name }) }, data: { eventKey: record.event_key, url: record.context.url?.startsWith('/dashboard') ? record.context.url : '/dashboard' }, webpush: { headers: { TTL: '3600', ...(gasAlert ? { Urgency: 'high' } : {}) } } });
     } catch { await patch('unknown'); continue; }
     // Never retry a whole batch after some devices already received it.
-    await patch(result.successCount ? 'sent' : 'failed');
+    // Provider acceptance is not proof of display on the phone. Retain each gas target's outcome.
+    await patch(result.successCount ? 'sent' : 'failed', gasAlert ? {
+      ...record.context,
+      pushDelivery: { attemptedAt: new Date().toISOString(), devices: tokens.map((token, index) => ({
+        tokenHash: createHash('sha256').update(token).digest('hex'),
+        accepted: result.responses[index]?.success === true,
+        ...(result.responses[index]?.error ? { errorCode: result.responses[index].error!.code } : {}),
+      })) },
+    } : undefined);
     const invalid = tokens.filter((_, index) => invalidPushToken(result.responses[index]?.error?.code));
     for (const token of invalid) {
       const removed = await smsStoreRequest('rpc/register_push_token', { method: 'POST', body: JSON.stringify({ p_owner_id: record.owner_id, p_token: token, p_remove: true }) });

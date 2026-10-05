@@ -21,6 +21,7 @@ import React, {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import {
   collection,
   deleteDoc,
@@ -405,6 +406,19 @@ const getVisitAnomaly = (
   return { anomaly: true, anomalyType: "Extended duration" };
 };
 
+function CatBackupNotice({ message }: { message: string }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div role="status" className="fixed top-20 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
+      <span className="flex-1">{message}</span>
+      <button type="button" aria-label="Dismiss cat backup notice" onClick={() => setDismissed(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-litter-text-muted hover:bg-white/10 hover:text-litter-text focus-visible:outline-2 focus-visible:outline-litter-accent">
+        <X size={18} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function CatProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const pathname = usePathname();
@@ -624,6 +638,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
   const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error };
+  const backupNotice = backupStatus.error ? 'Cat history is temporarily unavailable. Retrying.' : backupStatus.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.' : backupStatus.mode ? 'Showing saved cat backup while the primary database recovers.' : backupStatus.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
 
   useEffect(() => {
     if (!uid || backupMode || !ownerReady || rawCats.length === 0) {
@@ -955,11 +970,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           <button type="button" className="ml-3 underline" onClick={() => setProfileBackupNotice(null)}>Dismiss</button>
         </div>
       )}
-      {(backupStatus.mode || backupStatus.incomplete || backupStatus.pendingCount > 0 || backupStatus.error) && (
-        <div role="status" className="fixed top-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
-          {backupStatus.error ? 'Cat history is temporarily unavailable. Retrying.' : backupStatus.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.' : backupStatus.mode ? 'Showing saved cat backup while the primary database recovers.' : 'New visits are saved in backup and awaiting recovery.'}
-        </div>
-      )}
+      {backupNotice && <CatBackupNotice key={`${uid}:${backupNotice}`} message={backupNotice} />}
       {children}
     </CatContext.Provider>
   );
