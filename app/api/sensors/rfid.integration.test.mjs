@@ -9,7 +9,7 @@ import { loadVisitWriter } from '../../../lib/utils/testing/catVisitWriter.mjs';
 const require = createRequire(import.meta.url);
 const { buildDeviceSensorSnapshot, toDeviceSensorsResponse } = require("../../../lib/utils/deviceSensorSnapshot.ts");
 function loadTs(url, imports = {}) {
-  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
+  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/rfidNotifications': { queueRfidNotifications: async () => ({ queued: 0 }) }, '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
   const { outputText } = ts.transpileModule(readFileSync(url, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
@@ -92,6 +92,16 @@ test("authenticated display falls back during quota and recovery, preserving sou
 });
 
 test("RFID entry, exit, retry and authenticated owner snapshot through the route", async (t) => {
+  const previousStore = { url: process.env.SUPABASE_URL, key: process.env.SUPABASE_SECRET_KEY };
+  process.env.SUPABASE_URL = 'https://test.invalid';
+  process.env.SUPABASE_SECRET_KEY = 'test-only';
+  t.after(() => {
+    for (const [name, value] of [['SUPABASE_URL', previousStore.url], ['SUPABASE_SECRET_KEY', previousStore.key]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  });
+  const alerts = [];
+  let alertFailure = false;
   const oldUrl = process.env.ESP32_GAS_ULTRASONIC_URL;
   process.env.ESP32_GAS_ULTRASONIC_URL = "http://old-board.test/sensors";
   t.after(() => {
@@ -127,6 +137,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     "@/lib/utils/catHistoryNormalization": loadTs(new URL("../../../lib/utils/catHistoryNormalization.ts", import.meta.url), { "node:crypto": require("node:crypto") }),
     "@/lib/utils/sensorSnapshotStore": { selectSensorSnapshot, readSensorMirrors: async () => [], rememberSensorDevice: async () => {}, saveSensorMirror: async () => true },
     "@/lib/utils/sensorSms": { queueSensorSms: async () => ({ recognized: false, queued: 0 }) },
+    "@/lib/utils/rfidNotifications": { queueRfidNotifications: async (...args) => { if (alertFailure) throw new Error('temporary alert store failure'); alerts.push(args); return { queued: 1, ownerId: 'owner-a' }; } },
     "@/lib/utils/smsDelivery": { processSmsOutbox: async () => ({ enabled: false }) },
     "@/lib/utils/pushDelivery": { processPushOutbox: async () => ({ processed: 0 }) },
     "next/server": { after: () => {} },
@@ -146,11 +157,15 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   }));
   const entry = {sessionActive: true, activeRfidHex: "300833B2DDD9014000000001", activeSessionDurationMs: 0, activeSessionStartMs: Date.now(), events: []};
   assert.equal((await post(entry)).status, 200);
+  assert.equal(alerts.length, 1, 'entry ingestion queues alerts without any dashboard process');
+  assert.equal(alerts[0][0].sessionActive, true);
+  assert.equal(alerts[0][4], 'owner-a');
   assert.equal(docs.get("users/owner-a/deviceState/current").data.sessionActive, true);
   assert.equal(visitIncrements, 0);
   const gas = { source: "gas-ultrasonic", mq135Raw: 0, mq136Raw: 1, distanceCm: 24.5 };
   const rfidBeforeGas = JSON.stringify(docs.get("users/owner-a/deviceState/current"));
   assert.equal((await post(gas)).status, 200);
+  assert.equal(alerts.length, 1, 'gas uploads must not enter the RFID alert path');
   assert.ok(docs.has("users/owner-a/deviceState/gasUltrasonic"), "sensor push must save its own snapshot");
   assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/current")), rfidBeforeGas);
   assert.equal(visitIncrements, 0);
@@ -181,6 +196,8 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await getOwner()).gasUltrasonicOnline, true);
   const exit = {sessionActive: false, events: [{eventId: "boot_1000_11000", status: "NORMAL", durationMs: 10000, rfidHex: entry.activeRfidHex, endedAtMs: Date.now()}]};
   assert.equal((await post(exit)).headers.get("x-litersense-ack"), "boot_1000_11000");
+  assert.equal(alerts.at(-1)[2][0].eventId, 'boot_1000_11000');
+  assert.equal(alerts.at(-1)[5][0], 'sync_boot_1000_11000', 'exit notification requires a persisted visit');
   assert.equal((await getOwner()).gasUltrasonicOnline, true, "RFID exit must not erase gas readings");
   const incrementsAfterExit = visitIncrements;
   assert.ok(incrementsAfterExit > 0);
@@ -188,6 +205,12 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await retry.json()).duplicates, 1);
   assert.equal(retry.headers.get("x-litersense-ack"), "boot_1000_11000");
   assert.equal(visitIncrements, incrementsAfterExit);
+  alertFailure = true;
+  assert.equal((await post(exit)).status, 503, 'alert queue failure requests retry without undoing the saved visit');
+  assert.equal(visitIncrements, incrementsAfterExit);
+  alertFailure = false;
+  assert.equal((await post(exit)).headers.get('x-litersense-ack'), 'boot_1000_11000');
+  assert.equal(visitIncrements, incrementsAfterExit, 'recovered alert queue does not count the visit again');
   assert.equal(docs.get("users/owner-a/sessions/sync_boot_1000_11000").data.durationSecs, 10);
   assert.equal(docs.has("deviceState/current"), false);
   for (const [token, online] of [["owner-a", true], ["owner-b", false]]) {

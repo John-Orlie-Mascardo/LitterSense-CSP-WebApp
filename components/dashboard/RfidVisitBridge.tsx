@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useAirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import { useRfidVisitTracker } from "@/lib/hooks/useRfidVisitTracker";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
 import { useSettings } from "@/lib/hooks/useSettings";
 
@@ -16,10 +15,7 @@ export function RfidVisitBridge() {
   const { addNotification } = useNotifications();
   const { settings } = useSettings();
 
-  useRfidVisitTracker(data, {
-    rfidVisitAlerts: settings.notifications.rfidVisitAlerts,
-    addNotification,
-  });
+  // RFID notices originate in authenticated sensor ingestion, even with no dashboard open.
 
   useEffect(() => {
     gasAlerts.current.clear();

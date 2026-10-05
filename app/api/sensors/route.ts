@@ -24,6 +24,7 @@ import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } f
 import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
 import { processPushOutbox } from '@/lib/utils/pushDelivery';
+import { queueRfidNotifications } from '@/lib/utils/rfidNotifications';
 import { rememberSensorDevice, saveSensorMirror, readSensorMirrors, selectSensorSnapshot, type StoredSensorSnapshot } from "@/lib/utils/sensorSnapshotStore";
 import { after } from "next/server";
 import { backupSensorVisits, preserveFirmwareVisitTime } from "@/lib/utils/catVisitIngestion";
@@ -396,6 +397,19 @@ export async function POST(request: Request) {
       const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: true }, mirror.receivedAt);
       if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
     } catch { console.warn("Outage visit backup unavailable; original device retry response preserved."); }
+  }
+  if ((response.ok || mirror.fallbackAllowed) && payload.source !== 'gas-ultrasonic' && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    try {
+      const alerts = await queueRfidNotifications(payload, configToken, normalized.events, mirror.receivedAt, mirror.ownerId, mirror.fallbackAllowed ? undefined : mirror.saved.map(visit => visit.sessionId));
+      if (alerts.ownerId) after(async () => {
+        try { await processPushOutbox(alerts.ownerId); }
+        catch { console.warn('Queued RFID push will be processed on the next worker run.'); }
+      });
+    } catch {
+      console.warn('RFID alert queue unavailable; device retry required.');
+      // The visit remains saved. Firmware retries its stable event ID without counting it twice.
+      if (response.ok) return Response.json({ ok: false, error: 'RFID alert queue unavailable. Retry sensor sync.' }, { status: 503, headers: NO_STORE_HEADERS });
+    }
   }
   // During a Firestore outage, use the previously verified device ownership backup.
   // Preserve the original status and ack: SMS storage never acknowledges visit history.

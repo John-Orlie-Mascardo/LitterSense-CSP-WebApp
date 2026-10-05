@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       if (!saved.exists) return Response.json({ error: 'Notification not found' }, { status: 404 });
       data = saved.data() ?? {};
       // Gas and health alerts already originate in the sensor queue, including while the app is closed.
-      if (!['rfid_visit','litter_level','admin','system'].includes(String(data.source))) return Response.json({ queued: false });
+      // RFID alerts now originate in sensor ingestion. Old open tabs cannot send a second push.
+      if (!['litter_level','admin','system'].includes(String(data.source))) return Response.json({ queued: false });
       const createdAt = data.createdAt as { toMillis?: () => number } | undefined;
       if (!createdAt?.toMillis || Date.now()-createdAt.toMillis()>3600000) return Response.json({ queued: false });
       eventKey = `push:${uid}:${notificationId}`;
