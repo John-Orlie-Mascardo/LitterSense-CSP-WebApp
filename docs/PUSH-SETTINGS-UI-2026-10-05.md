@@ -13,4 +13,10 @@
 
 Notification transport, gas/SMS cooldowns, alert preferences, database functions and the existing foreground notification component are unchanged. No messages were sent during these checks.
 
-Ready for publishing approval. After deployment, verify that a registered phone shows the enabled label, Troubleshooting starts collapsed, and a new device still has an Enable button. Closed-app NH3/H2S delivery verification remains pending from the gas task.
+## Production release
+
+Published with user approval from checkpoint `083b06a`. Deployment `dpl_CCPtiQeJC3q71PKitpEGdiTZ46iw` is READY and the production alias `https://litter-sense-csp-web-app.vercel.app` points to it. Vercel passed lint, all 288 tests, TypeScript and the production build. No database migration was needed for this UI change.
+
+The live Settings assets contain the enabled status and Notification troubleshooting section. The root `/sw.js` remains available and includes notification display handling. This verifies published assets, not physical phone delivery.
+
+Phone verification remains: confirm a registered phone shows the enabled label, Troubleshooting starts collapsed, and a new device still has an Enable button. Closed-app NH3/H2S delivery verification remains pending from the gas task.
