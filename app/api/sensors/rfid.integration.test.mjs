@@ -337,7 +337,7 @@ test("live upload mirroring survives quota but never acknowledges unsaved visits
   assert.equal(response.headers.get("x-litersense-ack"), null);
 });
 
-test("queueDoesNotAckHistory; durable outage visits and actual primary records mirror without changing enrollment, SMS or live sensors", async (t) => {
+test("durable outage visits acknowledge only verified storage; primary recovery counts once", async (t) => {
   const previous = [process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY];
   process.env.SUPABASE_URL = "https://backup.test"; process.env.SUPABASE_SECRET_KEY = "test";
   t.after(() => { for (const [index, key] of ["SUPABASE_URL", "SUPABASE_SECRET_KEY"].entries()) { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; } });
@@ -390,12 +390,12 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
   assert.equal(answered, false, 'Outage response must await durable visit storage');
   release(); beforeStore = null;
   let response = await waiting;
-  assert.equal(response.status, 429); assert.equal(rows.size, 1);
-  assert.equal(response.headers.get('x-litersense-ack'), null);
+  assert.equal(response.status, 200); assert.equal(rows.size, 1);
+  assert.equal(response.headers.get('x-litersense-ack'), event.eventId);
   assert.equal((await response.json()).enrollmentAck, undefined);
   await flush();
   response = await rawPost([event]); await flush();
-  assert.equal(rows.size, 1); assert.equal(response.headers.get('x-litersense-ack'), null);
+  assert.equal(rows.size, 1); assert.equal(response.headers.get('x-litersense-ack'), event.eventId);
   assert.equal([...rows.values()][0].state, 'pending');
   assert.equal(snapshots.at(-1)[1], 'rfid'); assert.equal(increments, 0);
   revoked = true; await rawPost([{ ...event, eventId: 'revoked' }]); await flush();
@@ -434,7 +434,7 @@ test("queueDoesNotAckHistory; durable outage visits and actual primary records m
   assert.equal(rows.get('sync_snapshot-failed').state, 'primary_saved', 'A later snapshot failure cannot lose the confirmed visit backup');
   snapshotFailure = false; sdkFailure = 14;
   response = await rawPost([{ ...event, eventId: 'sdk-unavailable' }]); await flush();
-  assert.equal(response.status, 503); assert.equal(response.headers.get('x-litersense-ack'), null); assert.equal(rows.get('sync_sdk-unavailable').state, 'pending');
+  assert.equal(response.status, 200); assert.equal(response.headers.get('x-litersense-ack'), 'sdk-unavailable'); assert.equal(rows.get('sync_sdk-unavailable').state, 'pending');
   sdkFailure = 7;
   response = await rawPost([{ ...event, eventId: 'sdk-forbidden' }]); await flush();
   assert.equal(response.status, 403); assert.equal(rows.has('sync_sdk-forbidden'), false);

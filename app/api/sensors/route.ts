@@ -370,7 +370,7 @@ export async function POST(request: Request) {
     mirror.receivedAt,
   );
 
-  const response = await handleSensorSync(body, configToken, normalized, mirror);
+  let response = await handleSensorSync(body, configToken, normalized, mirror);
   if ((response.ok || mirror.fallbackAllowed) && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
     after(async () => {
       try {
@@ -396,6 +396,7 @@ export async function POST(request: Request) {
     try {
       const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: true }, mirror.receivedAt);
       if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
+      if (result.acknowledgedEventId) response = Response.json({ ok: true, source: 'supabase', recoveryPending: true }, { headers: { ...NO_STORE_HEADERS, 'x-litersense-ack': result.acknowledgedEventId } });
     } catch { console.warn("Outage visit backup unavailable; original device retry response preserved."); }
   }
   if ((response.ok || mirror.fallbackAllowed) && payload.source !== 'gas-ultrasonic' && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {

@@ -8,7 +8,7 @@ import { buildSessionDocumentId, buildVisitWritePlan, COUNTABLE_SESSION_STATUSES
 // Preserve the first observation only for the exact boot/start/end identity and <1s clock jitter.
 export function preserveFirmwareVisitTime(candidate: VisitBackup, original: VisitBackup): VisitBackup {
   if (candidate.sessionId !== original.sessionId) return candidate;
-  const identity = /^sync_[a-fA-F0-9]{1,16}_(\d{1,10})_(\d{1,10})$/.exec(candidate.sessionId);
+  const identity = /^sync_[a-fA-F0-9]{1,32}_(\d{1,10})_(\d{1,10})$/.exec(candidate.sessionId);
   if (!identity) return candidate;
   const start = Number(identity[1]), end = Number(identity[2]);
   if (start > 0xffffffff || end > 0xffffffff || candidate.data.durationSecs !== Math.max(1, Math.round(((end - start + 0x100000000) % 0x100000000) / 1000))) return candidate;
@@ -24,10 +24,10 @@ export async function backupSensorVisits(
   normalized: SensorSyncRequest,
   primary: { ownerId?: string; saved: VisitBackup[]; fallbackAllowed: boolean },
   receivedAt: Date,
-): Promise<{ inserted: number; duplicates: number; conflicts: number }> {
+): Promise<{ inserted: number; duplicates: number; conflicts: number; acknowledgedEventId?: string }> {
   if (!/^[A-Za-z0-9_-]{16,256}$/.test(configToken) || !Number.isFinite(receivedAt.getTime())) throw new Error('Invalid visit backup request');
   const tokenHash = createHash('sha256').update(configToken).digest('hex');
-  const result = { inserted: 0, duplicates: 0, conflicts: 0 };
+  const result: { inserted: number; duplicates: number; conflicts: number; acknowledgedEventId?: string } = { inserted: 0, duplicates: 0, conflicts: 0 };
   const store = async (ownerId: string, visits: VisitBackup[]) => {
     for (let offset = 0; offset < visits.length; offset += 100) {
       const saved = await saveVisitBackups(ownerId, visits.slice(offset, offset + 100));
@@ -71,5 +71,14 @@ export async function backupSensorVisits(
     pending.push(buildVisitBackup(sessionId, plan.sessionData, tokenHash, 'pending'));
   }
   await preserveAndStore(device.ownerId, pending);
+  // Release the board's queue only after the exact visit is durably stored for its verified owner.
+  if (!result.conflicts && normalized.events.length === 1 && !normalized.ignored.length) {
+    const event = normalized.events[0];
+    const candidate = pending.find(visit => visit.sessionId === buildSessionDocumentId(configToken, event));
+    if (candidate && /^[A-Za-z0-9_-]{1,96}$/.test(event.eventId)) {
+      const stored = (await readVisitBackupsById(device.ownerId, [candidate.sessionId]))[0];
+      if (stored && stored.tokenHash === tokenHash && ['primary_saved', 'pending', 'claimed'].includes(stored.state) && preserveFirmwareVisitTime(candidate, stored).digest === stored.digest) result.acknowledgedEventId = event.eventId;
+    }
+  }
   return result;
 }

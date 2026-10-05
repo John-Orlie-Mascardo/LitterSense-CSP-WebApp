@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { after } from 'next/server';
 import { getAdminFirestore } from '@/lib/configs/firebase-admin';
 import { buildSessionDocumentId, findCatIdByRfid, type NormalizedSensorSyncEvent } from './sensorSync';
 import { readVisitBackupsById } from './catHistoryStore';
@@ -65,12 +66,14 @@ export async function queueRfidNotifications(payload: Record<string, unknown>, c
     if (!result.ok) throw new Error('Unable to queue RFID alert');
     if (!(await result.json() as unknown[]).length) continue;
     queued++;
-    try {
-      await getAdminFirestore().doc(`users/${account.owner_id}/notifications/${notice.id}`).create({ type: 'cat_visit', source: 'rfid_visit', title: notice.title, message: notice.message, catId: notice.catId, catName: notice.catName, route: notice.route, createdAt: now, isRead: false });
-    } catch {
-      // Push delivery uses the durable outbox and must survive a Firestore outage.
-      console.warn('[push] RFID alert queued; notification history could not be saved.');
-    }
+    after(async () => {
+      try {
+        await getAdminFirestore().doc(`users/${account.owner_id}/notifications/${notice.id}`).create({ type: 'cat_visit', source: 'rfid_visit', title: notice.title, message: notice.message, catId: notice.catId, catName: notice.catName, route: notice.route, createdAt: now, isRead: false });
+      } catch {
+        // Firestore quota retries must not hold the board's HTTP response or the push worker.
+        console.warn('[push] RFID alert queued; notification history could not be saved.');
+      }
+    });
   }
   return { queued, ownerId: account.owner_id };
 }
