@@ -101,6 +101,8 @@ export function SessionTimelineCard({
   const startedAt = getStartedAt(session);
   const endedAt = getSessionDate(session.endedAt);
   const inProgress = isInProgress(session);
+  const exitUnconfirmed = session.sessionStatus === "NO_EXIT_TIMEOUT" || session.sessionStatus === "SESSION_INTERRUPTED";
+  const interrupted = session.sessionStatus === "SESSION_INTERRUPTED";
   const activityDate = formatActivityDate(endedAt ?? startedAt, session.date);
 
   return (
@@ -113,7 +115,7 @@ export function SessionTimelineCard({
               {cat?.name ?? "Unattributed"}
             </p>
             <span className="rounded-full bg-litter-primary-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-litter-primary">
-              {cat ? "RFID Session" : "Detected Session"}
+              {cat ? "Litter Box Session" : "Detected Session"}
             </span>
             <BehaviorStateBadge state={state} compact />
             <span className="text-xs font-medium text-litter-muted">
@@ -127,7 +129,7 @@ export function SessionTimelineCard({
                 Enter
               </div>
               <p className="mt-1 text-sm font-semibold text-litter-text">
-                {formatTime(startedAt)}
+                {interrupted ? "Time uncertain" : formatTime(startedAt)}
               </p>
             </div>
             <div className="rounded-lg bg-litter-bg px-3 py-2">
@@ -144,14 +146,14 @@ export function SessionTimelineCard({
                 </div>
               ) : (
                 <p className="mt-1 text-sm font-semibold text-litter-text">
-                  {formatTime(endedAt)}
+                  {exitUnconfirmed ? "Not confirmed" : formatTime(endedAt)}
                 </p>
               )}
             </div>
           </div>
           <div className="mt-3 flex items-center gap-1.5 text-xs text-litter-muted">
             <Clock3 className="h-3.5 w-3.5" />
-            <span>{formatDuration(session.durationSecs)}</span>
+            <span>{interrupted ? "Duration unknown - device restarted" : formatDuration(session.durationSecs)}</span>
           </div>
         </div>
       </div>

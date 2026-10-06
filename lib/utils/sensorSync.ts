@@ -3,6 +3,7 @@ export const COUNTABLE_SESSION_STATUSES = [
   "ABNORMAL",
   "SHORT_SESSION",
   "NO_EXIT_TIMEOUT",
+  "SESSION_INTERRUPTED",
 ] as const;
 
 type CountableSessionStatus = (typeof COUNTABLE_SESSION_STATUSES)[number];
@@ -38,6 +39,7 @@ interface VisitWritePlanInput {
   event: NormalizedSensorSyncEvent;
   sessionId: string;
   serverNow: Date;
+  activityDay?: string;
 }
 
 export interface VisitWritePlan {
@@ -152,6 +154,7 @@ const getVisitAnomaly = (
   durationSecs: number,
   status: CountableSessionStatus,
 ) => {
+  if (status === "SESSION_INTERRUPTED") return { anomaly: true, anomalyType: "Session interrupted" };
   const isAnomaly =
     status === "ABNORMAL" ||
     status === "NO_EXIT_TIMEOUT" ||
@@ -330,10 +333,11 @@ export function buildVisitWritePlan({
   event,
   sessionId,
   serverNow,
+  activityDay,
 }: VisitWritePlanInput): VisitWritePlan {
   const endedAt = new Date(event.endedAt);
   const eventDate = Number.isNaN(endedAt.getTime()) ? serverNow : endedAt;
-  const dateKey = getLocalDateKey(eventDate);
+  const dateKey = activityDay ?? getLocalDateKey(eventDate);
   const nowIso = serverNow.toISOString();
   const anomaly = getVisitAnomaly(event.durationSecs, event.status);
   const summaryPaths = [

@@ -1,12 +1,13 @@
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { smsStoreRequest } from "./smsAccountSync";
+import { buildAlertMessage, type AlertContext } from "./smsTemplates";
 
 type NotificationPrefs = { healthAlerts?: boolean; ammoniaAlerts?: boolean; h2sAlerts?: boolean; perCat?: Array<{ catId: string; healthAlerts?: boolean }>; quietHours?: { enabled?: boolean; from?: string; to?: string } };
-type SmsAccount = { sms_enabled: boolean; sms_phone_number: string; notifications: NotificationPrefs; cats: Array<{ id: string }> };
-type SmsRecord = { id: string; owner_id: string; cat_id: string | null; reason: string; message: string; provider_message_id?: string };
+type SmsAccount = { phone_number: string; notifications: NotificationPrefs; cats: Array<{ id: string; name?: string }> };
+type SmsRecord = { id: string; owner_id: string; cat_id: string | null; reason: string; message: string; context?: AlertContext; created_at?: string; provider_message_id?: string };
 
 export function smsDeliveryDecision(account: SmsAccount, record: SmsRecord, now = new Date()) {
-  if (!account.sms_enabled || !/^\+639\d{9}$/.test(account.sms_phone_number)) return "cancel";
+  if (!/^\+639\d{9}$/.test(account.phone_number)) return "cancel";
   const prefs = account.notifications;
   if (record.cat_id && (!account.cats.some((cat) => cat.id === record.cat_id) || prefs.healthAlerts === false || prefs.perCat?.some((pref) => pref.catId === record.cat_id && pref.healthAlerts === false))) return "cancel";
   if (record.reason === "Ammonia detected" && prefs.ammoniaAlerts === false) return "cancel";
@@ -42,12 +43,13 @@ export async function processSmsOutbox(ownerId?: string) {
   const records = await claimed.json() as SmsRecord[];
   for (const record of records) {
     // Re-read after the atomic claim to honor opt-out and device removal before dispatch.
-    const latest = await smsStoreRequest(`sms_outbox?id=eq.${encodeURIComponent(record.id)}&status=eq.sending&select=sms_accounts(sms_enabled,sms_phone_number,notifications,cats)`);
+    const latest = await smsStoreRequest(`sms_outbox?id=eq.${encodeURIComponent(record.id)}&status=eq.sending&select=sms_accounts(phone_number,notifications,cats)`);
     if (!latest.ok) throw new Error("Unable to verify current SMS recipient");
     const account = (await latest.json() as Array<{ sms_accounts: SmsAccount }>)[0]?.sms_accounts;
     if (!account) continue;
     const decision = smsDeliveryDecision(account, record);
     if (decision !== "send") {
+      if (!/^\+639\d{9}$/.test(account.phone_number)) console.warn("[sms] Skipping SMS: profile has no valid Philippine mobile number.");
       await updateRecord(record.id, { status: decision === "defer" ? "pending" : "cancelled", error_code: decision === "defer" ? "quiet_hours" : "recipient_disabled" }, "sending");
       continue;
     }
@@ -63,7 +65,7 @@ export async function processSmsOutbox(ownerId?: string) {
     try {
       const response = await fetch("https://www.iprogsms.com/api/v1/sms_messages", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ api_token: apiToken, phone_number: account.sms_phone_number.slice(1), message: record.message }),
+        body: JSON.stringify({ api_token: apiToken, phone_number: account.phone_number.slice(1), message: buildAlertMessage(record.reason, { ...record.context, catName: account.cats.find(cat => cat.id === record.cat_id)?.name, occurredAt: record.context?.occurredAt ?? record.created_at }) }),
         signal: AbortSignal.timeout(10_000),
       });
       const result = await response.json().catch(() => null) as { status?: unknown; message_id?: unknown } | null;

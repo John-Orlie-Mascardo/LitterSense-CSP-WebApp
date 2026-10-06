@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useAirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import { useRfidVisitTracker } from "@/lib/hooks/useRfidVisitTracker";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
 import { useSettings } from "@/lib/hooks/useSettings";
 
@@ -16,10 +15,7 @@ export function RfidVisitBridge() {
   const { addNotification } = useNotifications();
   const { settings } = useSettings();
 
-  useRfidVisitTracker(data, {
-    rfidVisitAlerts: settings.notifications.rfidVisitAlerts,
-    addNotification,
-  });
+  // RFID notices originate in authenticated sensor ingestion, even with no dashboard open.
 
   useEffect(() => {
     gasAlerts.current.clear();
@@ -27,8 +23,8 @@ export function RfidVisitBridge() {
 
   useEffect(() => {
     for (const [source, reading, enabled, title] of [
-      ["ammonia_alert", readings.ammonia, settings.notifications.ammoniaAlerts, "Ammonia (NH3) detected"],
-      ["h2s_alert", readings.h2s, settings.notifications.h2sAlerts, "Hydrogen sulfide (H2S) detected"],
+      ["ammonia_alert", readings.ammonia, settings.notifications.ammoniaAlerts, "Urine detected"],
+      ["h2s_alert", readings.h2s, settings.notifications.h2sAlerts, "Stool detected"],
     ] as const) {
       if (!reading.online || isLoading || error) continue;
       if (reading.status !== "alert" || !enabled) {

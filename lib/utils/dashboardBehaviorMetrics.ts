@@ -49,7 +49,7 @@ const getSessionDateKey = (session: DurationSession) => {
 };
 
 const countableSessionVisitTotal = (session: DurationSession) => {
-  if (session.sessionStatus === "IN_PROGRESS") return 0;
+  if (session.sessionStatus === "IN_PROGRESS" || session.sessionStatus === "SESSION_INTERRUPTED") return 0;
   if (session.sessionStatus === "FALSE_ENTRY_IGNORED") return 0;
   return Math.max(1, session.summaryVisits ?? 1);
 };
@@ -84,7 +84,7 @@ export function getFallbackAverageDuration(
   if (trendAverage !== "--") return trendAverage;
 
   const catSessions = sessions.filter(
-    (session) => session.catId === catId && session.durationSecs > 0,
+    (session) => session.catId === catId && session.durationSecs > 0 && session.sessionStatus !== "SESSION_INTERRUPTED",
   );
   if (catSessions.length === 0) return "--";
 

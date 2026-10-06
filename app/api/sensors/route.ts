@@ -23,7 +23,16 @@ import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type Rf
 import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
 import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
+import { processPushOutbox } from '@/lib/utils/pushDelivery';
+import { queueRfidNotifications } from '@/lib/utils/rfidNotifications';
+import { rememberSensorDevice, saveSensorMirror, readSensorMirrors, selectSensorSnapshot, type StoredSensorSnapshot } from "@/lib/utils/sensorSnapshotStore";
 import { after } from "next/server";
+import { backupSensorVisits, preserveFirmwareVisitTime } from "@/lib/utils/catVisitIngestion";
+import { buildVisitBackup } from "@/lib/utils/catHistoryNormalization";
+import { readVisitBackupsById } from "@/lib/utils/catHistoryStore";
+import type { VisitBackup } from "@/lib/interfaces/CatHistoryBackup";
+import { createHash } from 'node:crypto';
+import { persistVisitOnce, primaryVisitFailureStatus, VisitAuthorityError, VisitConflictError } from '@/lib/utils/catVisitRecovery';
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -144,13 +153,48 @@ async function getPrimarySensors(request: Request) {
     }
     try {
       const client = getFirestoreRestClient();
-      const [snapshot, gasSnapshot] = await Promise.all([
+      const results = await Promise.allSettled([
         client.getDocument(`users/${ownerId}/deviceState/current`),
         client.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
       ]);
+      for (const result of results) {
+        if (result.status === "rejected" && !(result.reason instanceof FirestoreRestError && (result.reason.status === 429 || result.reason.status >= 500))) throw result.reason;
+      }
+      const sources = ["rfid", "gas-ultrasonic"] as const;
+      const firebase = results.map((result, index): StoredSensorSnapshot | null => {
+        if (result.status !== "fulfilled" || !result.value) return null;
+        const data = result.value.data;
+        return { source: sources[index], data, receivedAt: getString(data.updatedAt) };
+      });
+      let now = Date.now();
+      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= 180000;
+      let mirrors: StoredSensorSnapshot[] = [];
+      let mirrorUnavailable = false;
+      if (!firebase.every(fresh)) {
+        try {
+          mirrors = await readSensorMirrors(ownerId);
+        } catch {
+          mirrorUnavailable = true;
+          if (results.every((result) => result.status === "rejected")) throw new Error("Sensor stores unavailable");
+        }
+      }
+      now = Date.now();
+      const rfid = selectSensorSnapshot("rfid", firebase[0], mirrors, now);
+      const gas = selectSensorSnapshot("gas-ultrasonic", firebase[1], mirrors, now);
+      const rfidResponse = toDeviceSensorsResponse(rfid ? { ...rfid.data, updatedAt: rfid.receivedAt } : {}, { now: new Date(now) });
       return Response.json({
-        ...toDeviceSensorsResponse(snapshot?.data ?? {}),
-        ...(gasSnapshot ? toGasUltrasonicResponse(gasSnapshot.data) : {}),
+        ...rfidResponse,
+        sessionActive: rfidResponse.online && rfidResponse.sessionActive,
+        updatedAt: rfid?.receivedAt ?? "",
+        ...toGasUltrasonicResponse(gas ? { ...gas.data, updatedAt: gas.receivedAt } : {}, now),
+        rfidUpdatedAt: rfid?.receivedAt ?? "",
+        gasUltrasonicUpdatedAt: gas?.receivedAt ?? "",
+        rfidDataSource: rfid ? rfid === firebase[0] ? "firebase" : "supabase" : undefined,
+        gasUltrasonicDataSource: gas ? gas === firebase[1] ? "firebase" : "supabase" : undefined,
+        rfidState: !rfid ? "unknown" : fresh(rfid) && rfidResponse.online ? "online" : "stale",
+        gasUltrasonicState: !gas ? "unknown" : fresh(gas) && normalizeGasUltrasonic(gas.data) ? "online" : "stale",
+        rfidCloudError: mirrorUnavailable && results[0].status === "rejected",
+        gasUltrasonicCloudError: mirrorUnavailable && results[1].status === "rejected",
       }, { headers: NO_STORE_HEADERS });
     } catch {
       return Response.json({ error: "Unable to read device state" }, { status: 503, headers: NO_STORE_HEADERS });
@@ -297,6 +341,7 @@ async function getPrimarySensors(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const mirror: SensorMirrorContext = { receivedAt: new Date(), fallbackAllowed: false, saved: [] };
   const bodyResult = await getRequestBodyOrError(request);
   if (bodyResult instanceof Response) {
     return bodyResult;
@@ -309,15 +354,64 @@ export async function POST(request: Request) {
   }
 
   const { configToken } = tokenResult;
+  const payload = typeof body === "object" && body !== null ? body as Record<string, unknown> : {};
+  if (payload.source === "gas-ultrasonic") {
+    if (!normalizeGasUltrasonic(body)) return Response.json({ ok: false, error: "Invalid gas/ultrasonic readings." }, { status: 400, headers: NO_STORE_HEADERS });
+  } else if (("sessionActive" in payload && typeof payload.sessionActive !== "boolean") ||
+    ("activeRfidHex" in payload && (typeof payload.activeRfidHex !== "string" || !/^(?:[A-Fa-f0-9]{2,124})?$/.test(payload.activeRfidHex))) ||
+    ["activeSessionStartMs", "activeSessionDurationMs"].some((field) => field in payload && payload[field] !== null && (typeof payload[field] !== "number" || !Number.isFinite(payload[field]) || (payload[field] as number) < 0))) {
+    return Response.json({ ok: false, error: "Invalid RFID live readings." }, { status: 400, headers: NO_STORE_HEADERS });
+  }
   const normalized = normalizeSensorSyncRequest(
     {
       ...(typeof body === "object" && body !== null ? body : {}),
       configToken,
     },
-    new Date(),
+    mirror.receivedAt,
   );
 
-  const response = await handleSensorSync(body, configToken, normalized);
+  let response = await handleSensorSync(body, configToken, normalized, mirror);
+  if ((response.ok || mirror.fallbackAllowed) && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    after(async () => {
+      try {
+        if (mirror.ownerId) await rememberSensorDevice(mirror.ownerId, configToken);
+        const source = payload.source === "gas-ultrasonic" ? "gas-ultrasonic" : "rfid";
+        const snapshot = mirror.snapshot ?? (source === "gas-ultrasonic" ? normalizeGasUltrasonic(body) : buildOutageRfidSnapshot(payload, mirror.receivedAt));
+        if (snapshot) await saveSensorMirror(configToken, source, snapshot, mirror.receivedAt.toISOString());
+      } catch {
+        // A mirror failure cannot undo primary persistence or acknowledge an unsaved visit.
+        console.warn("Sensor mirror unavailable; original sensor response preserved.");
+      }
+    });
+  }
+  if (!mirror.fallbackAllowed && mirror.saved.length && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    after(async () => {
+      try {
+        const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: false }, mirror.receivedAt);
+        if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
+      } catch { console.warn("Confirmed visit backup is pending; repair will retry it."); }
+    });
+  }
+  if (mirror.fallbackAllowed && payload.source !== "gas-ultrasonic" && normalized.events.length && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    try {
+      const result = await backupSensorVisits(configToken, normalized, { ownerId: mirror.ownerId, saved: mirror.saved, fallbackAllowed: true }, mirror.receivedAt);
+      if (result.conflicts) console.warn("Visit backup detected conflicting history; recovery requires review.");
+      if (result.acknowledgedEventId) response = Response.json({ ok: true, source: 'supabase', recoveryPending: true }, { headers: { ...NO_STORE_HEADERS, 'x-litersense-ack': result.acknowledgedEventId } });
+    } catch { console.warn("Outage visit backup unavailable; original device retry response preserved."); }
+  }
+  if ((response.ok || mirror.fallbackAllowed) && payload.source !== 'gas-ultrasonic' && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+    try {
+      const alerts = await queueRfidNotifications(payload, configToken, normalized.events, mirror.receivedAt, mirror.ownerId, mirror.fallbackAllowed ? undefined : mirror.saved.map(visit => visit.sessionId));
+      if (alerts.ownerId) after(async () => {
+        try { await processPushOutbox(alerts.ownerId); }
+        catch { console.warn('Queued RFID push will be processed on the next worker run.'); }
+      });
+    } catch {
+      console.warn('RFID alert queue unavailable; device retry required.');
+      // The visit remains saved. Firmware retries its stable event ID without counting it twice.
+      if (response.ok) return Response.json({ ok: false, error: 'RFID alert queue unavailable. Retry sensor sync.' }, { status: 503, headers: NO_STORE_HEADERS });
+    }
+  }
   // During a Firestore outage, use the previously verified device ownership backup.
   // Preserve the original status and ack: SMS storage never acknowledges visit history.
   if (response.ok || response.status === 429 || response.status === 503) {
@@ -328,6 +422,8 @@ export async function POST(request: Request) {
         after(async () => {
           try { await processSmsOutbox(ownerId); }
           catch { console.warn("Queued SMS will be processed on the next worker run."); }
+          try { await processPushOutbox(ownerId); }
+          catch { console.warn('Queued push alerts will be processed on the next worker run.'); }
         });
       }
     }
@@ -338,6 +434,33 @@ export async function POST(request: Request) {
     }
   }
   return response;
+}
+
+interface SensorMirrorContext {
+  receivedAt: Date;
+  ownerId?: string;
+  snapshot?: Record<string, unknown>;
+  fallbackAllowed: boolean;
+  saved: VisitBackup[];
+}
+
+function buildOutageRfidSnapshot(payload: Record<string, unknown>, now: Date): Record<string, unknown> {
+  const snapshot = buildDeviceSensorSnapshot({
+    deviceId: "", configToken: "", recordedEvents: [], ignoredEvents: [], liveSensors: payload, now,
+  });
+  const live: Record<string, unknown> = { online: true };
+  if ("sessionActive" in payload) {
+    live.sessionActive = snapshot.sessionActive;
+    live.currentSessionStatus = snapshot.currentSessionStatus;
+    if (payload.sessionActive === false) {
+      live.activeRfidHex = ""; live.activeRfidCard = "";
+      live.activeSessionStartMs = null; live.activeSessionDurationMs = null;
+    }
+  }
+  for (const field of ["activeRfidHex", "activeSessionStartMs", "activeSessionDurationMs"] as const) {
+    if (field in payload && payload.sessionActive !== false) live[field] = payload[field];
+  }
+  return live;
 }
 
 async function getRequestBodyOrError(
@@ -440,8 +563,9 @@ async function processSensorEvents(args: {
   ownerId: string;
   configToken: string;
   serverNow: Date;
+  saved: VisitBackup[];
 }) {
-  const { client, normalized, catDetails, ownerId, configToken, serverNow } =
+  const { client, normalized, catDetails, ownerId, configToken, serverNow, saved } =
     args;
   const recorded: Array<{ sessionId: string; catId: string }> = [];
   const recordedEvents: typeof normalized.events = [];
@@ -449,7 +573,8 @@ async function processSensorEvents(args: {
   const unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
 
   for (const event of normalized.events) {
-    const catId = findCatIdByRfid(catDetails, event.rfidCard, event.rfidHex);
+    const matches = catDetails.filter(tag => findCatIdByRfid([tag], event.rfidCard, event.rfidHex));
+    const catId = matches.length === 1 ? matches[0][0] : null;
     if (!catId) {
       unmatched.push({
         eventId: event.eventId,
@@ -460,7 +585,7 @@ async function processSensorEvents(args: {
     }
 
     const sessionId = buildSessionDocumentId(configToken, event);
-    const plan = buildVisitWritePlan({
+    let plan = buildVisitWritePlan({
       userId: ownerId,
       catId,
       configToken,
@@ -468,23 +593,30 @@ async function processSensorEvents(args: {
       sessionId,
       serverNow,
     });
-    const existingSession = await client.getDocument(plan.sessionPath);
-    if (existingSession) {
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
+      try {
+        const original = (await readVisitBackupsById(ownerId, [sessionId]))[0];
+        if (original) {
+          const candidate = buildVisitBackup(sessionId, plan.sessionData, null, "primary_saved");
+          const preserved = preserveFirmwareVisitTime(candidate, original);
+          if (preserved !== candidate) plan = buildVisitWritePlan({ userId: ownerId, catId, configToken, sessionId, serverNow, activityDay: preserved.data.date as string, event: { ...event, startedAt: preserved.data.startedAt as string, endedAt: preserved.data.endedAt as string } });
+        }
+      } catch { console.warn("Visit backup lookup unavailable; primary persistence continues."); }
+    }
+
+    const candidate = buildVisitBackup(sessionId, plan.sessionData, createHash('sha256').update(configToken).digest('hex'), 'primary_saved');
+    const outcome = await persistVisitOnce(ownerId, candidate);
+    if (outcome === 'conflict') throw new VisitConflictError();
+    if (outcome === 'duplicate') {
+      const existingSession = await client.getDocument(plan.sessionPath);
+      if (existingSession) {
+        try { saved.push(buildVisitBackup(sessionId, existingSession.data, candidate.tokenHash, 'primary_saved')); }
+        catch { console.warn('Existing visit could not be serialized; history repair requires review.'); }
+      }
       duplicates.push({ sessionId, catId });
       continue;
     }
-
-    await client.commit([
-      client.createSetWrite(plan.sessionPath, plan.sessionData, {
-        exists: false,
-      }),
-      ...plan.summaryPaths.map((path) =>
-        client.createIncrementWrite(path, plan.summaryData, {
-          visits: 1,
-          totalDurationSecs: plan.durationSecs,
-        }),
-      ),
-    ]);
+    saved.push(candidate);
     recorded.push({ sessionId, catId });
     recordedEvents.push(event);
   }
@@ -496,6 +628,7 @@ async function handleSensorSync(
   body: unknown,
   configToken: string,
   normalized: ReturnType<typeof normalizeSensorSyncRequest>,
+  mirror: SensorMirrorContext,
 ): Promise<Response> {
   try {
     const client = getFirestoreRestClient();
@@ -504,14 +637,16 @@ async function handleSensorSync(
     const ownerId = getString(configDoc?.data.ownerId).trim();
     const configError = getConfigDocOrError(configDoc, ownerId);
     if (configError) return configError;
+    mirror.ownerId = ownerId;
 
     // Keep independent sensor heartbeats from clearing RFID sessions or refreshing their age.
     if (typeof body === "object" && body !== null && "source" in body && body.source === "gas-ultrasonic") {
       const readings = normalizeGasUltrasonic(body);
       if (!readings) return Response.json({ ok: false, error: "Invalid gas/ultrasonic readings." }, { status: 400, headers: NO_STORE_HEADERS });
       await client.commit([client.createSetWrite(`users/${ownerId}/deviceState/gasUltrasonic`, {
-        ...readings, deviceId, updatedAt: new Date().toISOString(),
+        ...readings, deviceId, updatedAt: mirror.receivedAt.toISOString(),
       })]);
+      mirror.snapshot = readings;
       return Response.json({ ok: true, source: "gas-ultrasonic" }, {
         headers: { ...NO_STORE_HEADERS, "x-litersense-ack": "gas-ultrasonic" },
       });
@@ -524,8 +659,10 @@ async function handleSensorSync(
       client.getDocument(snapshotPath),
       client.getDocument(enrollmentPath),
     ]);
-    const catDetails = buildCatDetails(catDetailDocs);
-    const serverNow = new Date();
+    const allCatDetails = buildCatDetails(catDetailDocs);
+    const activeCats = normalized.events.length ? new Set((await client.listDocuments(`users/${ownerId}/cats`)).map(cat => cat.id)) : null;
+    const catDetails = activeCats ? allCatDetails.filter(([catId]) => activeCats.has(catId)) : allCatDetails;
+    const serverNow = mirror.receivedAt;
     let enrollment = enrollmentDoc?.data as RfidEnrollment | undefined;
     let enrollmentAck = -1;
     if (enrollment && enrollment.deviceId === deviceId && isEnrollmentActive(enrollment, serverNow.getTime()) && typeof body === "object" && body !== null) {
@@ -536,8 +673,8 @@ async function handleSensorSync(
         const { id, sequence, tag } = scan as Record<string, unknown>;
         if (id === enrollment.id && typeof sequence === "number" && typeof tag === "string") {
           const normalizedTag = tag.toUpperCase();
-          const registeredTags = catDetails.map(([, details]) => String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase());
-          const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags);
+          const registeredTags = await Promise.all(allCatDetails.filter(([, details]) => normalizedTag && String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase() === normalizedTag).map(async ([catId]) => ({ tag: normalizedTag, name: String((await client.getDocument(`users/${ownerId}/cats/${catId}`))?.data.name ?? "another cat") })));
+          const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags, scan, serverNow.getTime());
           if (next.lastScanId === sequence) enrollmentAck = sequence;
           enrollment = next;
         }
@@ -552,6 +689,7 @@ async function handleSensorSync(
         ownerId,
         configToken,
         serverNow,
+        saved: mirror.saved,
       });
 
     const sensorSnapshot = buildDeviceSensorSnapshot({
@@ -583,12 +721,15 @@ async function handleSensorSync(
         existingSensorSnapshot ? undefined : { exists: false },
       ),
     ]);
+    mirror.snapshot = sensorSnapshot as unknown as Record<string, unknown>;
 
     return buildSyncResponse({ normalized, recorded, duplicates, unmatched, enrollmentId: enrollment && enrollment.deviceId === deviceId && isEnrollmentActive(enrollment, serverNow.getTime()) ? enrollment.id : "", enrollmentAck });
   } catch (error) {
     const isFirestoreError = error instanceof FirestoreRestError;
-    const status = isFirestoreError ? error.status : 500;
-    const message = getErrorMessage(error);
+    const sdkStatus = primaryVisitFailureStatus(error);
+    const status = isFirestoreError ? error.status : error instanceof VisitAuthorityError ? 403 : error instanceof VisitConflictError ? 409 : sdkStatus ?? 500;
+    mirror.fallbackAllowed = (isFirestoreError || sdkStatus !== null) && (status === 429 || status >= 500);
+    const message = !isFirestoreError && (sdkStatus !== null || error instanceof VisitAuthorityError || error instanceof VisitConflictError) ? 'Visit persistence failed; retry or review the device authority and session identity.' : getErrorMessage(error);
 
     console.error("ESP32 sensor sync failed.", {
       status,

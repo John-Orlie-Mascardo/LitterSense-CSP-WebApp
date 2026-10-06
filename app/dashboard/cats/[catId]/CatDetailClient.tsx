@@ -409,7 +409,7 @@ export default function CatDetailClient() {
       upload.finish();
       if (upload.signal.aborted) return;
       console.error("Failed to update cat profile:", error);
-      const message = error instanceof Error && error.message.includes("took too long")
+      const message = error instanceof Error && (error.name === "CatProfileSaveError" || error.message.includes("took too long"))
         ? error.message
         : "We couldn't upload that photo. Please try again.";
       setEditErrors((current) => ({
@@ -461,8 +461,12 @@ export default function CatDetailClient() {
   };
 
   const handleDelete = async () => {
-    await removeCat(catId);
-    router.push("/dashboard/cats");
+    try {
+      await removeCat(catId);
+      router.push("/dashboard/cats");
+    } catch (error) {
+      addToast(error instanceof Error && error.name === "CatProfileSaveError" ? error.message : "Could not finish removing this cat. Please refresh and try again.", "error");
+    }
   };
 
   if (!cat) {

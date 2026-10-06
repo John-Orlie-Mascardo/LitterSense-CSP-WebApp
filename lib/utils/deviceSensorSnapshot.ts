@@ -108,7 +108,7 @@ export function buildDeviceSensorSnapshot({
   const timeoutDelta = recordedEvents.filter(
     (event) => event.status === "NO_EXIT_TIMEOUT",
   ).length;
-  const recordedDelta = recordedEvents.length;
+  const recordedDelta = recordedEvents.filter(event => event.status !== "SESSION_INTERRUPTED").length;
   const previousCompleted = toIntOrNull(previous.completedSessionCount) ?? 0;
   const previousFalseEntries = toIntOrNull(previous.falseEntryCount) ?? 0;
   const previousTimeouts = toIntOrNull(previous.noExitTimeoutCount) ?? 0;

@@ -1,11 +1,15 @@
 export function normalizePhoneNumber(countryCode: string, nationalNumber: string) {
   if (!nationalNumber.trim()) return "";
 
-  const localDigits = nationalNumber.replace(/[\s()-]/g, "").replace(/^0/, "");
-  const phoneNumber = `${countryCode}${localDigits}`;
+  const digits = nationalNumber.replace(/[\s()-]/g, "");
+  const phoneNumber = digits.startsWith("+") ? digits : `${countryCode}${digits.replace(/^0/, "")}`;
 
   if (!/^\+[1-9]\d{6,14}$/.test(phoneNumber)) {
     throw new Error("Enter a valid phone number");
+  }
+
+  if (countryCode === "+63" && !/^\+639\d{9}$/.test(phoneNumber)) {
+    throw new Error("Enter a valid Philippine mobile number (+639 followed by 9 digits)");
   }
 
   return phoneNumber;

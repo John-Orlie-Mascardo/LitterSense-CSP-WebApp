@@ -44,12 +44,14 @@ export function CatBehaviorTrends({
   todayAvgDuration,
   trendData,
   references = null,
+  showPoints = false,
 }: {
   readonly catName: string;
   readonly todayVisits: string | number;
   readonly todayAvgDuration: string;
   readonly trendData: CatTrendPoint[] | null;
   readonly references?: TrendReferenceSet | null;
+  readonly showPoints?: boolean;
 }) {
   const hasTrendData = Boolean(trendData?.length);
   const points = trendData ?? [];
@@ -80,8 +82,9 @@ export function CatBehaviorTrends({
           hasData={hasTrendData}
           reference={references?.duration}
           baselineMessage={references ? undefined : "building"}
-          emptyMessage="Visit trends will appear after a few RFID sessions."
+          emptyMessage="Visit trends will appear after a few Litter Box Sessions."
           height={220}
+          showPoints={showPoints}
         />
       </div>
     </section>

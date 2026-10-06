@@ -20,11 +20,9 @@ import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle,
   Clock,
   CloudFog,
   Droplets,
-  Radio,
   Timer,
 } from "lucide-react";
 import { useNotifications } from "@/lib/contexts/NotificationContext";
@@ -42,9 +40,7 @@ import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission
 import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import {
-  getLiveRfidStatus,
   getLiveAirQualityStatus,
-  getLiveUltrasonicStatus,
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
@@ -69,32 +65,6 @@ import {
   buildCatTrendReferences,
   type TrendReferenceSet,
 } from "@/lib/presentation/trendCharts";
-
-const DISMISSED_ABNORMAL_STORAGE_KEY = "dashboard-dismissed-abnormal-statuses";
-
-const getAbnormalSignature = (cat: { id: string; status: string }) => `${cat.id}:${cat.status}`;
-
-const readDismissedAbnormalKeys = () => {
-  try {
-    const rawValue = globalThis.localStorage.getItem(DISMISSED_ABNORMAL_STORAGE_KEY);
-    if (!rawValue) return [];
-
-    const parsed = JSON.parse(rawValue);
-    return Array.isArray(parsed)
-      ? parsed.filter((value): value is string => typeof value === "string")
-      : [];
-  } catch {
-    return [];
-  }
-};
-
-const persistDismissedAbnormalKeys = (keys: string[]) => {
-  try {
-    globalThis.localStorage.setItem(DISMISSED_ABNORMAL_STORAGE_KEY, JSON.stringify(keys));
-  } catch {
-    // Ignore storage failures; abnormal banner dismissal still works for the current render.
-  }
-};
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -125,27 +95,6 @@ const formatDate = () => {
     day: "numeric",
   };
   return new Date().toLocaleDateString("en-US", options);
-};
-
-const useDismissedAbnormalKeys = (abnormalCats: { id: string; status: string }[]) => {
-  const [storedDismissedAbnormalKeys, setStoredDismissedAbnormalKeys] = useState<string[]>(
-    readDismissedAbnormalKeys,
-  );
-
-  const dismissedAbnormalKeys = useMemo(() => {
-    const activeAbnormalKeys = new Set(abnormalCats.map((cat) => getAbnormalSignature(cat)));
-    return storedDismissedAbnormalKeys.filter((key) => activeAbnormalKeys.has(key));
-  }, [abnormalCats, storedDismissedAbnormalKeys]);
-
-  useEffect(() => {
-    persistDismissedAbnormalKeys(dismissedAbnormalKeys);
-  }, [dismissedAbnormalKeys]);
-
-  return {
-    dismissedAbnormalKeys,
-    isDismissedAbnormalReady: true,
-    setDismissedAbnormalKeys: setStoredDismissedAbnormalKeys,
-  };
 };
 
 type RecentVisit = {
@@ -341,17 +290,21 @@ const getRecentVisits = (
 const getReadingStatus = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
   connection: SensorDisplayStatus,
-) => (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable" ? connection.status : reading.status);
+) => (!reading.online || reading.displayValue === "Syncing" || ["Unavailable", "Status unavailable", "Stale"].includes(connection.value) ? connection.status : reading.status);
 
 const getReadingStatusLabel = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
   connection: SensorDisplayStatus,
 ) => {
-  if (!reading.online || reading.displayValue === "Syncing" || connection.value === "Unavailable") return connection.label;
+  if (!reading.online || reading.displayValue === "Syncing" || ["Unavailable", "Status unavailable", "Stale"].includes(connection.value)) return connection.label;
   if (reading.status === "alert") return "Alert";
   if (reading.status === "watch") return "Watch";
   return "Normal";
 };
+
+const sensorSubtitle = (name: string, status: SensorDisplayStatus) => status.lastUpdatedAt
+  ? `${name ? `${name} · ` : ""}Last update: ${new Date(status.lastUpdatedAt).toLocaleString()}`
+  : name;
 
 function CatAvatar({
   cat,
@@ -443,19 +396,13 @@ function PopulatedDashboardState({
   todayDate,
   selectedHasData,
   selectedBaselineEstablished,
-  abnormalCat,
-  isDismissedAbnormalReady,
   airQualityReadings,
-  ultrasonicStatus,
   airQualityStatus,
-  rfidStatus,
   trendData,
   trendReferences,
   recentVisits,
   displayAvgDuration,
   onSelectCat,
-  onViewAbnormalDetails,
-  onDismissAbnormal,
 }: {
   readonly cats: Cat[];
   readonly activeCatId: string;
@@ -470,19 +417,13 @@ function PopulatedDashboardState({
   readonly todayDate: string;
   readonly selectedHasData: boolean;
   readonly selectedBaselineEstablished: boolean;
-  readonly abnormalCat: Cat | undefined;
-  readonly isDismissedAbnormalReady: boolean;
   readonly airQualityReadings: AirQualityReadings;
-  readonly ultrasonicStatus: SensorDisplayStatus;
   readonly airQualityStatus: SensorDisplayStatus;
-  readonly rfidStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
   readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
   readonly displayAvgDuration: string;
   readonly onSelectCat: (catId: string) => void;
-  readonly onViewAbnormalDetails: () => void;
-  readonly onDismissAbnormal: () => void;
 }) {
   const visibleRecentVisits = useMemo(
     () => recentVisits.slice(0, 3),
@@ -521,41 +462,6 @@ function PopulatedDashboardState({
           </div>
         </section>
 
-        {isDismissedAbnormalReady && abnormalCat && (
-          /* NOTE(manuscript): Alert state names and owner guidance must match the capstone paper. */
-          <div className="overflow-hidden mb-6">
-            <div className="bg-status-warning border border-status-warning border-l-4 border-l-litter-warning rounded-r-2xl rounded-l-sm p-4">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-2 bg-litter-warning-bg rounded-full shrink-0 border border-litter-warning-border">
-                  <AlertTriangle className="w-5 h-5 text-litter-warning" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-status-warning font-bold text-sm">
-                    {abnormalCat.name} - {BEHAVIOR_STATE_BY_ID.abnormal.label} Behavior
-                  </p>
-                  <p className="text-litter-muted text-xs mt-1">
-                    {BEHAVIOR_STATE_BY_ID.abnormal.label} litter box behavior detected today. Consider
-                    logging a vet visit if symptoms persist.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onViewAbnormalDetails}
-                  className="flex-1 py-2.5 bg-litter-warning-bg hover:bg-litter-warning/20 text-status-warning text-sm font-semibold rounded-xl transition-colors border border-status-warning"
-                >
-                  View Details
-                </button>
-                <button
-                  onClick={onDismissAbnormal}
-                  className="px-4 py-2.5 bg-litter-card hover:bg-litter-card-hover text-status-warning text-sm font-semibold rounded-xl transition-colors border border-status-warning"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {selectedCat && (
           <div className="flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
@@ -616,13 +522,6 @@ function PopulatedDashboardState({
               status={selectedDisplayState}
               statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
-            <StatCard
-              icon={Radio}
-              value={rfidStatus.value}
-              label="RFID Reader"
-              status={rfidStatus.status}
-              statusLabel={rfidStatus.label}
-            />
           </div>
         </section>
 
@@ -636,21 +535,20 @@ function PopulatedDashboardState({
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard
               icon={Droplets}
-              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
+              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
-              subtitle="Ammonia (NH3)"
+              subtitle={sensorSubtitle("Urine", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.ammonia, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.ammonia, airQualityStatus)}
             />
             <StatCard
               icon={CloudFog}
-              value={airQualityStatus.value === "Unavailable" ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
+              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
               label="Stool Odor"
-              subtitle="Hydrogen Sulfide (H2S)"
+              subtitle={sensorSubtitle("Stool", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s, airQualityStatus)}
             />
-            <StatCard icon={Radio} value={ultrasonicStatus.value} label="Ultrasonic Distance" subtitle="HC-SR04" status={ultrasonicStatus.status} statusLabel={ultrasonicStatus.label} />
           </div>
         </section>
 
@@ -804,15 +702,6 @@ export default function DashboardPage() {
     [cats],
   );
   const hasRealAnomaly = abnormalCats.length > 0;
-  const {
-    dismissedAbnormalKeys,
-    isDismissedAbnormalReady,
-    setDismissedAbnormalKeys,
-  } = useDismissedAbnormalKeys(abnormalCats);
-  const abnormalCat = useMemo(
-    () => abnormalCats.find((cat) => !dismissedAbnormalKeys.includes(getAbnormalSignature(cat))),
-    [abnormalCats, dismissedAbnormalKeys],
-  );
   const abnormalNotificationPayloads = useMemo(() => {
     const dateKey = getLocalDateKey();
 
@@ -848,20 +737,6 @@ export default function DashboardPage() {
     void syncAbnormalNotifications();
   }, [abnormalNotificationPayloads, notificationsLoading, upsertNotification]);
 
-  const handleViewAbnormalDetails = () => {
-    if (!abnormalCat) return;
-    router.push(`/dashboard/cats/${abnormalCat.id}`);
-  };
-
-  const handleDismissAbnormal = () => {
-    if (!abnormalCat) return;
-
-    const abnormalKey = getAbnormalSignature(abnormalCat);
-    setDismissedAbnormalKeys((prev) => (
-      prev.includes(abnormalKey) ? prev : [...prev, abnormalKey]
-    ));
-  };
-
   // ── Trigger permission prompt when anomaly is detected ──
   useEffect(() => {
     if (hasRealAnomaly) {
@@ -869,13 +744,7 @@ export default function DashboardPage() {
     }
   }, [hasRealAnomaly, triggerOnAnomaly]);
 
-  const rfidStatus = getLiveRfidStatus({
-    sensorData,
-    sensorsLoading,
-    sensorsError,
-  });
   const airQualityStatus = getLiveAirQualityStatus({ sensorData, sensorsLoading, sensorsError });
-  const ultrasonicStatus = getLiveUltrasonicStatus({ sensorData, sensorsLoading, sensorsError });
   const isEmpty = !catsLoading && cats.length === 0;
   const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
   const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisit);
@@ -920,19 +789,13 @@ export default function DashboardPage() {
             todayDate={todayDate}
             selectedHasData={selectedPresentation.hasData}
             selectedBaselineEstablished={selectedPresentation.baselineEstablished}
-            abnormalCat={abnormalCat}
-            isDismissedAbnormalReady={isDismissedAbnormalReady}
             airQualityReadings={airQualityReadings}
-            ultrasonicStatus={ultrasonicStatus}
             airQualityStatus={airQualityStatus}
-            rfidStatus={rfidStatus}
             trendData={trendData}
             trendReferences={trendReferences}
             recentVisits={recentVisits}
             displayAvgDuration={displayAvgDuration}
             onSelectCat={setSelectedCatId}
-            onViewAbnormalDetails={handleViewAbnormalDetails}
-            onDismissAbnormal={handleDismissAbnormal}
           />
         )}
       </main>
@@ -941,5 +804,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-

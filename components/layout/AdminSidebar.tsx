@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/configs/firebase";
+import { unregisterFirebaseMessagingToken } from '@/lib/utils/firebaseMessaging';
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { useState } from "react";
@@ -213,6 +214,7 @@ export function AdminSidebar() {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
+      await unregisterFirebaseMessagingToken().catch(() => {});
       await signOut(auth);
       router.push("/login");
     } catch (err) {

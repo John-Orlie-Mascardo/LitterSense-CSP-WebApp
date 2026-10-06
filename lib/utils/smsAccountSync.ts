@@ -3,8 +3,9 @@ import type { FirestoreRestDocument } from "./firestoreRest";
 
 // Build exclusively from server-read Firebase records, never browser payloads.
 export function buildSmsAccountBackup(ownerId: string, profile: Record<string, unknown>, notifications: Record<string, unknown>, cats: FirestoreRestDocument[], details: FirestoreRestDocument[], config: Record<string, unknown>) {
-  const phone = typeof profile.phoneNumber === "string" ? profile.phoneNumber.trim() : "";
-  if (phone && !/^\+[1-9]\d{6,14}$/.test(phone)) throw new Error("Invalid saved phone number");
+  const savedPhone = typeof profile.phoneNumber === "string" ? profile.phoneNumber.trim() : "";
+  const phone = /^\+639\d{9}$/.test(savedPhone) ? savedPhone : "";
+  if (!phone) console.warn("[sms] Skipping SMS: profile has no valid Philippine mobile number.");
   const token = typeof config.configToken === "string" ? config.configToken : "";
   const detailMap = new Map(details.map((cat) => [cat.id, cat.data]));
   return {
@@ -14,10 +15,12 @@ export function buildSmsAccountBackup(ownerId: string, profile: Record<string, u
       healthAlerts: notifications.healthAlerts !== false,
       ammoniaAlerts: notifications.ammoniaAlerts !== false,
       h2sAlerts: notifications.h2sAlerts !== false,
+      rfidVisitAlerts: notifications.rfidVisitAlerts === true,
+      litterLevelWarnings: notifications.litterLevelWarnings !== false,
       quietHours: notifications.quietHours ?? { enabled: false },
       perCat: Array.isArray(notifications.perCat) ? notifications.perCat.map((value) => {
         const pref = value as Record<string, unknown>;
-        return { catId: String(pref.catId ?? ""), healthAlerts: pref.healthAlerts !== false };
+        return { catId: String(pref.catId ?? ""), healthAlerts: pref.healthAlerts !== false, visitAlerts: pref.visitAlerts !== false };
       }) : [],
     },
     p_cats: cats.map((cat) => {

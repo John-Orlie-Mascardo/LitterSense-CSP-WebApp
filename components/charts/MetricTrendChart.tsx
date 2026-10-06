@@ -50,6 +50,7 @@ export interface MetricTrendChartProps {
   readonly baselineMessage?: "building" | "unavailable";
   readonly emptyMessage: string;
   readonly height?: number;
+  readonly showPoints?: boolean;
   /** Fixed px width. Set this for printing: ResponsiveContainer measures the
    *  screen width and never re-measures for the narrower print layout, so the
    *  chart would otherwise overflow the page and get clipped. */
@@ -115,6 +116,7 @@ export function MetricTrendChart({
   baselineMessage,
   emptyMessage,
   height = 240,
+  showPoints = false,
   width,
 }: MetricTrendChartProps) {
   const id = useId().replaceAll(":", "");
@@ -239,6 +241,7 @@ export function MetricTrendChart({
               strokeWidth={2}
               fill={`url(#${primaryGradientId})`}
               activeDot={{ r: 4, fill: config.color, strokeWidth: 0 }}
+              dot={showPoints ? { r: 4, fill: config.color, strokeWidth: 0 } : false}
             />
             {secondary && secondaryConfig && (
               <Area
@@ -251,6 +254,7 @@ export function MetricTrendChart({
                 strokeWidth={2}
                 fill={`url(#${secondaryGradientId})`}
                 activeDot={{ r: 4, fill: secondaryConfig.color, strokeWidth: 0 }}
+                dot={showPoints ? { r: 4, fill: secondaryConfig.color, strokeWidth: 0 } : false}
               />
             )}
             {reference && (

@@ -17,9 +17,11 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import {
   collection,
   deleteDoc,
@@ -27,7 +29,6 @@ import {
   onSnapshot,
   runTransaction,
   setDoc,
-  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -48,6 +49,8 @@ import type {
 } from "@/lib/data/mockData";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
+import type { CatProfileMutation } from "@/lib/utils/catCatalogSync";
+import { useCatBackup } from '@/lib/hooks/useCatBackup';
 
 interface FirebaseCatStatsDoc {
   catId?: string;
@@ -101,6 +104,7 @@ interface CatContextType {
     options?: RecordVisitOptions,
   ) => Promise<void>;
   isLoading: boolean;
+  backupStatus: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null };
 }
 
 type FirestoreData = Record<string, unknown>;
@@ -188,7 +192,7 @@ const buildSessionsWithDailySummaries = (
   dailyStats: FirebaseCatStatsDoc[],
 ): Session[] => {
   const catSessions = sessions.filter((session) => session.catId === catId);
-  const sessionsByDate = catSessions.reduce<Record<string, Session[]>>(
+  const sessionsByDate = catSessions.filter(session => session.sessionStatus !== "SESSION_INTERRUPTED").reduce<Record<string, Session[]>>(
     (acc, session) => {
       acc[session.date] = acc[session.date] ?? [];
       acc[session.date].push(session);
@@ -254,7 +258,7 @@ const deriveStatsForCat = (
 ): CatStats => {
   const todaySessions = sessions.filter(
     (session) =>
-      session.catId === catId &&
+      session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED" &&
       getSessionActivityDateKey(session) === today,
   );
   if (todaySessions.length > 0) {
@@ -300,6 +304,7 @@ const deriveLiveStatus = (
   const todaySessions = sessions.filter(
     (session) =>
       session.catId === cat.id &&
+      session.sessionStatus !== "SESSION_INTERRUPTED" &&
       getSessionActivityDateKey(session) === today,
   );
 
@@ -342,7 +347,7 @@ const buildTrendData = (
     };
   });
 
-  const catSessions = sessions.filter((session) => session.catId === catId);
+  const catSessions = sessions.filter((session) => session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED");
   const hasAnyData =
     catSessions.length > 0 || dailyStats.some((day) => day.visits > 0);
   if (!hasAnyData) return null;
@@ -402,11 +407,39 @@ const getVisitAnomaly = (
   return { anomaly: true, anomalyType: "Extended duration" };
 };
 
+const getCatBackupNotice = (status: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null }) =>
+  status.error ? 'Cat history is temporarily unavailable. Retrying.'
+    : status.mode && status.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.'
+    : status.mode ? 'Showing saved cat backup while the primary database recovers.'
+    : status.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
+function CatBackupNotice({ message }: { message: string }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div role="status" className="relative mx-auto my-3 flex w-[calc(100%-2rem)] max-w-xl items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
+      <span className="flex-1">{message}</span>
+      <button type="button" aria-label="Dismiss cat backup notice" onClick={() => setDismissed(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-litter-text-muted hover:bg-white/10 hover:text-litter-text focus-visible:outline-2 focus-visible:outline-litter-accent">
+        <X size={18} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 export function CatProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const pathname = usePathname();
   const isHistoryRoute = pathname === "/dashboard/history";
   const uid = user?.uid;
+  const backup = useCatBackup();
+  const backupSnapshot = backup.snapshot;
+  const fallbackCats = backupSnapshot?.catalogSource === 'supabase';
+  const fallbackHistory = backupSnapshot?.historySource === 'supabase';
+  const pendingCount = backupSnapshot?.pendingCount ?? 0;
+  const backupMode = Boolean(fallbackCats || fallbackHistory);
+  const [primaryOwner, setPrimaryOwner] = useState<string | null>(null);
+  const lastOwnerRef = useRef<string | null>(null);
+  const [listenerRevision, setListenerRevision] = useState(0);
+  const [previousBackupMode, setPreviousBackupMode] = useState(false);
   const [rawCats, setRawCats] = useState<Cat[]>([]);
   const [catStats, setCatStats] = useState<Record<string, CatStats>>({});
   const [catDetails, setCatDetails] = useState<Record<string, CatDetails>>({});
@@ -420,12 +453,15 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     Record<string, FirebaseCatStatsDoc[]>
   >({});
   const [isLoading, setIsLoading] = useState(true);
+  const [profileBackupNotice, setProfileBackupNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
 
     if (!uid) {
+      lastOwnerRef.current = null;
       queueMicrotask(() => {
+        setPrimaryOwner(null);
         setRawCats([]);
         setCatStats({});
         setCatDetails({});
@@ -439,7 +475,15 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    queueMicrotask(() => setIsLoading(true));
+    const ownerChanged = lastOwnerRef.current !== uid;
+    lastOwnerRef.current = uid;
+    queueMicrotask(() => {
+      setPrimaryOwner(uid);
+      if (ownerChanged) {
+        setRawCats([]); setCatDetails({}); setSessions([]); setFirebaseCatStats({}); setCatDailyStats({}); setCatStats({});
+        setIsLoading(true);
+      }
+    });
 
     const unsubCats = onSnapshot(
       collection(db, "users", uid, "cats"),
@@ -469,6 +513,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       (error) => {
         console.error("Failed to sync cats:", error);
         setIsLoading(false);
+        backup.refresh();
       },
     );
 
@@ -483,6 +528,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       },
       (error) => {
         console.error("Failed to sync cat details:", error);
+        backup.refresh();
       },
     );
 
@@ -498,6 +544,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       },
       (error) => {
         console.error("Failed to sync cat stats:", error);
+        backup.refresh();
       },
     );
 
@@ -524,6 +571,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         },
         (error) => {
           console.error("Failed to sync session history:", error);
+          backup.refresh();
         },
       );
     }
@@ -573,10 +621,33 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       unsubHealthLogs();
       unsubSessionLogs();
     };
-  }, [uid, authLoading, isHistoryRoute]);
+  // The refresh callback is stable; a confirmed recovery bumps listenerRevision once.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, authLoading, isHistoryRoute, listenerRevision]);
 
   useEffect(() => {
-    if (!uid || rawCats.length === 0) {
+    if (previousBackupMode && !backupMode) queueMicrotask(() => setListenerRevision(value => value + 1));
+    queueMicrotask(() => setPreviousBackupMode(backupMode));
+  }, [backupMode, previousBackupMode]);
+
+  const ownerReady = primaryOwner === uid;
+  const visibleRawCats = useMemo(() => fallbackCats ? (backupSnapshot?.catalog.profiles ?? []).map(profile => ({
+    id: profile.catId, name: parseString(profile.cat.name, 'Unnamed cat'), status: parseStatus(profile.cat.status),
+    avatar: typeof profile.cat.avatar === 'string' ? profile.cat.avatar : null, isOnline: profile.cat.isOnline === true,
+  })) : ownerReady ? rawCats : [], [fallbackCats, backupSnapshot, ownerReady, rawCats]);
+  const visibleDetails = useMemo(() => fallbackCats ? Object.fromEntries((backupSnapshot?.catalog.profiles ?? []).map(profile => [profile.catId, profile.details as unknown as CatDetails])) : ownerReady ? catDetails : {}, [fallbackCats, backupSnapshot, ownerReady, catDetails]);
+  const backupSessions = useMemo(() => (backupSnapshot?.visits ?? []).map(visit => normalizeSessionDocument(visit.sessionId, visit.data)), [backupSnapshot]);
+  const visibleSessions = useMemo(() => fallbackHistory ? backupSessions : pendingCount > 0
+    ? [...new Map([...backupSessions, ...(ownerReady ? sessions : [])].map(session => [session.id, session])).values()].sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a))
+    : ownerReady ? sessions : [], [fallbackHistory, backupSessions, pendingCount, ownerReady, sessions]);
+  const visibleDailyStats = useMemo(() => fallbackHistory ? {} : catDailyStats, [fallbackHistory, catDailyStats]);
+  const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
+  const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
+  const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error };
+  const backupNotice = getCatBackupNotice(backupStatus);
+
+  useEffect(() => {
+    if (!uid || backupMode || !ownerReady || rawCats.length === 0) {
       queueMicrotask(() => setCatDailyStats({}));
       return;
     }
@@ -617,11 +688,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [uid, rawCats]);
+  }, [uid, rawCats, backupMode, ownerReady]);
 
   // Recompute and persist session log counts whenever sessions or details change.
   useEffect(() => {
-    if (!uid || rawCats.length === 0) return;
+    if (!uid || backupMode || pendingCount > 0 || !ownerReady || rawCats.length === 0) return;
 
     const writeSessionLogs = async () => {
       for (const cat of rawCats) {
@@ -657,51 +728,66 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
     void writeSessionLogs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, sessions, catDailyStats, catDetails]);
+  }, [uid, sessions, catDailyStats, catDetails, backupMode, pendingCount, ownerReady]);
 
   const getStatsByCatId = useCallback(
     (id: string): CatStats | undefined =>
       deriveStatsForCat(
         id,
-        firebaseCatStats,
-        sessions,
-        catDailyStats,
-        catStats,
+        visibleFirebaseStats,
+        visibleSessions,
+        visibleDailyStats,
+        visibleLocalStats,
       ),
-    [catDailyStats, catStats, firebaseCatStats, sessions],
+    [visibleDailyStats, visibleLocalStats, visibleFirebaseStats, visibleSessions],
   );
 
   const cats = useMemo(
     () =>
-      rawCats.map((cat) => {
+      visibleRawCats.map((cat) => {
         const stats = deriveStatsForCat(
           cat.id,
-          firebaseCatStats,
-          sessions,
-          catDailyStats,
-          catStats,
+          visibleFirebaseStats,
+          visibleSessions,
+          visibleDailyStats,
+          visibleLocalStats,
         );
         return {
           ...cat,
-          status: deriveLiveStatus(cat, stats, sessions),
+          status: deriveLiveStatus(cat, stats, visibleSessions),
         };
       }),
-    [catDailyStats, catStats, firebaseCatStats, rawCats, sessions],
+    [visibleDailyStats, visibleLocalStats, visibleFirebaseStats, visibleRawCats, visibleSessions],
   );
+
+  const saveProfile = async (mutation: CatProfileMutation) => {
+    if (!user) throw new Error("Please sign in again before saving this cat.");
+    try {
+      const response = await fetch("/api/cats", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+        body: JSON.stringify(mutation),
+      });
+      const result = await response.json();
+      if (!response.ok || result.saved !== true) {
+        const error = Object.assign(new Error(result.error || "Could not confirm the cat profile save. Please try again."), { name: "CatProfileSaveError", saveUnconfirmed: response.status >= 500 });
+        throw error;
+      }
+      setProfileBackupNotice(result.backupPending ? user.uid : null);
+    } catch (error) {
+      if (error instanceof Error && error.name === "CatProfileSaveError") throw error;
+      throw Object.assign(new Error("Could not confirm the cat profile save. Check your connection and refresh before trying again."), { name: "CatProfileSaveError", saveUnconfirmed: true });
+    }
+  };
 
   const addCat = async (cat: Cat, stats?: CatStats, details?: CatDetails) => {
     if (!user) return;
-
-    await setDoc(doc(db, "users", user.uid, "cats", cat.id), {
-      name: cat.name,
-      status: cat.status,
-      avatar: cat.avatar,
-      isOnline: cat.isOnline,
+    await saveProfile({
+      action: "create", catId: cat.id,
+      cat: { name: cat.name, status: cat.status, avatar: cat.avatar, isOnline: cat.isOnline },
+      ...(details ? { details: { ...details } } : {}),
     });
-
-    if (details) {
-      await setDoc(doc(db, "users", user.uid, "catDetails", cat.id), details);
-    }
 
     if (stats) {
       setCatStats((prev) => ({ ...prev, [cat.id]: stats }));
@@ -712,11 +798,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const today = getLocalDateKey();
 
-    await deleteDoc(doc(db, "users", user.uid, "cats", id));
-    await deleteDoc(doc(db, "users", user.uid, "catDetails", id));
-    await deleteDoc(doc(db, "users", user.uid, "catStats", id));
-    await deleteDoc(doc(db, "users", user.uid, "dailyCatStats", today, "cats", id));
-    await deleteDoc(doc(db, "users", user.uid, "catSessionLog", id));
+    await saveProfile({ action: "delete", catId: id, today });
     await deleteCatPhoto(user.uid, id);
 
     setCatStats((prev) => {
@@ -728,14 +810,14 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
   const updateCat = async (id: string, updates: Partial<Cat>) => {
     if (!user) return;
-    await updateDoc(doc(db, "users", user.uid, "cats", id), updates);
+    const { id: ignoredId, ...catUpdates } = updates;
+    void ignoredId;
+    await saveProfile({ action: "update", catId: id, cat: catUpdates });
   };
 
   const updateDetails = async (id: string, updates: Partial<CatDetails>) => {
     if (!user) return;
-    await setDoc(doc(db, "users", user.uid, "catDetails", id), updates, {
-      merge: true,
-    });
+    await saveProfile({ action: "update", catId: id, details: { ...updates } });
   };
 
   const addHealthLog = async (
@@ -837,13 +919,13 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getDetailsByCatId = useCallback(
-    (id: string) => catDetails[id],
-    [catDetails],
+    (id: string) => visibleDetails[id],
+    [visibleDetails],
   );
 
   const getSessionsByCatId = useCallback(
-    (id: string) => buildSessionsWithDailySummaries(id, sessions, catDailyStats[id] ?? []),
-    [catDailyStats, sessions],
+    (id: string) => fallbackHistory ? visibleSessions.filter(session => session.catId === id) : buildSessionsWithDailySummaries(id, visibleSessions, visibleDailyStats[id] ?? []),
+    [fallbackHistory, visibleDailyStats, visibleSessions],
   );
 
   const getHealthLogsByCatId = useCallback(
@@ -852,24 +934,24 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getTrendData = useCallback(
-    (id: string) => buildTrendData(id, sessions, catDailyStats[id] ?? []),
-    [catDailyStats, sessions],
+    (id: string) => buildTrendData(id, visibleSessions, visibleDailyStats[id] ?? []),
+    [visibleDailyStats, visibleSessions],
   );
 
   const getSessionLogByCatId = useCallback(
-    (id: string): CatSessionLog | undefined => catSessionLogs[id],
-    [catSessionLogs],
+    (id: string): CatSessionLog | undefined => fallbackHistory ? undefined : catSessionLogs[id],
+    [catSessionLogs, fallbackHistory],
   );
 
   return (
     <CatContext.Provider
       value={{
         cats,
-        catStats,
-        catDetails,
-        sessions,
+        catStats: visibleLocalStats,
+        catDetails: visibleDetails,
+        sessions: visibleSessions,
         healthLogs,
-        catSessionLogs,
+        catSessionLogs: fallbackHistory ? {} : catSessionLogs,
         addCat,
         removeCat,
         updateCat,
@@ -884,9 +966,17 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         addHealthLog,
         removeHealthLog,
         recordVisit,
-        isLoading,
+        isLoading: fallbackCats ? false : isLoading,
+        backupStatus,
       }}
     >
+      {profileBackupNotice === uid && (
+        <div role="status" className="fixed bottom-20 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl border border-amber-500/40 bg-litter-surface p-4 text-sm shadow-lg">
+          Cat profile saved. Its backup is pending and will be retried when backup service is available.
+          <button type="button" className="ml-3 underline" onClick={() => setProfileBackupNotice(null)}>Dismiss</button>
+        </div>
+      )}
+      {backupNotice && <CatBackupNotice key={`${uid}:${backupNotice}`} message={backupNotice} />}
       {children}
     </CatContext.Provider>
   );

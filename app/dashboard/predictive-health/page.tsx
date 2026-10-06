@@ -10,6 +10,8 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { TopBar } from "@/components/layout/TopBar";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useCats } from "@/lib/contexts/CatContext";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import { getPredictiveOverview } from "@/lib/utils/predictiveOverview";
 import {
   BEHAVIOR_STATE_BY_ID,
   formatMetricValue,
@@ -34,6 +36,7 @@ type CatPresentation = {
 
 export default function PredictiveHealthPage() {
   const { user } = useAuth();
+  const { data: sensors, error: sensorError } = useDeviceSensors();
   const {
     cats,
     isLoading,
@@ -66,7 +69,7 @@ export default function PredictiveHealthPage() {
   const selectedCat = cats.find((cat) => cat.id === activeCatId);
   const stats = getStatsByCatId(activeCatId);
   const details = getDetailsByCatId(activeCatId);
-  const trendData = getTrendData(activeCatId);
+  const storedTrendData = getTrendData(activeCatId);
   const selectedSessions = useMemo(
     () => getSessionsByCatId(activeCatId),
     [activeCatId, getSessionsByCatId],
@@ -111,7 +114,12 @@ export default function PredictiveHealthPage() {
     baselineEstablished: false,
     state: "insufficient" as const,
   };
-  const displayVisits = formatMetricValue(stats?.visits ?? 0, presentation.hasData);
+  const overview = getPredictiveOverview(selectedSessions, presentation.baselineEstablished);
+  const trendData = overview.trendData.length ? overview.trendData : storedTrendData;
+  const gasAvailable = !sensorError && sensors?.gasUltrasonicOnline === true;
+  const gasState = (raw: number | null | undefined): "detected" | "clear" | "unavailable" => gasAvailable && (raw === 0 || raw === 1) ? raw === 0 ? "detected" : "clear" : "unavailable";
+  const environment = { ammonia: gasState(sensors?.mq135Raw), h2s: gasState(sensors?.mq136Raw) };
+  const displayVisits = Math.max(stats?.visits ?? 0, overview.todayCount);
   const averageDuration = getFallbackAverageDuration(
     stats?.avgDuration,
     trendData,
@@ -128,9 +136,9 @@ export default function PredictiveHealthPage() {
         lastUpdated: details.baseline.lastUpdated,
       }
     : null;
-  const todayVisits = presentation.hasData ? stats?.visits ?? 0 : null;
-  const todayAvgDurationSecs = presentation.hasData
-    ? parseDurationLabelToSeconds(stats?.avgDuration)
+  const todayVisits = displayVisits;
+  const todayAvgDurationSecs = todayVisits > 0
+    ? (parseDurationLabelToSeconds(stats?.avgDuration ?? '') ?? parseDurationLabelToSeconds(averageDuration))
     : null;
   const analysisKey = JSON.stringify({
     activeCatId,
@@ -140,12 +148,13 @@ export default function PredictiveHealthPage() {
     baseline,
     sessionCounts,
     trendData,
+    environment,
+    evidenceDays: overview.recordedDays,
   });
   const analysis = analysisResult?.key === analysisKey
     ? analysisResult.analysis
     : null;
-  const analysisSummary = analysis?.summary
-    ?? BEHAVIOR_STATE_BY_ID[presentation.state].description;
+  const analysisSummary = analysis?.summary ?? (presentation.baselineEstablished ? BEHAVIOR_STATE_BY_ID[presentation.state].description : `Early read available from ${overview.completed} completed visits and current environment readings. Select Analyze for a preliminary summary.`);
 
   const handleAnalyze = async () => {
     if (!user || !selectedCat || isAnalyzing || retryAfterSeconds > 0) return;
@@ -166,6 +175,8 @@ export default function PredictiveHealthPage() {
           baseline,
           sessionCounts,
           trendData: trendData ?? [],
+          environment,
+          evidenceDays: overview.recordedDays,
         }),
       });
       const payload = await response.json().catch(() => null) as {
@@ -261,7 +272,7 @@ export default function PredictiveHealthPage() {
                       Behavioral Baseline
                     </h2>
                   </div>
-                  <BehaviorStateBadge state={presentation.state} />
+                  {presentation.baselineEstablished ? <BehaviorStateBadge state={presentation.state} /> : <span className="rounded-full bg-litter-primary-light px-3 py-1 text-xs font-semibold text-litter-primary">Building baseline</span>}
                 </div>
 
                 {presentation.baselineEstablished && details?.baseline ? (
@@ -284,8 +295,7 @@ export default function PredictiveHealthPage() {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm leading-relaxed text-litter-muted">
-                    More completed RFID sessions are needed before {selectedCat.name}&apos;s
-                    usual pattern can be established.
+                    {overview.progress}
                   </p>
                 )}
               </section>
@@ -300,6 +310,7 @@ export default function PredictiveHealthPage() {
                       <h2 className="font-display text-lg font-semibold text-litter-text">
                         AI Analysis
                       </h2>
+                      <p className="mt-2 text-xs font-semibold text-litter-primary">{presentation.baselineEstablished ? "Recorded behavior review" : `Early read, based on ${overview.completed} completed visits`}</p>
                       <p className="mt-2 text-sm leading-relaxed text-litter-muted">
                         {analysisSummary}
                       </p>
@@ -366,7 +377,7 @@ export default function PredictiveHealthPage() {
                   </div>
                 ) : (
                   <p className="mt-4 border-t border-litter-border pt-4 text-xs text-litter-muted">
-                    Select Analyze to generate a report from the recorded baseline and RFID sessions.
+                    Select Analyze to generate a report from the recorded baseline and Litter Box Sessions.
                   </p>
                 )}
                 <p className="mt-4 text-xs text-litter-muted">
@@ -376,12 +387,30 @@ export default function PredictiveHealthPage() {
             </div>
 
             <CatBehaviorTrends
+              showPoints
               key={selectedCat.id}
               catName={selectedCat.name}
               todayVisits={displayVisits}
               todayAvgDuration={displayDuration}
               trendData={trendData}
             />
+            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5">
+              <h2 className="font-display text-lg font-semibold text-litter-text">Recorded visits</h2>
+              {overview.recentVisits.length ? <ul className="mt-3 divide-y divide-litter-border">
+                {overview.recentVisits.map(visit => <li key={visit.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm text-litter-text"><span>{visit.day} · {visit.sessionStatus === "DAILY_SUMMARY" ? `${visit.count} visits (daily summary)` : visit.timeLabel} (Philippine time)</span><span>{Math.floor(visit.durationSecs / 60)}m {Math.round(visit.durationSecs % 60)}s{visit.sessionStatus === "SHORT_SESSION" ? " · Incomplete" : ""}</span></li>)}
+              </ul> : <p className="mt-3 text-sm text-litter-muted">No sessions have been recorded for this cat. Check that the collar tag is registered in My Cats and that the RFID device has internet access. Make a confirmed entry and exit to record a visit.</p>}
+            </section>
+            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5">
+              <h2 className="font-display text-lg font-semibold text-litter-text">Litter box environment</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2"><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Urine level: <span className="font-semibold capitalize">{environment.ammonia}</span></p><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Stool level: <span className="font-semibold capitalize">{environment.h2s}</span></p></div>
+              <p className="mt-3 text-xs text-litter-muted">These readings describe the shared litter box environment. Detection flags do not measure gas concentration or diagnose a cat.</p>
+            </section>
+            {!presentation.baselineEstablished && <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5 text-sm text-litter-muted">
+              <h2 className="font-display text-lg font-semibold text-litter-text">General guidance — not your cat&apos;s personal baseline</h2>
+              <p className="mt-3">Many adult cats urinate about twice a day and pass stool about once a day. Diet, hydration and age affect this; an RFID visit does not prove urine or stool was passed.</p>
+              <p className="mt-3">Contact a vet for repeated small trips, straining, blood or discomfort. Straining with little or no urine can be an emergency: seek urgent veterinary care without waiting 24 hours. If you see no urine for 24 hours, contact a vet urgently.</p>
+              <p className="mt-3">Reference: <a href="https://www.petmd.com/cat/symptoms/why-is-my-cat-peeing-a-lot" target="_blank" rel="noopener noreferrer" className="text-litter-primary underline">PetMD veterinary guidance</a> and <a href="https://www.vet.cornell.edu/departments-centers-and-institutes/cornell-feline-health-center/health-information/feline-health-topics/feline-lower-urinary-tract-disease" target="_blank" rel="noopener noreferrer" className="text-litter-primary underline">Cornell Feline Health Center</a>.</p>
+            </section>}
           </>
         )}
       </main>

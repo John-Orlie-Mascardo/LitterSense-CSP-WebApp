@@ -4,6 +4,7 @@ import { RfidVisitBridge } from "@/components/dashboard/RfidVisitBridge";
 import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { DeviceSensorsProvider } from "@/lib/hooks/useDeviceSensors";
 import { SmsAccountSync } from "@/components/dashboard/SmsAccountSync";
+import { PushNotifications } from "@/components/dashboard/PushNotifications";
 
 export const metadata: Metadata = {
   title: {
@@ -23,6 +24,7 @@ export default function DashboardLayout({
         <DeviceSensorsProvider>
           <RfidVisitBridge />
           <SmsAccountSync />
+          <PushNotifications />
           {children}
         </DeviceSensorsProvider>
       </OnboardingGate>

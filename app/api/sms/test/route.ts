@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { smsStoreRequest } from "@/lib/utils/smsAccountSync";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
+import { buildAlertMessage } from "@/lib/utils/smsTemplates";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 const headers = { "Cache-Control": "no-store" };
@@ -13,12 +14,12 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     if (body.confirmed !== true) return Response.json({ error: "Confirm sending one test SMS first" }, { status: 400, headers });
-    const response = await smsStoreRequest(`sms_accounts?owner_id=eq.${encodeURIComponent(uid)}&select=sms_enabled,sms_phone_number`);
+    const response = await smsStoreRequest(`sms_accounts?owner_id=eq.${encodeURIComponent(uid)}&select=phone_number`);
     if (!response.ok) throw new Error();
     const account = (await response.json())[0];
-    if (!account?.sms_enabled || !/^\+639\d{9}$/.test(account.sms_phone_number)) return Response.json({ error: "Save your number and enable SMS alerts first" }, { status: 409, headers });
+    if (!/^\+639\d{9}$/.test(account?.phone_number ?? "")) return Response.json({ error: "Save a valid Philippine mobile number in Edit Profile first" }, { status: 409, headers });
     const eventKey = createHash("sha256").update(`test:${uid}:${new Date().toISOString().slice(0,13)}`).digest("hex");
-    const queued = await smsStoreRequest("sms_outbox?on_conflict=event_key", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates" }, body: JSON.stringify({ event_key: eventKey, owner_id: uid, reason: "Test SMS", message: "LitterSense test: SMS alerts are connected. This is a test message; no cat health issue was detected." }) });
+    const queued = await smsStoreRequest("sms_outbox?on_conflict=event_key", { method: "POST", headers: { Prefer: "resolution=ignore-duplicates" }, body: JSON.stringify({ event_key: eventKey, owner_id: uid, reason: "Test SMS", message: buildAlertMessage("Test SMS"), push_status: "cancelled" }) });
     if (!queued.ok) throw new Error();
     await processSmsOutbox(uid);
     return Response.json({ queued: true, message: "Test queued. Check delivery status below. One test per hour." }, { headers });

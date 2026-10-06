@@ -1,0 +1,21 @@
+-- Removes only this feature. Export backup rows first if it has been enabled.
+begin;
+drop function public.cat_history_finish_repair_owner(uuid,text);
+drop function public.cat_history_claim_repair_owner();
+drop function public.cat_history_finish_claim(uuid,text,text);
+drop function public.cat_history_claim_visits(integer);
+drop function public.cat_history_save_progress(text,jsonb);
+drop function public.cat_history_read_progress(text);
+drop function public.cat_history_read_visits(text,jsonb);
+drop function public.cat_history_save_visits(text,jsonb);
+drop function public.cat_history_resolve_device(text);
+drop function public.cat_history_read_catalog(text);
+drop function public.cat_history_save_catalog(text,jsonb);
+drop function public.cat_history_semantic(jsonb);
+drop function public.cat_history_visit_json(jsonb);
+drop function public.cat_history_validate_owner(text);
+drop table public.cat_history_backup_progress;
+drop table public.cat_visit_backups;
+drop table public.cat_profile_backups;
+drop table public.cat_backup_catalogs;
+commit;
