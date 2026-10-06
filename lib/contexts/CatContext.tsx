@@ -192,7 +192,7 @@ const buildSessionsWithDailySummaries = (
   dailyStats: FirebaseCatStatsDoc[],
 ): Session[] => {
   const catSessions = sessions.filter((session) => session.catId === catId);
-  const sessionsByDate = catSessions.reduce<Record<string, Session[]>>(
+  const sessionsByDate = catSessions.filter(session => session.sessionStatus !== "SESSION_INTERRUPTED").reduce<Record<string, Session[]>>(
     (acc, session) => {
       acc[session.date] = acc[session.date] ?? [];
       acc[session.date].push(session);
@@ -258,7 +258,7 @@ const deriveStatsForCat = (
 ): CatStats => {
   const todaySessions = sessions.filter(
     (session) =>
-      session.catId === catId &&
+      session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED" &&
       getSessionActivityDateKey(session) === today,
   );
   if (todaySessions.length > 0) {
@@ -304,6 +304,7 @@ const deriveLiveStatus = (
   const todaySessions = sessions.filter(
     (session) =>
       session.catId === cat.id &&
+      session.sessionStatus !== "SESSION_INTERRUPTED" &&
       getSessionActivityDateKey(session) === today,
   );
 
@@ -346,7 +347,7 @@ const buildTrendData = (
     };
   });
 
-  const catSessions = sessions.filter((session) => session.catId === catId);
+  const catSessions = sessions.filter((session) => session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED");
   const hasAnyData =
     catSessions.length > 0 || dailyStats.some((day) => day.visits > 0);
   if (!hasAnyData) return null;
@@ -406,11 +407,16 @@ const getVisitAnomaly = (
   return { anomaly: true, anomalyType: "Extended duration" };
 };
 
+const getCatBackupNotice = (status: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null }) =>
+  status.error ? 'Cat history is temporarily unavailable. Retrying.'
+    : status.mode && status.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.'
+    : status.mode ? 'Showing saved cat backup while the primary database recovers.'
+    : status.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
 function CatBackupNotice({ message }: { message: string }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div role="status" className="fixed top-20 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
+    <div role="status" className="relative mx-auto my-3 flex w-[calc(100%-2rem)] max-w-xl items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
       <span className="flex-1">{message}</span>
       <button type="button" aria-label="Dismiss cat backup notice" onClick={() => setDismissed(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-litter-text-muted hover:bg-white/10 hover:text-litter-text focus-visible:outline-2 focus-visible:outline-litter-accent">
         <X size={18} aria-hidden="true" />
@@ -638,7 +644,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
   const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error };
-  const backupNotice = backupStatus.error ? 'Cat history is temporarily unavailable. Retrying.' : backupStatus.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.' : backupStatus.mode ? 'Showing saved cat backup while the primary database recovers.' : backupStatus.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
+  const backupNotice = getCatBackupNotice(backupStatus);
 
   useEffect(() => {
     if (!uid || backupMode || !ownerReady || rawCats.length === 0) {

@@ -736,8 +736,8 @@ export default function SettingsPage() {
             <div className="border-t border-litter-border">
               <SettingsRow
                 icon={Droplets}
-                label="Ammonia (Urine Odor) Alerts"
-                description="Get notified when NH3 exceeds threshold"
+                label="Urine Alerts"
+                description="Get notified when urine odor is detected"
                 control={
                   <Toggle
                     checked={settings.notifications.ammoniaAlerts}
@@ -749,8 +749,8 @@ export default function SettingsPage() {
             <div className="border-t border-litter-border">
               <SettingsRow
                 icon={CloudFog}
-                label="H2S (Stool Odor) Alerts"
-                description="Get notified when H2S exceeds threshold"
+                label="Stool Alerts"
+                description="Get notified when stool odor is detected"
                 control={
                   <Toggle
                     checked={settings.notifications.h2sAlerts}

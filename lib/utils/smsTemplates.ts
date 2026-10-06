@@ -9,8 +9,8 @@ export function buildAlertMessage(reason: string, context: AlertContext = {}) {
   const count = Number.isFinite(context.visitCount) ? Math.max(0, Math.round(context.visitCount!)) : null;
   const duration = Number.isFinite(context.durationSecs) ? Math.round(context.durationSecs! / 60 * 10) / 10 : null;
   switch (reason) {
-    case "Ammonia detected": return `LitterSense: Ammonia detected near the litter box (${time}). Scoop the box and air out the room.`;
-    case "Hydrogen sulfide detected": return `LitterSense: Hydrogen sulfide detected near the litter box (${time}). Clean the box and check ventilation.`;
+    case "Ammonia detected": return `LitterSense: Urine odor detected near the litter box (${time}). Scoop the box and air out the room.`;
+    case "Hydrogen sulfide detected": return `LitterSense: Stool odor detected near the litter box (${time}). Clean the box and check ventilation.`;
     case "Frequent visits": return `LitterSense: ${name} ${count === null ? "made frequent visits" : `used the box ${count} times today`} (${time}). Watch for straining. Contact a vet if it continues.`;
     case "Extended duration": return `LitterSense: ${name} stayed in the box${duration === null ? " longer than the limit" : ` for ${duration} min`} (${time}). Check your cat. Contact a vet if straining.`;
     case "No exit timeout": return `LitterSense: No exit was confirmed for ${name} (${time}). Check your cat and the reader now.`;

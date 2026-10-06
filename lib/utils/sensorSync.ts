@@ -3,6 +3,7 @@ export const COUNTABLE_SESSION_STATUSES = [
   "ABNORMAL",
   "SHORT_SESSION",
   "NO_EXIT_TIMEOUT",
+  "SESSION_INTERRUPTED",
 ] as const;
 
 type CountableSessionStatus = (typeof COUNTABLE_SESSION_STATUSES)[number];
@@ -153,6 +154,7 @@ const getVisitAnomaly = (
   durationSecs: number,
   status: CountableSessionStatus,
 ) => {
+  if (status === "SESSION_INTERRUPTED") return { anomaly: true, anomalyType: "Session interrupted" };
   const isAnomaly =
     status === "ABNORMAL" ||
     status === "NO_EXIT_TIMEOUT" ||

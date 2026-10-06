@@ -9,7 +9,7 @@ export function buildSmsVisits(account: SmsAccount, normalized: SensorSyncReques
   const tags: Array<[string, { rfidTag: string }]> = account.cats.map((cat) => [cat.id, { rfidTag: cat.rfidTag }]);
   return normalized.events.flatMap((event) => {
     // Stable firmware IDs are required: an inferred arrival timestamp changes on retry.
-    if (!event.eventId || event.eventId.length > 128 || event.status === "SHORT_SESSION" || event.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) return [];
+    if (!event.eventId || event.eventId.length > 128 || event.status === "SHORT_SESSION" || event.status === "SESSION_INTERRUPTED" || event.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) return [];
     const matches = tags.filter((tag) => findCatIdByRfid([tag], event.rfidCard, event.rfidHex));
     if (matches.length !== 1) return [];
     const catId = matches[0][0];

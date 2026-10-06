@@ -310,7 +310,7 @@ export default function PredictiveHealthPage() {
                       <h2 className="font-display text-lg font-semibold text-litter-text">
                         AI Analysis
                       </h2>
-                      <p className="mt-2 text-xs font-semibold text-litter-primary">{presentation.baselineEstablished ? "Recorded behavior review" : `Early read, based on ${overview.completed} completed visits`} · Confidence: {analysis?.confidence ?? overview.confidence}</p>
+                      <p className="mt-2 text-xs font-semibold text-litter-primary">{presentation.baselineEstablished ? "Recorded behavior review" : `Early read, based on ${overview.completed} completed visits`}</p>
                       <p className="mt-2 text-sm leading-relaxed text-litter-muted">
                         {analysisSummary}
                       </p>
@@ -377,7 +377,7 @@ export default function PredictiveHealthPage() {
                   </div>
                 ) : (
                   <p className="mt-4 border-t border-litter-border pt-4 text-xs text-litter-muted">
-                    Select Analyze to generate a report from the recorded baseline and RFID sessions.
+                    Select Analyze to generate a report from the recorded baseline and Litter Box Sessions.
                   </p>
                 )}
                 <p className="mt-4 text-xs text-litter-muted">
@@ -402,7 +402,7 @@ export default function PredictiveHealthPage() {
             </section>
             <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5">
               <h2 className="font-display text-lg font-semibold text-litter-text">Litter box environment</h2>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2"><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Ammonia: <span className="font-semibold capitalize">{environment.ammonia}</span></p><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Hydrogen sulfide: <span className="font-semibold capitalize">{environment.h2s}</span></p></div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2"><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Urine level: <span className="font-semibold capitalize">{environment.ammonia}</span></p><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Stool level: <span className="font-semibold capitalize">{environment.h2s}</span></p></div>
               <p className="mt-3 text-xs text-litter-muted">These readings describe the shared litter box environment. Detection flags do not measure gas concentration or diagnose a cat.</p>
             </section>
             {!presentation.baselineEstablished && <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5 text-sm text-litter-muted">

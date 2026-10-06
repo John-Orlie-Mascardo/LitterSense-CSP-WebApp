@@ -67,7 +67,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "incomplete",
     label: "Incomplete",
-    description: "The visit was too short to count as a completed session.",
+    description: "The visit was too short, or its exit could not be confirmed.",
     dotClass: "bg-litter-incomplete",
     badgeClass: "bg-status-incomplete text-status-incomplete",
     severity: 40,
@@ -171,6 +171,8 @@ export function getSessionDisplayState({
   if (
     (hasCompletedDuration && durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) ||
     normalizedStatus === "SHORT_SESSION" ||
+    normalizedStatus === "NO_EXIT_TIMEOUT" ||
+    normalizedStatus === "SESSION_INTERRUPTED" ||
     normalizedStatus === "FALSE_ENTRY_IGNORED" ||
     anomalyType === "Short session"
   ) {

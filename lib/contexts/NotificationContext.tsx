@@ -1,5 +1,6 @@
 "use client";
 
+import { ownerText } from "@/lib/presentation/ownerText";
 import React, {
   createContext,
   useContext,
@@ -221,7 +222,7 @@ export function NotificationProvider({
       (snapshot) => {
         const loaded: AppNotification[] = [];
         snapshot.forEach((d) =>
-          loaded.push({ id: d.id, ...d.data() } as AppNotification)
+          loaded.push({ id: d.id, ...d.data(), title: ownerText(String(d.data().title ?? "")), message: ownerText(String(d.data().message ?? "")) } as AppNotification)
         );
         setSyncState({
           userId,

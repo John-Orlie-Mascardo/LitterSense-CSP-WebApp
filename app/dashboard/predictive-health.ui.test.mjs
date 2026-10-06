@@ -35,3 +35,11 @@ test("predictive analysis lives on its own per-cat page linked before notificati
   assert.notEqual(notificationIndex, -1);
   assert.ok(analysisLinkIndex < notificationIndex);
 });
+
+test("AI hides confidence and chemical labels while retaining environment data", () => {
+  assert.doesNotMatch(predictivePageSource, /Confidence:|Ammonia:|Hydrogen sulfide:/);
+  assert.match(predictivePageSource, /Urine level:/);
+  assert.match(predictivePageSource, /Stool level:/);
+  assert.match(predictivePageSource, /environment\.ammonia/);
+  assert.match(predictivePageSource, /environment\.h2s/);
+});

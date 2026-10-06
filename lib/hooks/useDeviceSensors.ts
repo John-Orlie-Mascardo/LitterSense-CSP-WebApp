@@ -29,7 +29,8 @@ export type DeviceSensors = {
     | "OUT"
     | "FALSE_ENTRY_IGNORED"
     | "DIFFERENT_TAG_IGNORED"
-    | "NO_EXIT_TIMEOUT";
+    | "NO_EXIT_TIMEOUT"
+    | "SESSION_INTERRUPTED";
   sessionActive: boolean;
   activeRfidHex: string;
   activeRfidCard: string;
@@ -40,7 +41,8 @@ export type DeviceSensors = {
     | "IN_PROGRESS"
     | "NORMAL_WINDOW"
     | "ABNORMAL_IN_PROGRESS"
-    | "NO_EXIT_TIMEOUT";
+    | "NO_EXIT_TIMEOUT"
+    | "SESSION_INTERRUPTED";
   lastSessionStatus:
     | "NONE"
     | "IN_PROGRESS"
@@ -48,7 +50,8 @@ export type DeviceSensors = {
     | "ABNORMAL"
     | "SHORT_SESSION"
     | "FALSE_ENTRY_IGNORED"
-    | "NO_EXIT_TIMEOUT";
+    | "NO_EXIT_TIMEOUT"
+    | "SESSION_INTERRUPTED";
   lastSessionDurationMs: number | null;
   lastSessionEndMs: number | null;
   completedSessionCount: number | null;

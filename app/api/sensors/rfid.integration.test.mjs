@@ -241,13 +241,33 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   const newTag = "AABBCCDDEEFF001122334455";
   const heartbeat = (scan) => post({ deviceId: "reader-1", sessionActive: false, events: [], enrollmentReadyId: enrollmentId, ...(scan ? { enrollmentScan: scan } : {}) });
   assert.equal((await (await heartbeat()).json()).enrollmentId, enrollmentId);
+  // Legacy scans cannot bypass a hold. The same authenticated endpoint accepts reader progress.
   for (let sequence = 1; sequence <= 3; sequence++) {
-    const response = await heartbeat({ id: enrollmentId, sequence, tag: newTag });
-    const result = await response.json();
-    assert.equal(result.enrollmentAck, sequence);
-    assert.equal(result.recorded, 0, "enrollment must not create a visit");
-    assert.equal(docs.get(enrollmentPath).data.tag, newTag, "the dialog can display the EPC from the first scan");
+    assert.equal((await (await heartbeat({ id: enrollmentId, sequence, tag: newTag })).json()).enrollmentAck, sequence);
+    assert.notEqual(docs.get(enrollmentPath).data.status, "verified");
   }
+  const sample = (sequence, holdMs, tag = newTag, present = true) => heartbeat({ id: enrollmentId, sequence, tag, version: 2, holdMs, present });
+  await sample(4, 2000);
+  assert.equal(docs.get(enrollmentPath).data.status, "holding");
+  assert.equal(docs.get(enrollmentPath).data.tag, newTag);
+  docs.get(enrollmentPath).data.progressReceivedAt = Date.now() - 6000;
+  const staleProgress = await (await enrollmentRoute.GET(enrollmentRequest("GET"))).json();
+  assert.equal(staleProgress.holdMs, 0);
+  assert.equal(staleProgress.status, "ready");
+  await sample(5, 0, "", false);
+  assert.equal(docs.get(enrollmentPath).data.holdMs, 0);
+  assert.match(docs.get(enrollmentPath).data.error, /5 seconds/);
+  await sample(4, 5000);
+  assert.notEqual(docs.get(enrollmentPath).data.status, "verified", "older packet cannot restore progress");
+  docs.set("users/owner-a/cats/cat-a", { data: { name: "Zeno" } });
+  await sample(6, 5000, "300833B2DDD9014000000001");
+  assert.match(docs.get(enrollmentPath).data.error, /Zeno/);
+  assert.notEqual(docs.get(enrollmentPath).data.status, "verified");
+  await sample(7, 4999);
+  assert.equal(docs.get(enrollmentPath).data.status, "holding");
+  const completedHold = await (await sample(8, 5000)).json();
+  assert.equal(completedHold.recorded, 0, "registration never creates a visit");
+  assert.equal(completedHold.enrollmentId, "", "completed enrollment releases the firmware from registration mode");
   assert.equal(docs.get(enrollmentPath).data.status, "verified");
   assert.equal(docs.get(enrollmentPath).data.tag, newTag);
   assert.equal((await (await enrollmentRoute.GET(enrollmentRequest("GET"))).json()).tag, newTag);

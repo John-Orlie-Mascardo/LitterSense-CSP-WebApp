@@ -82,7 +82,7 @@ export function CatBehaviorTrends({
           hasData={hasTrendData}
           reference={references?.duration}
           baselineMessage={references ? undefined : "building"}
-          emptyMessage="Visit trends will appear after a few RFID sessions."
+          emptyMessage="Visit trends will appear after a few Litter Box Sessions."
           height={220}
           showPoints={showPoints}
         />

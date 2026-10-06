@@ -61,30 +61,12 @@ export function PushNotificationSettings() {
     } catch (error) { setStatus(error instanceof Error ? error.message : 'Unable to enable push.'); }
     finally { setBusy(false); }
   };
-  const testPush = async () => {
-    if (!user || !enabled) return;
-    setBusy(true);
-    try {
-      const token = await getFirebaseMessagingToken();
-      if (!token) throw new Error('Enable push on this device first.');
-      const response = await fetch('/api/push/dispatch', { method: 'POST', headers: { Authorization: `Bearer ${await user.getIdToken()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true, token }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'Unable to queue the push test.');
-      setStatus('Push test queued for this device. One test per hour per device.');
-    } catch (error) { setStatus(error instanceof Error ? error.message : 'Unable to send push test.'); }
-    finally { setBusy(false); }
-  };
   return (
     <div className="border-t border-litter-border p-4">
       <p className="text-sm font-medium text-theme-text">Push notifications on this device</p>
       <p className="mt-1 text-sm text-theme-muted">Receive alerts when LitterSense is closed. Your alert preferences and quiet hours apply.</p>
       {iphoneHint && <p className="mt-2 text-sm text-theme-muted">iPhone requires iOS 16.4 or later. Add LitterSense to your Home Screen, open it there, then enable notifications.</p>}
       {enabled ? <p className="mt-3 text-sm text-litter-primary">Notifications enabled on this device</p> : <button disabled={busy || !user} onClick={enable} className="mt-3 rounded-xl bg-litter-primary px-4 py-2 text-sm text-white disabled:opacity-50">{busy ? 'Please wait...' : 'Enable push notifications'}</button>}
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-theme-muted">Notification troubleshooting</summary>
-        {!enabled && <p className="mt-2 text-theme-muted">Enable notifications on this device before sending a test.</p>}
-        <button disabled={busy || !enabled} onClick={testPush} className="mt-3 text-litter-primary disabled:opacity-50">Send test push</button>
-      </details>
       {status && <p role="status" className="mt-2 text-sm text-theme-muted">{status}</p>}
     </div>
   );

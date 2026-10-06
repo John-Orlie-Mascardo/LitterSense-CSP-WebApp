@@ -64,8 +64,9 @@ export async function persistVisitOnce(ownerId: string, visit: VisitBackup): Pro
     const device = await tx.get(db.doc(`deviceConfigs/${token}`));
     if (!device.exists || device.data()?.ownerId !== ownerId || device.data()?.revoked === true) throw new VisitAuthorityError();
     const now = new Date(), day = clean.data.date as string, endedAt = clean.data.endedAt as string;
-    const paths = [`${root}/dailyCatStats/${day}/cats/${clean.catId}`, `${root}/catStats/${clean.catId}/daily/${day}`];
-    if (day === getLocalDateKey(now)) paths.push(`${root}/catStats/${clean.catId}`);
+    const interrupted = clean.data.sessionStatus === "SESSION_INTERRUPTED";
+    const paths = interrupted ? [] : [`${root}/dailyCatStats/${day}/cats/${clean.catId}`, `${root}/catStats/${clean.catId}/daily/${day}`];
+    if (!interrupted && day === getLocalDateKey(now)) paths.push(`${root}/catStats/${clean.catId}`);
     const refs = paths.map(path => db.doc(path)), summaries = await Promise.all(refs.map(ref => tx.get(ref)));
     // All reads precede writes; competing board/worker transactions retry against the session identity.
     tx.create(sessionRef, { ...clean.data, configToken: token, createdAt: now.toISOString() });

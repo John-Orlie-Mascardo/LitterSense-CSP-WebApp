@@ -673,8 +673,8 @@ async function handleSensorSync(
         const { id, sequence, tag } = scan as Record<string, unknown>;
         if (id === enrollment.id && typeof sequence === "number" && typeof tag === "string") {
           const normalizedTag = tag.toUpperCase();
-          const registeredTags = allCatDetails.map(([, details]) => String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase());
-          const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags);
+          const registeredTags = await Promise.all(allCatDetails.filter(([, details]) => normalizedTag && String(details.rfidTag ?? "").replace(/[^A-Fa-f0-9]/g, "").toUpperCase() === normalizedTag).map(async ([catId]) => ({ tag: normalizedTag, name: String((await client.getDocument(`users/${ownerId}/cats/${catId}`))?.data.name ?? "another cat") })));
+          const next = acceptEnrollmentScan(enrollment, sequence, normalizedTag, registeredTags, scan, serverNow.getTime());
           if (next.lastScanId === sequence) enrollmentAck = sequence;
           enrollment = next;
         }

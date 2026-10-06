@@ -7,13 +7,13 @@ export function getPredictiveOverview(sessions: readonly Visit[], established: b
     return ["year", "month", "day"].map(type => parts.find(part => part.type === type)?.value).join("-");
   };
   const today = dateKey(now);
-  const visits = sessions.filter(s => !["IN_PROGRESS", "FALSE_ENTRY_IGNORED"].includes(s.sessionStatus ?? "")).map(s => {
+  const visits = sessions.filter(s => !["IN_PROGRESS", "FALSE_ENTRY_IGNORED", "SESSION_INTERRUPTED"].includes(s.sessionStatus ?? "")).map(s => {
     const timestamp = s.endedAt || s.startedAt;
     const parsed = timestamp ? new Date(timestamp) : null;
     const valid = parsed && Number.isFinite(parsed.getTime());
     return { ...s, occurredAt: valid ? parsed.toISOString() : undefined, day: valid ? dateKey(parsed) : s.date ?? "", timeLabel: valid ? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit" }).format(parsed) : s.time || "Time unavailable", count: Math.max(1, s.summaryVisits ?? 1) };
   }).sort((a, b) => (b.occurredAt ?? b.day).localeCompare(a.occurredAt ?? a.day));
-  const completed = visits.filter(v => v.sessionStatus !== "SHORT_SESSION");
+  const completed = visits.filter(v => !["SHORT_SESSION", "NO_EXIT_TIMEOUT"].includes(v.sessionStatus ?? ""));
   const days = new Set(completed.filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v.day) && v.day <= today).map(v => v.day));
   const recordedDays = Math.min(BASELINE_PERIOD_DAYS, days.size);
   const groups = new Map<string, { visits: number; duration: number }>();

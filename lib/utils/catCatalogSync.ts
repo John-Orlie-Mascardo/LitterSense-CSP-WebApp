@@ -89,6 +89,12 @@ export async function mutateCatProfile(ownerId: string, input: CatProfileMutatio
     const exists = catMap.has(mutation.catId);
     if (mutation.action === 'create' && exists) throw new CatProfileError('This cat already exists. Refresh before trying again.', 409);
     if (mutation.action === 'update' && !exists) throw new CatProfileError('This cat no longer exists. Refresh before editing.', 404);
+    if (mutation.action !== 'delete' && typeof mutation.details?.rfidTag === 'string') {
+      const normalize = (value: unknown) => typeof value === 'string' ? value.replace(/[^A-Fa-f0-9]/g, '').toUpperCase() : '';
+      const tag = normalize(mutation.details.rfidTag);
+      const duplicate = tag && [...detailMap].find(([id, details]) => id !== mutation.catId && catMap.has(id) && normalize(details.rfidTag) === tag);
+      if (duplicate) throw new CatProfileError(`This tag belongs to ${catMap.get(duplicate[0])?.name ?? 'another cat'}. Use a different tag.`, 409);
+    }
     const revision = revisionAfter(revisionDoc.data()?.revision);
     const catRef = db.doc(`${root}/cats/${mutation.catId}`);
     const detailsRef = db.doc(`${root}/catDetails/${mutation.catId}`);

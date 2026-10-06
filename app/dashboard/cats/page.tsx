@@ -28,6 +28,7 @@ import {
   X as XIcon,
   Wifi,
 } from "lucide-react";
+import { RfidHoldProgress } from "@/components/cats/RfidHoldProgress";
 import { BreedPicker, MonthYearPicker } from "@/components/cats/CatFormFields";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/TopBar";
@@ -64,7 +65,7 @@ import {
 import type { Session } from "@/lib/interfaces/Session";
 
 const AVATAR_PREVIEW_SIZE = 128;
-type EnrollmentView = { id?: string; status: string; count: number; tag: string; error: string };
+type EnrollmentView = { id?: string; status: string; count: number; tag: string; error: string; holdMs?: number; lastScanId?: number };
 
 interface PhotoOffset {
   x: number;
@@ -194,7 +195,7 @@ export default function CatsPage() {
       } catch (error) {
         if (active) setEnrollment((current) => ({ ...current, error: error instanceof Error ? error.message : "Unable to check scanner." }));
       } finally {
-        if (active) timer = window.setTimeout(poll, 1000);
+        if (active) timer = window.setTimeout(poll, 500);
       }
     };
     void poll();
@@ -206,8 +207,9 @@ export default function CatsPage() {
     const timer = window.setTimeout(() => {
       setFormData((current) => ({ ...current, rfidTag: enrollment.tag }));
       setErrors((current) => ({ ...current, rfidTag: undefined }));
+      enrollmentOpenRef.current = false;
       setEnrollmentOpen(false);
-    }, 900);
+    }, 1200);
     return () => window.clearTimeout(timer);
   }, [enrollmentOpen, enrollment.status, enrollment.tag]);
 
@@ -243,7 +245,8 @@ export default function CatsPage() {
       .map((c) => contextCatDetails[c.id]?.rfidTag)
       .filter(Boolean);
     if (formData.rfidTag && existingRfids.some((tag) => tag?.toUpperCase() === formData.rfidTag.trim().toUpperCase())) {
-      newErrors.rfidTag = "Already registered";
+      const ownerCat = cats.find(cat => contextCatDetails[cat.id]?.rfidTag?.toUpperCase() === formData.rfidTag.trim().toUpperCase());
+      newErrors.rfidTag = `This tag belongs to ${ownerCat?.name ?? "another cat"}.`;
     }
 
     setErrors(newErrors);
@@ -720,15 +723,16 @@ export default function CatsPage() {
       </BottomSheet>
       <BottomSheet isOpen={enrollmentOpen} onClose={closeEnrollment} title="Scan RFID Tag">
         <div className="space-y-5 text-litter-text">
-          <p className="text-sm text-litter-muted">Hold the same tag near the RFID reader three times. Remove it for at least 3 seconds between scans.</p>
+          <p className="text-sm text-litter-muted">Hold the tag on the reader continuously for 5 seconds.</p>
           <p className="text-xs text-litter-muted">After verification, press Save Cat to register the tag with this cat.</p>
-          <div className="flex justify-center gap-3" aria-label={`${enrollment.count} of 3 scans confirmed`}>
-            {[1, 2, 3].map((step) => <span key={step} className={`flex h-11 w-11 items-center justify-center rounded-full border-2 font-semibold transition-all duration-300 ${step <= enrollment.count ? "border-litter-primary bg-litter-primary text-white scale-110" : "border-litter-border text-litter-muted"}`}>{step <= enrollment.count ? "✓" : step}</span>)}
+          <div className="flex justify-center">
+            <RfidHoldProgress status={enrollment.status} holdMs={enrollment.holdMs} tag={enrollment.tag} sample={enrollment.lastScanId} paused={Boolean(enrollment.error)} />
           </div>
           <div className="rounded-xl border border-litter-border bg-[var(--color-input)] p-4 text-center" aria-live="polite">
             {enrollment.status === "starting" || enrollment.status === "waiting" ? <p className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Connecting to RFID reader… An idle reader may take up to 60 seconds. Wait for “Reader ready” before scanning.</p> : null}
-            {enrollment.status === "ready" ? <p>{enrollment.count ? `${enrollment.count} of 3 scans confirmed. Remove the tag, then scan it again.` : "Reader ready. Scan the tag now."}</p> : null}
-            {enrollment.status === "verified" ? <p className="flex items-center justify-center gap-2 text-litter-primary"><Loader2 className="h-4 w-4 animate-spin" /> Verifying three matching scans…</p> : null}
+            {enrollment.status === "ready" ? <p>{"Reader ready. Hold the tag on the reader for 5 seconds."}</p> : null}
+            {enrollment.status === "holding" ? <p>Keep holding the tag on the reader…</p> : null}
+            {enrollment.status === "verified" ? <p className="flex items-center justify-center gap-2 text-litter-primary"><span aria-hidden="true">✓</span> Tag registered</p> : null}
             {enrollment.tag && <p className="mt-2 break-all font-mono text-sm">Tag code: {enrollment.tag}</p>}
             {enrollment.error && <p className="mt-2 text-sm text-red-500" role="alert">{enrollment.error}</p>}
           </div>

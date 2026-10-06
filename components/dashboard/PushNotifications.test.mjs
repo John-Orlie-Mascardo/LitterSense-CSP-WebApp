@@ -36,19 +36,19 @@ function harness(permission = 'default') {
   };
 }
 
-test('push setup waits for a tap; confirmed devices show enabled and tests stay in collapsed troubleshooting', async () => {
+test('push setup waits for a tap and contains no test controls', async () => {
   const h = harness();
   let tree = await h.render();
   assert.equal(h.prompts, 0); assert.equal(h.tokenCalls, 0);
   const find = (nodes, label) => nodes.find(node => node.type === 'button' && node.props.children === label);
-  assert.equal(find(tree, 'Send test push').props.disabled, true);
+  assert.equal(find(tree, 'Send test push'), undefined);
   await find(tree, 'Enable push notifications').props.onClick();
   tree = await h.render();
   assert.equal(h.prompts, 1);
   assert.equal(find(tree, 'Enable push notifications'), undefined);
   assert.ok(tree.some(node => node.props?.children === 'Notifications enabled on this device'));
-  assert.equal(tree.find(node => node.type === 'details').props.open, undefined);
-  assert.equal(find(tree, 'Send test push').props.disabled, false);
+  assert.equal(tree.find(node => node.type === 'details'), undefined);
+  assert.equal(find(tree, 'Send test push'), undefined);
 });
 
 test('already permitted devices verify registration; failed registration and another account never show enabled', async () => {

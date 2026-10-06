@@ -1,3 +1,4 @@
+import { ownerText } from "../presentation/ownerText";
 /**
  * Validates predictive-health input and builds a grounded, non-diagnostic report.
  */
@@ -196,7 +197,7 @@ export function summarizePredictiveSessions(
   return sessions.reduce<SessionCounts>((counts, session) => {
     const status = session.sessionStatus?.toUpperCase() ?? "NORMAL";
     const isIncomplete =
-      status === "SHORT_SESSION" || session.anomalyType === "Short session";
+      status === "SHORT_SESSION" || status === "SESSION_INTERRUPTED" || status === "NO_EXIT_TIMEOUT" || session.anomalyType === "Short session";
     const isIgnored = status === "IN_PROGRESS" || status === "FALSE_ENTRY_IGNORED";
     const isAbnormal =
       !isIncomplete &&
@@ -264,11 +265,11 @@ const getSafeNextStep = (state: BehaviorStateId) => {
     case "abnormal":
       return "Monitor the next litter-box visits and observe the cat. If the abnormal pattern repeats or the cat shows discomfort, contact a veterinarian.";
     case "incomplete":
-      return "Collect more completed RFID sessions before relying on the behavioral comparison.";
+      return "Collect more completed Litter Box Sessions before relying on the behavioral comparison.";
     case "unattributed":
       return "Check the collar tag and RFID reader, then collect attributed sessions for this cat.";
     default:
-      return "Collect more completed RFID sessions before requesting a reliable behavioral prediction.";
+      return "Collect more completed Litter Box Sessions before requesting a reliable behavioral prediction.";
   }
 };
 
@@ -290,7 +291,7 @@ export function buildPredictiveHealthEvidence(
   const observedChanges: string[] = [];
   if (request.environment) {
     if (request.todayVisits !== null) observedChanges.push(`Today: ${pluralize(request.todayVisits, "visit")}${request.todayAvgDurationSecs === null ? "" : `; average duration ${formatDuration(request.todayAvgDurationSecs)}`}.`);
-    observedChanges.push(`Environment: Ammonia ${request.environment.ammonia}; hydrogen sulfide ${request.environment.h2s}. These are box readings, not measurements of this cat's health.`);
+    observedChanges.push(`Environment: Urine ${request.environment.ammonia}; Stool ${request.environment.h2s}. These are box readings, not measurements of this cat's health.`);
   }
   const activeTrend = trendData.filter((point) => point.visits > 0 || point.avgDuration > 0);
   if (activeTrend.length >= 2) {
@@ -318,8 +319,8 @@ export function buildPredictiveHealthEvidence(
     ? `; ${pluralize(sessionCounts.incomplete, "incomplete session")} ${sessionCounts.incomplete === 1 ? "was" : "were"} excluded`
     : "";
   const dataQuality = baseline
-    ? `Baseline established. Analysis uses ${pluralize(sessionCounts.completed, "completed RFID session")}${excludedText}.`
-    : `Limited: no established baseline. Analysis uses ${pluralize(sessionCounts.completed, "completed RFID session")}${excludedText}. More completed RFID sessions are needed before a reliable baseline comparison can be made.`;
+    ? `Baseline established. Analysis uses ${pluralize(sessionCounts.completed, "completed Litter Box Session")}${excludedText}.`
+    : `Limited: no established baseline. Analysis uses ${pluralize(sessionCounts.completed, "completed Litter Box Session")}${excludedText}. More completed Litter Box Sessions are needed before a reliable baseline comparison can be made.`;
 
   return {
     baselineComparison,
@@ -332,7 +333,7 @@ export function buildPredictiveHealthEvidence(
 export function buildPredictiveHealthPrompt(request: PredictiveHealthRequest) {
   const evidence = buildPredictiveHealthEvidence(request);
   return [
-    "Write a plain-language behavioral health summary for a cat owner in two or three sentences and at most 90 words.",
+    "Use Urine and Stool for environment readings; never use chemical names, chemical abbreviations, ppm units, confidence labels, or RFID Session labels. Write a plain-language behavioral health summary for a cat owner in two or three sentences and at most 90 words.",
     `The app's official behavior state is \"${request.displayState}\". Explain it, but never change or contradict it.`,
     "Use only the supplied verified evidence. Do not diagnose, predict a disease, name illnesses, invent causes, invent measurements, or claim certainty about the cat's health.",
     "When no personal baseline exists, give a useful preliminary early read using the available visits and environment. Label it preliminary and do not claim a personal baseline comparison. Even zero visits can support setup steps and available environment guidance.",
@@ -353,7 +354,7 @@ export function createPredictiveHealthAnalysis(
   summary: string,
 ): PredictiveHealthAnalysis {
   const confidence = (request.evidenceDays ?? 0) >= 7 ? request.baseline && request.sessionCounts.completed >= 14 ? "high" : "medium" : "low";
-  return { summary, ...buildPredictiveHealthEvidence(request), confidence, preliminary: !request.baseline };
+  return { summary: ownerText(summary), ...buildPredictiveHealthEvidence(request), confidence, preliminary: !request.baseline };
 }
 
 export function parseGeminiSummary(value: unknown) {

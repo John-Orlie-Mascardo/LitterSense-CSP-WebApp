@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { getFirestoreRestClient } from "@/lib/utils/firestoreRest";
-import { isEnrollmentActive, RFID_ENROLLMENT_MS, RFID_ENROLLMENT_PATH, type RfidEnrollment } from "@/lib/utils/rfidEnrollment";
+import { isEnrollmentActive, RFID_ENROLLMENT_MS, RFID_ENROLLMENT_PATH, RFID_PROGRESS_STALE_MS, type RfidEnrollment } from "@/lib/utils/rfidEnrollment";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "no-store" };
@@ -17,6 +17,9 @@ export async function GET(request: Request) {
   try {
     const doc = await getFirestoreRestClient().getDocument(`users/${uid}/${RFID_ENROLLMENT_PATH}`);
     const enrollment = doc?.data as RfidEnrollment | undefined;
+    if (enrollment?.status === "holding" && isEnrollmentActive(enrollment) && Date.now() - (enrollment.progressReceivedAt ?? 0) > RFID_PROGRESS_STALE_MS) {
+      return Response.json({ ...enrollment, status: "ready", holdMs: 0, error: "Reader updates paused. Keep the tag on the reader for 5 seconds." }, { headers });
+    }
     return Response.json((enrollment && isEnrollmentActive(enrollment)) || enrollment?.status === "verified" ? enrollment : { status: "expired" }, { headers });
   } catch { return Response.json({ error: "Unable to read scanner status" }, { status: 503, headers }); }
 }

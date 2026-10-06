@@ -293,7 +293,7 @@ export function OnboardingFlow() {
               <div className="overflow-hidden rounded-2xl border border-litter-border bg-litter-card shadow-sm">
                 <PreferenceToggle
                   icon={Wind}
-                  label="Ammonia alerts"
+                  label="Urine alerts"
                   description="Urine odor pattern changes"
                   checked={preferences.ammoniaAlerts}
                   onChange={(checked) =>
@@ -302,7 +302,7 @@ export function OnboardingFlow() {
                 />
                 <PreferenceToggle
                   icon={ShieldCheck}
-                  label="H2S alerts"
+                  label="Stool alerts"
                   description="Stool odor pattern changes"
                   checked={preferences.h2sAlerts}
                   onChange={(checked) =>
@@ -312,7 +312,7 @@ export function OnboardingFlow() {
                 <PreferenceToggle
                   icon={Radio}
                   label="RFID entry/exit"
-                  description="Visit notifications for each RFID session"
+                  description="Visit notifications for each Litter Box Session"
                   checked={preferences.rfidVisitAlerts}
                   onChange={(checked) =>
                     setPreferences((current) => ({ ...current, rfidVisitAlerts: checked }))
