@@ -28,10 +28,8 @@ import {
   Activity,
   ChevronDown,
   Download,
-  XSquare,
   Check,
   AlertTriangle,
-  Clock,
   Wifi,
   Copy,
   RefreshCw,
@@ -51,17 +49,17 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
+import { AccountDeletionRow } from "@/components/settings/AccountDeletionRow";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth, db } from "@/lib/configs/firebase";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import {
   updateProfile,
   updatePassword,
@@ -80,6 +78,11 @@ import {
   deleteOwnerPhoto,
   uploadOwnerPhoto,
 } from "@/lib/utils/ownerPhoto";
+import {
+  readAccountDeletionState,
+  requestAccountDeletion,
+  type AccountDeletionState,
+} from "@/lib/utils/accountDeletion";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -283,6 +286,12 @@ export default function SettingsPage() {
   const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
   const [showDeleteFinalConfirm, setShowDeleteFinalConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState("");
+  const [accountDeletion, setAccountDeletion] = useState<AccountDeletionState>({
+    status: "none",
+    requestedAt: null,
+  });
+  const [isDeletionStatusLoading, setIsDeletionStatusLoading] = useState(true);
+  const [isSubmittingDeletion, setIsSubmittingDeletion] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showWifiProvisioning, setShowWifiProvisioning] = useState(false);
@@ -295,23 +304,26 @@ export default function SettingsPage() {
   const [selectedRetention, setSelectedRetention] = useState("30 Days");
 
   const { user, refreshUser } = useAuth();
-  const { getUserRequest, submitRequest } = useDeleteRequest();
-  const userRequest = user ? getUserRequest(user.uid) : undefined;
 
   const handleSubmitDeletion = async () => {
-    if (!user) return;
+    if (!user || accountDeletion.status !== "none" || isSubmittingDeletion) return;
+    setIsSubmittingDeletion(true);
     try {
-      await submitRequest(
-        user.uid,
-        user.displayName || user.email?.split("@")[0] || "User",
-        user.email || "",
-        deleteReason || "No reason provided"
-      );
+      await requestAccountDeletion(user, deleteReason);
+      setAccountDeletion({ status: "pending", requestedAt: new Date() });
       setDeleteReason("");
       addToast("Deletion request submitted. An admin will review it soon.", "info");
     } catch (error) {
       console.error("Failed to submit deletion request:", error);
-      addToast("Failed to submit request. Please try again.", "error");
+      const message = error instanceof Error ? error.message : "";
+      addToast(
+        message.includes("already active")
+          ? "A deletion request is already pending."
+          : "Failed to submit request. Please try again.",
+        message.includes("already active") ? "info" : "error",
+      );
+    } finally {
+      setIsSubmittingDeletion(false);
     }
   };
 
@@ -324,6 +336,27 @@ export default function SettingsPage() {
   });
   const [savedPhoneNumber, setSavedPhoneNumber] = useState("");
   const [savedPhoneCountryCode, setSavedPhoneCountryCode] = useState("+63");
+
+  useEffect(() => {
+    if (!user) {
+      setAccountDeletion({ status: "none", requestedAt: null });
+      setIsDeletionStatusLoading(false);
+      return;
+    }
+
+    setIsDeletionStatusLoading(true);
+    return onSnapshot(
+      doc(db, "users", user.uid),
+      (snapshot) => {
+        setAccountDeletion(readAccountDeletionState(snapshot.data()));
+        setIsDeletionStatusLoading(false);
+      },
+      (error) => {
+        console.error("Failed to load account deletion status:", error);
+        setIsDeletionStatusLoading(false);
+      },
+    );
+  }, [user]);
 
   // Sync form when user is loaded
   useEffect(() => {
@@ -918,66 +951,13 @@ export default function SettingsPage() {
               <ChevronRight className="w-5 h-5 text-theme-muted" />
             </button>
             <div className="border-t border-litter-border">
-              {!userRequest ? (
-                /* No request yet â€” show action button */
-                <button
-                  onClick={() => setShowDeleteRequestSheet(true)}
-                  className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <XSquare className="w-5 h-5 text-red-500" />
-                    <span className="text-sm font-medium text-red-500">Request Account Deletion</span>
-                  </div>
-                </button>
-              ) : userRequest.status === "pending" ? (
-                /* Pending â€” amber status card */
-                <div className="p-4">
-                  <div className="flex items-start gap-3 p-3.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800">
-                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Deletion Requested</p>
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
-                        Your request is awaiting admin review. You can continue using the app in the meantime.
-                      </p>
-                      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1.5">
-                        Submitted {new Date(userRequest.requestedDate).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : userRequest.status === "approved" ? (
-                /* Approved â€” red status card */
-                <div className="p-4">
-                  <div className="flex items-start gap-3 p-3.5 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
-                    <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-red-700 dark:text-red-400">Deletion Approved</p>
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 leading-relaxed">
-                        Your account deletion has been approved. Your account, all cat profiles, monitoring history, and health logs will be permanently removed and cannot be recovered.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* Rejected â€” neutral card with re-request option */
-                <div className="p-4">
-                  <div className="flex items-start gap-3 p-3.5 bg-litter-bg rounded-xl border border-litter-border">
-                    <XSquare className="w-5 h-5 text-litter-muted shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-litter-text">Request Declined</p>
-                      <p className="text-xs text-litter-muted mt-0.5 leading-relaxed">
-                        Your deletion request was not approved. Contact support for details.
-                      </p>
-                      <button
-                        onClick={() => setShowDeleteRequestSheet(true)}
-                        className="text-xs text-litter-primary font-semibold mt-2 hover:underline"
-                      >
-                        Submit a new request
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <AccountDeletionRow
+                status={accountDeletion.status}
+                requestedAt={accountDeletion.requestedAt}
+                isLoading={isDeletionStatusLoading}
+                isSubmitting={isSubmittingDeletion}
+                onRequest={() => setShowDeleteRequestSheet(true)}
+              />
             </div>
           </div>
         </div>

@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { label: "Overview",        href: "/admin",           icon: LayoutDashboard, exact: true  },
   { label: "Users",           href: "/admin/users",      icon: Users,           exact: false },
   { label: "Delete Requests", href: "/admin/requests",   icon: Trash2,          exact: false, badge: true },
-  { label: "Add Admin",       href: "/admin/add-admin",  icon: UserPlus,        exact: false },
+  { label: "Admin Access",    href: "/admin/add-admin",  icon: UserPlus,        exact: false },
 ];
 
 const isActive = (pathname: string, href: string, exact: boolean) =>

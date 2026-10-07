@@ -1,280 +1,117 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, X, CheckCircle, Trash2, Loader2, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Trash2 } from "lucide-react";
+import { DeletionQueue } from "@/components/admin/DeletionQueue";
+import { ToastContainer } from "@/components/ui/Toast";
 import { useAdmin } from "@/lib/contexts/AdminContext";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
-import { ToastContainer } from "@/components/ui/Toast";
-
-// ─── Formatting ───────────────────────────────────────────────────────────────
-
-function formatDate(iso: string) {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// ─── Requests Page ────────────────────────────────────────────────────────────
 
 export default function AdminRequestsPage() {
   const { toasts, dismissToast, addToast } = useAdmin();
-  const { requests, approveRequest, rejectRequest, deleteApprovedAccount } =
-    useDeleteRequest();
+  const { requests, isLoading, approveRequest, rejectRequest } = useDeleteRequest();
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [confirmUserId, setConfirmUserId] = useState<string | null>(null);
 
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
-  const pendingRequests = useMemo(
-    () => requests.filter((r) => r.status === "pending"),
-    [requests]
-  );
-  const resolvedRequests = useMemo(
-    () =>
-      requests.filter(
-        (r) =>
-          r.status === "approved" ||
-          r.status === "rejected" ||
-          r.status === "deleted"
-      ),
-    [requests]
-  );
-
-  async function handleApprove(id: string) {
-    try {
-      await approveRequest(id);
-      addToast("Account deletion approved. User removed.", "success");
-    } catch (error) {
-      console.error("Failed to approve request:", error);
-      addToast("Failed to approve request.", "error");
-    }
-  }
-
-  async function handleReject(id: string) {
-    try {
-      await rejectRequest(id);
-      addToast("Request rejected. User has been notified.", "info");
-    } catch (error) {
-      console.error("Failed to reject request:", error);
-      addToast("Failed to reject request.", "error");
-    }
-  }
-
-  async function handleDeleteAccount(requestId: string, userId: string) {
-    setConfirmDeleteId(null);
-    setDeletingId(requestId);
-    try {
-      await deleteApprovedAccount(requestId, userId);
-      addToast("Account permanently deleted.", "success");
-    } catch (error) {
-      console.error("Failed to delete account:", error);
-      addToast("Failed to delete account.", "error");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  // Find the request awaiting delete confirmation
-  const confirmTarget = confirmDeleteId
-    ? requests.find((r) => r.id === confirmDeleteId)
+  const confirmTarget = confirmUserId
+    ? requests.find((request) => request.userId === confirmUserId)
     : null;
 
+  async function handleApprove(userId: string) {
+    setConfirmUserId(null);
+    setBusyUserId(userId);
+    try {
+      await approveRequest(userId);
+      addToast("Account and associated data permanently deleted.", "success");
+    } catch (error) {
+      console.error("Failed to approve deletion request:", error);
+      addToast(
+        error instanceof Error ? error.message : "Failed to delete account.",
+        "error",
+      );
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function handleReject(userId: string) {
+    setBusyUserId(userId);
+    try {
+      await rejectRequest(userId);
+      addToast("Deletion request rejected. The account remains active.", "info");
+    } catch (error) {
+      console.error("Failed to reject deletion request:", error);
+      addToast(
+        error instanceof Error ? error.message : "Failed to reject request.",
+        "error",
+      );
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
   return (
-    <main className="flex-1 p-6 lg:p-8 space-y-6 overflow-auto">
+    <main className="flex-1 space-y-6 overflow-auto p-6 lg:p-8">
       <ToastContainer toasts={toasts} onClose={dismissToast} />
 
-      {/* ── Page header ─────────────────────────────────────────────── */}
       <div>
-        <h1 className="font-display font-bold text-2xl text-litter-text">
-          Delete Requests
-        </h1>
-        <p className="text-sm text-litter-muted mt-0.5">
-          Manage user account deletion requests
+        <h1 className="font-display text-2xl font-bold text-litter-text">Delete Requests</h1>
+        <p className="mt-0.5 text-sm text-litter-muted">
+          Review pending requests and retry failed deletions
         </p>
       </div>
 
-      {/* ── Requests queue ──────────────────────────────────────────── */}
-      <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-litter-border flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-display font-semibold text-litter-text text-base">
-              Queue
-            </h2>
-            <p className="text-xs text-litter-muted mt-0.5">
-              Pending and recent requests
-            </p>
-          </div>
-          {pendingRequests.length > 0 && (
-            <span className="shrink-0 px-2.5 py-1 bg-status-danger text-status-danger text-xs font-semibold rounded-full">
-              {pendingRequests.length} pending
-            </span>
-          )}
-        </div>
+      <DeletionQueue
+        requests={requests}
+        isLoading={isLoading}
+        busyUserId={busyUserId}
+        onApprove={setConfirmUserId}
+        onReject={(userId) => void handleReject(userId)}
+      />
 
-        {pendingRequests.length === 0 && resolvedRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-litter-primary-light flex items-center justify-center mb-3">
-              <CheckCircle className="w-6 h-6 text-litter-primary" />
-            </div>
-            <p className="font-display font-semibold text-litter-text">
-              All clear
-            </p>
-            <p className="text-sm text-litter-muted mt-1">
-              No pending deletion requests
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-litter-border">
-            {[...pendingRequests, ...resolvedRequests].map((req) => (
-              <li
-                key={req.id}
-                className="px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-3"
-              >
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm text-litter-text">
-                      {req.userName}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
-                        req.status === "pending"
-                          ? "bg-status-danger text-status-danger"
-                          : req.status === "approved"
-                          ? "bg-litter-primary-light text-litter-primary"
-                          : req.status === "deleted"
-                          ? "bg-litter-danger-bg text-litter-danger-text border border-litter-danger/30"
-                          : "bg-litter-bg text-litter-muted border border-litter-border"
-                      }`}
-                    >
-                      {req.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-litter-muted mt-0.5">
-                    {req.userEmail}
-                  </p>
-                  <p className="text-xs text-litter-muted mt-1 leading-relaxed">
-                    <span className="font-medium text-litter-text-secondary">
-                      Reason:
-                    </span>{" "}
-                    {req.reason ?? "Account deletion request"}
-                    {" · "}
-                    <span className="font-medium text-litter-text-secondary">
-                      Requested:
-                    </span>{" "}
-                    {formatDate(req.requestedDate)}
-                    {req.resolvedDate && (
-                      <>
-                        {" · "}
-                        <span className="font-medium text-litter-text-secondary">
-                          {req.status === "approved"
-                            ? "Approved:"
-                            : "Rejected:"}
-                        </span>{" "}
-                        {formatDate(req.resolvedDate)}
-                      </>
-                    )}
-                  </p>
-                </div>
-
-                {/* Actions */}
-                {req.status === "pending" ? (
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={() => handleApprove(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-primary text-white text-xs font-semibold rounded-lg hover:bg-litter-primary-hover transition-colors"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleReject(req.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-card border border-litter-border text-litter-text text-xs font-semibold rounded-lg hover:border-litter-danger hover:text-litter-danger transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Reject
-                    </button>
-                  </div>
-                ) : req.status === "approved" ? (
-                  <button
-                    onClick={() => setConfirmDeleteId(req.id)}
-                    disabled={deletingId === req.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-litter-danger-bg border border-litter-danger/30 text-litter-danger-text text-xs font-semibold rounded-lg hover:bg-litter-danger/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                  >
-                    {deletingId === req.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
-                    )}
-                    Delete Account
-                  </button>
-                ) : (
-                  <span className="text-xs text-litter-muted shrink-0 italic capitalize">
-                    {req.status}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* ── Confirm Delete Modal ─────────────────────────────────────── */}
       {confirmTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setConfirmDeleteId(null);
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setConfirmUserId(null);
           }}
         >
-          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-xl w-full max-w-sm p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="shrink-0 w-10 h-10 rounded-full bg-litter-danger-bg flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-litter-danger" />
+          <div className="w-full max-w-sm rounded-2xl border border-litter-border bg-litter-card p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-litter-danger-bg">
+                <AlertTriangle className="h-5 w-5 text-litter-danger" />
               </div>
               <div>
-                <h2 className="font-display font-semibold text-litter-text text-base">
+                <h2 className="font-display text-base font-semibold text-litter-text">
                   Permanently Delete Account?
                 </h2>
-                <p className="text-xs text-litter-muted mt-0.5">
-                  This action cannot be undone.
-                </p>
+                <p className="mt-0.5 text-xs text-litter-muted">This action cannot be undone.</p>
               </div>
             </div>
 
-            <p className="text-sm text-litter-text mb-1">
-              You are about to permanently delete:
-            </p>
-            <div className="bg-litter-bg rounded-xl border border-litter-border px-4 py-3 mb-5">
-              <p className="font-semibold text-sm text-litter-text">
-                {confirmTarget.userName}
-              </p>
-              <p className="text-xs text-litter-muted mt-0.5">
-                {confirmTarget.userEmail}
-              </p>
+            <div className="mb-4 rounded-xl border border-litter-border bg-litter-bg px-4 py-3">
+              <p className="text-sm font-semibold text-litter-text">{confirmTarget.userName}</p>
+              <p className="mt-0.5 text-xs text-litter-muted">{confirmTarget.userEmail}</p>
             </div>
-            <p className="text-xs text-litter-muted mb-5">
-              This will remove the user&apos;s Firebase Auth account and all
-              associated Firestore data (cats, readings, etc.).
+            <p className="mb-5 text-xs leading-relaxed text-litter-muted">
+              Approval removes the Firebase Auth account, USER document, all linked Firestore
+              data, backup data, and files under this user&apos;s Storage directory.
             </p>
 
             <div className="flex gap-3">
               <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 py-2.5 border border-litter-border text-litter-text rounded-xl text-sm font-medium hover:bg-litter-bg transition-colors"
+                type="button"
+                onClick={() => setConfirmUserId(null)}
+                className="flex-1 rounded-xl border border-litter-border py-2.5 text-sm font-medium text-litter-text hover:bg-litter-bg"
               >
                 Cancel
               </button>
               <button
-                onClick={() =>
-                  handleDeleteAccount(confirmTarget.id, confirmTarget.userId)
-                }
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-1.5"
+                type="button"
+                onClick={() => void handleApprove(confirmTarget.userId)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700"
               >
-                <Trash2 className="w-4 h-4" />
-                Delete Permanently
+                <Trash2 className="h-4 w-4" /> Delete Permanently
               </button>
             </div>
           </div>

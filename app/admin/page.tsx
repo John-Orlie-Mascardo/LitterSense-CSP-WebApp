@@ -18,6 +18,8 @@ import { useAdmin } from "@/lib/contexts/AdminContext";
 import { useDeleteRequest } from "@/lib/contexts/DeleteRequestContext";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ToastContainer } from "@/components/ui/Toast";
+import { AuditLogList } from "@/components/admin/AuditLogList";
+import { summarizeAdminOverview } from "@/lib/utils/adminOverview";
 
 const GENDER_COLORS: Record<string, string> = {
   Male: "var(--color-primary)",
@@ -36,19 +38,18 @@ const tooltipStyle = {
 const skeletonCards = ["gender-chart", "cats-chart"];
 
 export default function AdminOverviewPage() {
-  const { users, isLoading, toasts, dismissToast } = useAdmin();
-  const { requests } = useDeleteRequest();
+  const {
+    users,
+    isLoading,
+    auditLogs,
+    isAuditLoading,
+    toasts,
+    dismissToast,
+  } = useAdmin();
+  const { requests, isLoading: requestsLoading } = useDeleteRequest();
 
   const agg = useMemo(() => {
-    const allCats = users.flatMap((u) => u.cats);
-    return {
-      totalUsers: users.length,
-      activeUsers: users.filter((u) => u.status === "active").length,
-      totalCats: allCats.length,
-      maleCats: allCats.filter((c) => c.gender === "male").length,
-      femaleCats: allCats.filter((c) => c.gender === "female").length,
-      pendingDeletes: requests.filter((r) => r.status === "pending").length,
-    };
+    return summarizeAdminOverview(users, requests);
   }, [users, requests]);
 
   const genderData = [
@@ -93,7 +94,7 @@ export default function AdminOverviewPage() {
         />
         <StatCard
           icon={Trash2}
-          value={isLoading ? "--" : agg.pendingDeletes}
+          value={isLoading || requestsLoading ? "--" : agg.pendingDeletes}
           label="Pending Deletions"
           status={agg.pendingDeletes > 0 ? "abnormal" : "normal"}
           statusLabel={agg.pendingDeletes > 0 ? "Needs review" : "All clear"}
@@ -277,6 +278,8 @@ export default function AdminOverviewPage() {
           </Link>
         </div>
       )}
+
+      <AuditLogList entries={auditLogs} isLoading={isAuditLoading} />
     </main>
   );
 }

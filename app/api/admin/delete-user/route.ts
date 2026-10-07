@@ -1,129 +1,143 @@
-/**
- * POST /api/admin/delete-user
- *
- * Permanently deletes a Firebase Auth user and their Firestore data,
- * then marks the deleteRequest document as "deleted".
- *
- * Caller must be an admin (verified via Firebase ID token).
- *
- * Body: { idToken: string; userId: string; requestId: string }
- */
-
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/configs/firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
-import { getApps } from "firebase-admin/app";
+import {
+  getAdminAuth,
+  getAdminFirestore,
+  getAdminStorageBucket,
+} from "@/lib/configs/firebase-admin";
+import { authorizeAdminRequest } from "@/lib/server/adminAuth";
+import { writeAuditLog } from "@/lib/server/auditLog";
 import { smsStoreRequest } from "@/lib/utils/smsAccountSync";
 
-const MASTER_ADMIN_EMAIL = "maclaurenz.cultura@gmail.com";
+export const runtime = "nodejs";
 
-async function isAdminEmail(email: string): Promise<boolean> {
-  if (email === MASTER_ADMIN_EMAIL) return true;
-  try {
-    const db = getFirestore(getApps()[0]);
-    const snap = await db.collection("admins").doc(email).get();
-    return snap.exists;
-  } catch {
-    return false;
-  }
+const VALID_UID = /^[A-Za-z0-9:_-]{1,128}$/;
+
+function errorText(error: unknown): string {
+  return (error instanceof Error ? error.message : "Unknown error").slice(0, 300);
 }
 
-/** Recursively deletes all documents in a Firestore collection reference. */
-async function deleteCollection(
-  db: FirebaseFirestore.Firestore,
-  collectionPath: string,
-  batchSize = 100,
-) {
-  const colRef = db.collection(collectionPath);
-  const query = colRef.limit(batchSize);
-
-  let snapshot = await query.get();
-  while (!snapshot.empty) {
-    const batch = db.batch();
-    snapshot.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-    snapshot = await query.get();
-  }
+function isMissingAuthUser(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "auth/user-not-found"
+  );
 }
 
 export async function POST(req: NextRequest) {
+  const authorization = await authorizeAdminRequest(req);
+  if (!authorization.ok) return authorization.response;
+
+  const body = (await req.json().catch(() => null)) as { userId?: unknown } | null;
+  const userId = typeof body?.userId === "string" ? body.userId : "";
+  if (!VALID_UID.test(userId)) {
+    return NextResponse.json({ error: "Invalid user ID." }, { status: 400 });
+  }
+
+  const db = getAdminFirestore();
+  const userRef = db.doc(`users/${userId}`);
+  const snapshot = await userRef.get();
+  if (!snapshot.exists) {
+    return NextResponse.json({ error: "Deletion request not found." }, { status: 404 });
+  }
+
+  const userData = snapshot.data() ?? {};
+  if (userData.deletionStatus !== "pending" && userData.deletionStatus !== "failed") {
+    return NextResponse.json(
+      { error: "This account has no actionable deletion request." },
+      { status: 409 },
+    );
+  }
+
+  const targetEmail = typeof userData.email === "string" ? userData.email : null;
+  const requestProfile = {
+    email: targetEmail,
+    fullName: typeof userData.fullName === "string" ? userData.fullName : null,
+    displayName: typeof userData.displayName === "string" ? userData.displayName : null,
+    deletionRequestedAt: userData.deletionRequestedAt ?? null,
+  };
+  let stage = "setting processing status";
+
   try {
-    const { idToken, userId, requestId } = (await req.json()) as {
-      idToken?: string;
-      userId?: string;
-      requestId?: string;
-    };
+    await userRef.update({ deletionStatus: "processing", deletionError: null });
 
-    if (!idToken || !userId || !requestId) {
-      return NextResponse.json(
-        { error: "Missing required fields." },
-        { status: 400 },
-      );
-    }
-
-    const adminAuth = getAdminAuth();
-
-    // 1. Verify the caller's ID token
-    let callerEmail: string;
-    try {
-      const decoded = await adminAuth.verifyIdToken(idToken);
-      callerEmail = decoded.email ?? "";
-    } catch {
-      return NextResponse.json(
-        { error: "Unauthorized: invalid token." },
-        { status: 401 },
-      );
-    }
-
-    // 2. Confirm the caller is an admin
-    const callerIsAdmin = await isAdminEmail(callerEmail);
-    if (!callerIsAdmin) {
-      return NextResponse.json(
-        { error: "Forbidden: caller is not an admin." },
-        { status: 403 },
-      );
-    }
-
-    const db = getFirestore(getApps()[0]);
-
-    // 3. Delete Firestore sub-collections first (cats, catDetails)
+    stage = "deleting linked data";
     if (process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
-      const removed = await smsStoreRequest(`sms_accounts?owner_id=eq.${encodeURIComponent(userId)}`, { method: "DELETE" });
-      if (!removed.ok) throw new Error("Could not remove SMS account data; deletion stopped.");
+      const removed = await smsStoreRequest(
+        `sms_accounts?owner_id=eq.${encodeURIComponent(userId)}`,
+        { method: "DELETE" },
+      );
+      if (!removed.ok) throw new Error("Backup account data could not be removed");
     }
-    await deleteCollection(db, `users/${userId}/cats`);
-    await deleteCollection(db, `users/${userId}/catDetails`);
 
-    // 4. Delete the root user document
-    await db.collection("users").doc(userId).delete();
-
-    // 5. Delete the Firebase Auth account
-    try {
-      await adminAuth.deleteUser(userId);
-    } catch (authErr: unknown) {
-      // If the auth user was already removed, treat it as a no-op
-      const code =
-        typeof authErr === "object" &&
-        authErr !== null &&
-        "code" in authErr &&
-        typeof (authErr as { code?: unknown }).code === "string"
-          ? (authErr as { code: string }).code
-          : "";
-      if (code !== "auth/user-not-found") {
-        throw authErr;
+    for (const nestedCollection of await userRef.listCollections()) {
+      await db.recursiveDelete(nestedCollection);
+    }
+    for (const collectionName of ["deviceConfigs", "cameraDevices", "deleteRequests"]) {
+      const ownerField = collectionName === "deleteRequests" ? "userId" : "ownerId";
+      const linked = await db.collection(collectionName).where(ownerField, "==", userId).get();
+      for (const linkedDoc of linked.docs) {
+        await db.recursiveDelete(linkedDoc.ref ?? linkedDoc);
       }
     }
+    await db.doc(`predictiveHealthLimits/${userId}`).delete();
 
-    // 6. Mark the deleteRequest as "deleted"
-    await db.collection("deleteRequests").doc(requestId).update({
-      status: "deleted",
+    stage = "deleting Storage files";
+    await getAdminStorageBucket().deleteFiles({ prefix: `users/${userId}/` });
+
+    stage = "deleting the USER document";
+    await userRef.delete();
+
+    stage = "deleting the Firebase Auth user";
+    try {
+      await getAdminAuth().deleteUser(userId);
+    } catch (error) {
+      if (!isMissingAuthUser(error)) throw error;
+    }
+
+    stage = "writing the approval audit entry";
+    // NOTE(manuscript): target identity stays in the audit log after permanent deletion.
+    await writeAuditLog({
+      action: "deletion_approved",
+      actorUid: authorization.admin.uid,
+      actorEmail: authorization.admin.email,
+      targetUid: userId,
+      targetEmail,
+      details: { result: "permanently_deleted" },
     });
 
     return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    console.error("[delete-user]", err);
-    const message =
-      err instanceof Error ? err.message : "Internal server error.";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    const deletionError = `Deletion failed while ${stage}. Retry the request or review the audit log.`;
+    try {
+      await userRef.set(
+        {
+          ...requestProfile,
+          deletionStatus: "failed",
+          deletionError,
+        },
+        { merge: true },
+      );
+    } catch (statusError) {
+      console.error("[delete-user] Failed to retain failed request:", statusError);
+    }
+    try {
+      await writeAuditLog({
+        action: "deletion_failed",
+        actorUid: authorization.admin.uid,
+        actorEmail: authorization.admin.email,
+        targetUid: userId,
+        targetEmail,
+        details: { stage, error: errorText(error) },
+      });
+    } catch (auditError) {
+      console.error("[delete-user] Failed to write failure audit:", auditError);
+    }
+    console.error("[delete-user]", deletionError);
+    return NextResponse.json(
+      { error: "Account deletion failed. The request remains available for retry." },
+      { status: 500 },
+    );
   }
 }

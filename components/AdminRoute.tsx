@@ -4,7 +4,7 @@
  * Protects admin UI while authentication and role state resolve.
  *
  * DONE: loading gate and redirects for signed-out or non-admin visitors
- * PLACEHOLDER: none; role-source migration is tracked in AuthContext.tsx
+ * PLACEHOLDER: none
  *
  * NEXT: security owners keep this gate aligned with AuthContext role resolution.
  */
@@ -22,10 +22,9 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        router.push("/login");
+        router.replace("/login");
       } else if (!isAdmin) {
-        // AuthContext is the single role source; non-admin visitors return home.
-        router.push("/dashboard");
+        router.replace("/dashboard");
       }
     }
   }, [user, loading, isAdmin, router]);

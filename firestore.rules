@@ -11,118 +11,78 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return signedIn() && request.auth.token.email != null && (
-        request.auth.token.email == "maclaurenz.cultura@gmail.com" ||
-        exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
-      );
+      return signedIn() && request.auth.token.admin == true;
     }
 
+    function deletionStatus(data) {
+      return data.get('deletionStatus', 'none');
+    }
+
+    function validUserCreate() {
+      return deletionStatus(request.resource.data) == 'none'
+        && !request.resource.data.keys().hasAny(['deletionRequestedAt']);
+    }
+
+    function deletionFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['deletionStatus', 'deletionRequestedAt']);
+    }
+
+    function validDeletionRequest() {
+      return deletionStatus(resource.data) == 'none'
+        && deletionStatus(request.resource.data) == 'pending'
+        && request.resource.data.deletionRequestedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['deletionStatus', 'deletionRequestedAt']);
+    }
+
+    // FIXME(defense): Firestore may keep an old admin claim until the client ID
+    // token refreshes (normally within one hour); server routes reject revoked tokens immediately.
     match /admins/{emailId} {
-      allow get: if (signedIn() && request.auth.token.email == emailId) || isAdmin();
-      allow list, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /deviceConfigs/{configToken} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow get: if isAdmin()
+        || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow list: if isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid;
     }
 
     match /rules/{ruleId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /deleteRequests/{requestId} {
-      allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if signedIn() && resource.data.userId == request.auth.uid || isAdmin();
-      allow update: if isAdmin();
-      allow delete: if false;
+      allow read: if (signedIn() && resource.data.userId == request.auth.uid)
+        || isAdmin();
+      allow write: if false;
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId);
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && validUserCreate();
+      allow update: if isOwner(userId)
+        && (deletionFieldsUnchanged() || validDeletionRequest());
+      allow delete: if false;
+    }
 
-      match /cats/{catId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /catDetails/{catId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /sessions/{sessionId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /healthLogs/{logId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /notifications/{notificationId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /reports/{reportId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /settings/{settingId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /deviceConfig/{configId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /catStats/{catId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-
-        match /daily/{date} {
-          allow read: if isOwner(userId) || isAdmin();
-          allow create, update: if isOwner(userId);
-          allow delete: if isOwner(userId) || isAdmin();
-        }
-      }
-
-      match /catSessionLog/{catId} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-      }
-
-      match /dailyCatStats/{date} {
-        allow read: if isOwner(userId) || isAdmin();
-        allow create, update: if isOwner(userId);
-        allow delete: if isOwner(userId) || isAdmin();
-
-        match /cats/{catId} {
-          allow read: if isOwner(userId) || isAdmin();
-          allow create, update: if isOwner(userId);
-          allow delete: if isOwner(userId) || isAdmin();
-        }
-      }
+    match /users/{userId}/{document=**} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
     }
 
     match /{document=**} {

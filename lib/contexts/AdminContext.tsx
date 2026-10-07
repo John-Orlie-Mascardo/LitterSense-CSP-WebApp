@@ -7,17 +7,30 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { db } from "@/lib/configs/firebase";
 import type { AdminUser, AdminCat } from "@/lib/data/mockData";
 import { generateId } from "@/lib/utils/formatters";
 import type { ToastParams } from "@/components/ui/Toast";
+import {
+  readAdminAuditEntry,
+  type AdminAuditEntry,
+} from "@/lib/utils/adminAudit";
 
 // ─── Context Shape ─────────────────────────────────────────────────────────
 
 interface AdminContextType {
   users: AdminUser[];
   isLoading: boolean;
+  auditLogs: AdminAuditEntry[];
+  isAuditLoading: boolean;
   toasts: Omit<ToastParams, "onClose">[];
   addToast: (message: string, type?: ToastParams["type"]) => void;
   dismissToast: (id: string) => void;
@@ -27,6 +40,8 @@ interface AdminContextType {
 const AdminContext = createContext<AdminContextType>({
   users: [],
   isLoading: true,
+  auditLogs: [],
+  isAuditLoading: true,
   toasts: [],
   addToast: () => {},
   dismissToast: () => {},
@@ -40,6 +55,8 @@ export const useAdmin = () => useContext(AdminContext);
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditEntry[]>([]);
+  const [isAuditLoading, setIsAuditLoading] = useState(true);
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
 
   const addToast = useCallback(
@@ -139,9 +156,42 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     fetchUsers();
   }, [addToast]);
 
+  useEffect(() => {
+    const latestAuditEntries = query(
+      collection(db, "auditLogs"),
+      orderBy("createdAt", "desc"),
+      limit(50),
+    );
+    return onSnapshot(
+      latestAuditEntries,
+      (snapshot) => {
+        setAuditLogs(
+          snapshot.docs.map((auditDoc) =>
+            readAdminAuditEntry(auditDoc.id, auditDoc.data()),
+          ),
+        );
+        setIsAuditLoading(false);
+      },
+      (error) => {
+        console.error("Failed to load audit activity:", error);
+        addToast("Failed to load audit activity.", "error");
+        setIsAuditLoading(false);
+      },
+    );
+  }, [addToast]);
+
   return (
     <AdminContext.Provider
-      value={{ users, isLoading, toasts, addToast, dismissToast, handleSuspend }}
+      value={{
+        users,
+        isLoading,
+        auditLogs,
+        isAuditLoading,
+        toasts,
+        addToast,
+        dismissToast,
+        handleSuspend,
+      }}
     >
       {children}
     </AdminContext.Provider>

@@ -7,174 +7,80 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc,
-  onSnapshot,
-  query,
-  where,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
-import { db, auth } from "@/lib/configs/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import type { DeleteRequest } from "@/lib/data/mockData";
+import {
+  readAdminDeletionRequest,
+  runAdminDeletionAction,
+  type AdminDeletionRequest,
+} from "@/lib/utils/adminDeletionRequests";
 
 interface DeleteRequestContextType {
-  requests: DeleteRequest[];
+  requests: AdminDeletionRequest[];
   isLoading: boolean;
-  getUserRequest: (userId: string) => DeleteRequest | undefined;
-  submitRequest: (
-    userId: string,
-    userName: string,
-    userEmail: string,
-    reason: string,
-  ) => Promise<void>;
-  approveRequest: (id: string) => Promise<void>;
-  rejectRequest: (id: string) => Promise<void>;
-  deleteApprovedAccount: (requestId: string, userId: string) => Promise<void>;
+  approveRequest: (userId: string) => Promise<void>;
+  rejectRequest: (userId: string) => Promise<void>;
 }
 
 const DeleteRequestContext = createContext<DeleteRequestContextType>({
   requests: [],
-  isLoading: true,
-  getUserRequest: () => undefined,
-  submitRequest: async () => {},
+  isLoading: false,
   approveRequest: async () => {},
   rejectRequest: async () => {},
-  deleteApprovedAccount: async () => {},
 });
 
 export const useDeleteRequest = () => useContext(DeleteRequestContext);
 
-function timestampToDateStr(value: unknown): string {
-  if (value instanceof Timestamp) {
-    return value.toDate().toISOString().split("T")[0];
-  }
-  if (typeof value === "string") return value;
-  return "";
-}
+const statusRank = { pending: 0, failed: 1, processing: 2 } as const;
 
 export function DeleteRequestProvider({ children }: { children: ReactNode }) {
   const { user, isAdmin } = useAuth();
-  const [requests, setRequests] = useState<DeleteRequest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [queueState, setQueueState] = useState<{
+    adminUid: string | null;
+    requests: AdminDeletionRequest[];
+  }>({ adminUid: null, requests: [] });
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !isAdmin) {
       return;
     }
 
-    const deleteRequestsRef = collection(db, "deleteRequests");
-    const requestsQuery = isAdmin
-      ? deleteRequestsRef
-      : query(deleteRequestsRef, where("userId", "==", user.uid));
-
-    const unsubscribe = onSnapshot(
-      requestsQuery,
+    const activeRequests = query(
+      collection(db, "users"),
+      where("deletionStatus", "in", ["pending", "processing", "failed"]),
+    );
+    return onSnapshot(
+      activeRequests,
       (snapshot) => {
-        const loaded: DeleteRequest[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          return {
-            id: docSnap.id,
-            userId: data.userId ?? "",
-            userName: data.userName ?? "",
-            userEmail: data.userEmail ?? "",
-            requestedDate: timestampToDateStr(data.requestedDate),
-            status: data.status ?? "pending",
-            reason: data.reason,
-            resolvedDate: data.resolvedDate
-              ? timestampToDateStr(data.resolvedDate)
-              : undefined,
-          };
-        });
-
-        loaded.sort((a, b) => {
-          if (a.status === "pending" && b.status !== "pending") return -1;
-          if (a.status !== "pending" && b.status === "pending") return 1;
-          return b.requestedDate.localeCompare(a.requestedDate);
-        });
-
-        setRequests(loaded);
-        setIsLoading(false);
+        const loaded = snapshot.docs
+          .map((userDoc) => readAdminDeletionRequest(userDoc.id, userDoc.data()))
+          .filter((entry): entry is AdminDeletionRequest => entry !== null)
+          .sort((a, b) =>
+            statusRank[a.status] - statusRank[b.status] ||
+            b.requestedDate.localeCompare(a.requestedDate),
+          );
+        setQueueState({ adminUid: user.uid, requests: loaded });
       },
       (error) => {
-        console.error("Failed to listen to delete requests:", error);
-        setIsLoading(false);
+        console.error("Failed to listen to account deletion requests:", error);
+        setQueueState({ adminUid: user.uid, requests: [] });
       },
     );
-
-    return () => unsubscribe();
   }, [user, isAdmin]);
 
-  function getUserRequest(userId: string): DeleteRequest | undefined {
-    return requests.find((request) => request.userId === userId);
-  }
-
-  async function submitRequest(
-    userId: string,
-    userName: string,
-    userEmail: string,
-    reason: string,
-  ) {
-    await addDoc(collection(db, "deleteRequests"), {
-      userId,
-      userName,
-      userEmail,
-      requestedDate: serverTimestamp(),
-      status: "pending",
-      reason: reason || "No reason provided",
-    });
-  }
-
-  async function approveRequest(id: string) {
-    await updateDoc(doc(db, "deleteRequests", id), {
-      status: "approved",
-      resolvedDate: serverTimestamp(),
-    });
-  }
-
-  async function rejectRequest(id: string) {
-    await updateDoc(doc(db, "deleteRequests", id), {
-      status: "rejected",
-      resolvedDate: serverTimestamp(),
-    });
-  }
-
-  async function deleteApprovedAccount(
-    requestId: string,
-    userId: string,
-  ): Promise<void> {
-    const currentUser = auth.currentUser;
-    if (!currentUser) throw new Error("Not signed in.");
-    const idToken = await currentUser.getIdToken();
-
-    const res = await fetch("/api/admin/delete-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, userId, requestId }),
-    });
-
-    const data = (await res.json()) as { error?: string };
-    if (!res.ok) throw new Error(data.error ?? "Failed to delete account.");
-  }
-
-  const visibleRequests = user ? requests : [];
-  const visibleIsLoading = user ? isLoading : false;
+  const approveRequest = (userId: string) =>
+    runAdminDeletionAction("approve", userId);
+  const rejectRequest = (userId: string) =>
+    runAdminDeletionAction("reject", userId);
+  const requests = user && isAdmin && queueState.adminUid === user.uid
+    ? queueState.requests
+    : [];
+  const isLoading = Boolean(user && isAdmin && queueState.adminUid !== user.uid);
 
   return (
     <DeleteRequestContext.Provider
-      value={{
-        requests: visibleRequests,
-        isLoading: visibleIsLoading,
-        getUserRequest,
-        submitRequest,
-        approveRequest,
-        rejectRequest,
-        deleteApprovedAccount,
-      }}
+      value={{ requests, isLoading, approveRequest, rejectRequest }}
     >
       {children}
     </DeleteRequestContext.Provider>
