@@ -17,7 +17,7 @@ import {
   where,
   serverTimestamp,
   Timestamp,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { db, auth } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import type { DeleteRequest } from "@/lib/data/mockData";

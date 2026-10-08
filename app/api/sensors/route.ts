@@ -15,6 +15,7 @@ import {
 import {
   buildDeviceSensorSnapshot,
   DEVICE_SENSOR_SNAPSHOT_PATH,
+  SENSOR_SNAPSHOT_STALE_AFTER_MS,
   toDeviceSensorsResponse,
 } from "@/lib/utils/deviceSensorSnapshot";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
@@ -33,6 +34,11 @@ import { readVisitBackupsById } from "@/lib/utils/catHistoryStore";
 import type { VisitBackup } from "@/lib/interfaces/CatHistoryBackup";
 import { createHash } from 'node:crypto';
 import { persistVisitOnce, primaryVisitFailureStatus, VisitAuthorityError, VisitConflictError } from '@/lib/utils/catVisitRecovery';
+import { rfidPrimaryEnabled, OperationalError, readOperationalRecord, assertOperationalReady } from '@/lib/server/operationalStore';
+import { resolveOperationalDevice } from '@/lib/server/operationalCats';
+import { readOperationalDeviceConfig } from '@/lib/server/operationalDevices';
+import { syncOperationalRfid } from '@/lib/server/operationalRfid';
+import { projectOperationalAccount } from '@/lib/server/operationalRecords';
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -130,7 +136,7 @@ const readRequestBody = async (request: Request) => {
 };
 
 export async function GET(request: Request) {
-  if (process.env.VERCEL === "1" && !request.headers.get("authorization")) return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
+  if ((process.env.VERCEL === "1" || rfidPrimaryEnabled()) && !request.headers.get("authorization")) return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
   const response = await getPrimarySensors(request);
   const url = process.env.ESP32_GAS_ULTRASONIC_URL?.trim();
   if (!url || !response.ok) return response;
@@ -152,10 +158,14 @@ async function getPrimarySensors(request: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_STORE_HEADERS });
     }
     try {
-      const client = getFirestoreRestClient();
+      const primaryRfid = rfidPrimaryEnabled();
+      if (primaryRfid) await assertOperationalReady(ownerId);
+      const client = primaryRfid ? null : getFirestoreRestClient();
+      const primaryConfig = primaryRfid ? await readOperationalDeviceConfig(ownerId) : null;
+      const primaryMirrors = primaryRfid && primaryConfig ? await readSensorMirrors(ownerId, primaryConfig.configToken) : [];
       const results = await Promise.allSettled([
-        client.getDocument(`users/${ownerId}/deviceState/current`),
-        client.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
+        primaryRfid ? readOperationalRecord(ownerId, `users/${ownerId}/deviceState/current`) : client!.getDocument(`users/${ownerId}/deviceState/current`),
+        primaryRfid ? Promise.resolve(null) : client!.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
       ]);
       for (const result of results) {
         if (result.status === "rejected" && !(result.reason instanceof FirestoreRestError && (result.reason.status === 429 || result.reason.status >= 500))) throw result.reason;
@@ -167,10 +177,10 @@ async function getPrimarySensors(request: Request) {
         return { source: sources[index], data, receivedAt: getString(data.updatedAt) };
       });
       let now = Date.now();
-      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= 180000;
-      let mirrors: StoredSensorSnapshot[] = [];
+      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= SENSOR_SNAPSHOT_STALE_AFTER_MS;
+      let mirrors: StoredSensorSnapshot[] = primaryMirrors;
       let mirrorUnavailable = false;
-      if (!firebase.every(fresh)) {
+      if (!primaryRfid && !firebase.every(fresh)) {
         try {
           mirrors = await readSensorMirrors(ownerId);
         } catch {
@@ -189,7 +199,7 @@ async function getPrimarySensors(request: Request) {
         ...toGasUltrasonicResponse(gas ? { ...gas.data, updatedAt: gas.receivedAt } : {}, now),
         rfidUpdatedAt: rfid?.receivedAt ?? "",
         gasUltrasonicUpdatedAt: gas?.receivedAt ?? "",
-        rfidDataSource: rfid ? rfid === firebase[0] ? "firebase" : "supabase" : undefined,
+        rfidDataSource: rfid ? primaryRfid || rfid !== firebase[0] ? "supabase" : "firebase" : undefined,
         gasUltrasonicDataSource: gas ? gas === firebase[1] ? "firebase" : "supabase" : undefined,
         rfidState: !rfid ? "unknown" : fresh(rfid) && rfidResponse.online ? "online" : "stale",
         gasUltrasonicState: !gas ? "unknown" : fresh(gas) && normalizeGasUltrasonic(gas.data) ? "online" : "stale",
@@ -370,6 +380,51 @@ export async function POST(request: Request) {
     mirror.receivedAt,
   );
 
+  if (rfidPrimaryEnabled() && payload.source === 'gas-ultrasonic') {
+    try {
+      const uid = await resolveOperationalDevice(configToken);
+      await projectOperationalAccount(uid);
+      await rememberSensorDevice(uid, configToken);
+      const readings = normalizeGasUltrasonic(body)!;
+      if (!await saveSensorMirror(configToken, 'gas-ultrasonic', readings, mirror.receivedAt.toISOString())) throw new Error('Snapshot not saved');
+      await queueSensorSms(body, configToken, { ...normalized, events: [] });
+      after(async () => {
+        // A slow/failed SMS provider must not delay phone push delivery.
+        const results = await Promise.allSettled([processPushOutbox(uid), processSmsOutbox(uid)]);
+        if (results.some(result => result.status === 'rejected')) console.warn('[supabase:sensors] Delivery worker will retry queued alerts.');
+      });
+      console.info('[alert timing] Sensor receipt to queue', { source: 'gas', elapsedMs: Date.now() - mirror.receivedAt.getTime() });
+      console.info('[supabase:sensors] Gas heartbeat saved to primary snapshot store.');
+      return Response.json({ ok: true, source: 'gas-ultrasonic' }, { headers: { ...NO_STORE_HEADERS, 'x-litersense-ack': 'gas-ultrasonic' } });
+    } catch (error) {
+      console.warn('[supabase:sensors] Gas sync was not acknowledged; device must retry.');
+      return Response.json({ ok: false, error: 'Gas storage or alert queue unavailable. Retry sensor sync.' }, { status: error instanceof OperationalError ? error.status : 503, headers: NO_STORE_HEADERS });
+    }
+  }
+
+  if (rfidPrimaryEnabled() && payload.source !== 'gas-ultrasonic') {
+    try {
+      const saved = await syncOperationalRfid(payload, configToken, normalized, mirror.receivedAt);
+      await rememberSensorDevice(saved.uid, configToken);
+      const hasRfidAlerts = payload.sessionActive === true || normalized.events.length > 0;
+      let alerts: { ownerId?: string; queued: number } = { queued: 0 };
+      if (hasRfidAlerts) {
+        await projectOperationalAccount(saved.uid);
+        alerts = await queueRfidNotifications(payload, configToken, normalized.events, mirror.receivedAt, saved.uid, [...saved.recorded, ...saved.duplicates].map(row => row.sessionId));
+        await queueSensorSms(body, configToken, { ...normalized, events: normalized.events.filter(event => [...saved.recorded, ...saved.duplicates].some(row => row.sessionId === buildSessionDocumentId(configToken, event))) });
+      }
+      console.info('[rfid timing] Reader response ready', { elapsedMs: Date.now() - mirror.receivedAt.getTime(), alertsNeeded: hasRfidAlerts, enrollment: Boolean(saved.enrollmentId) });
+      after(async () => {
+        const results = await Promise.allSettled([processPushOutbox(alerts.ownerId ?? saved.uid), processSmsOutbox(saved.uid)]);
+        if (results.some(result => result.status === 'rejected')) console.warn('[supabase:rfid] Delivery worker will retry queued alerts.');
+      });
+      console.info('[alert timing] Sensor receipt to queue', { source: 'rfid', elapsedMs: Date.now() - mirror.receivedAt.getTime() });
+      return Response.json({ ok: true, source: 'supabase', received: normalized.events.length + normalized.ignored.length, recorded: saved.recorded.length, duplicates: saved.duplicates.length, ignored: normalized.ignored, unmatched: saved.unmatched, recordedSessions: saved.recorded, duplicateSessions: saved.duplicates, enrollmentId: saved.enrollmentId, enrollmentAck: saved.enrollmentAck }, { headers: { ...NO_STORE_HEADERS, 'x-litersense-ack': saved.acknowledged } });
+    } catch (error) {
+      console.warn('[supabase:rfid] Sync was not acknowledged; reader must retry.');
+      return Response.json({ ok: false, error: 'RFID storage or alert queue unavailable. Retry sensor sync.' }, { status: error instanceof OperationalError ? error.status : 503, headers: NO_STORE_HEADERS });
+    }
+  }
   let response = await handleSensorSync(body, configToken, normalized, mirror);
   if ((response.ok || mirror.fallbackAllowed) && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY) {
     after(async () => {

@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { useAirQualityReadings } = require('../../lib/hooks/useAirQualityReadings.ts');
 
-function harness() {
+function harness(primary = false) {
   let sensor = { data: null, isLoading: false, error: null };
   let user = { uid: 'owner' };
   const notifications = { ammoniaAlerts: true, h2sAlerts: true };
@@ -21,6 +21,7 @@ function harness() {
     saved.push(payload);
   };
   const imports = {
+    '@/lib/utils/operationalMode': { operationalPrimary: async () => primary },
     react: {
       useRef(value) { const index = slot++; return slots[index] ??= { current: value }; },
       useEffect(effect, deps) {
@@ -40,7 +41,7 @@ function harness() {
   const source = ts.transpileModule(readFileSync(new URL('./RfidVisitBridge.tsx', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(source, { exports, require: (id) => imports[id], console: { error() {} } });
+  vm.runInNewContext(source, { exports, require: (id) => imports[id], console: { error() {}, warn() {} } });
   return {
     saved, notifications,
     set fail(value) { fail = value; },
@@ -50,7 +51,7 @@ function harness() {
       slot = 0;
       exports.RfidVisitBridge();
       effects.splice(0).forEach((effect) => effect());
-      await Promise.resolve();
+      for (let i = 0; i < 20; i++) await Promise.resolve();
     },
   };
 }
@@ -80,4 +81,10 @@ test('gas alerts honor switches, independent board status, deduplication, recove
   h.user = { uid: 'another-owner' };
   await h.render(detected);
   assert.equal(h.saved.length, 6);
+});
+
+test('primary dashboards never create additional copies of server gas alerts', async () => {
+  const pc = harness(true), phone = harness(true);
+  for (let i = 0; i < 3; i++) { await pc.render(detected); await phone.render(detected); }
+  assert.equal(pc.saved.length, 0); assert.equal(phone.saved.length, 0);
 });

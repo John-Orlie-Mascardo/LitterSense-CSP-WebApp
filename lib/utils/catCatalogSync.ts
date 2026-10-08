@@ -26,6 +26,10 @@ export function validateCatMutation(input: unknown): CatProfileMutation {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new CatProfileError('Invalid cat profile.', 400);
   const value = input as Record<string, unknown>;
   if (Object.keys(value).some(key => !['action', 'catId', 'cat', 'details', 'today'].includes(key)) || !['create', 'update', 'delete'].includes(value.action as string)) throw new CatProfileError('Invalid cat profile.', 400);
+  if (value.action === 'create') {
+    const tag = (value.details as Record<string, unknown> | undefined)?.rfidTag;
+    if (typeof tag !== 'string' || !/^[a-f0-9]+$/i.test(tag.replace(/[\s:-]/g, ''))) throw new CatProfileError('Scan and verify an RFID tag before saving this cat.', 400);
+  }
   try {
     validateBackupId(value.catId as string);
     for (const key of ['cat', 'details']) if (value[key] !== undefined && (!value[key] || typeof value[key] !== 'object' || Array.isArray(value[key]))) throw new Error('Invalid profile fields');

@@ -7,7 +7,7 @@ import ts from 'typescript';
 
 test('workerRejectsMissingOrWrongSecret and default disabled gate; only aggregates returned', async () => {
   const env = {}, loadedModule = { exports: {} }; let calls = 0, fails = false;
-  vm.runInNewContext(ts.transpileModule(readFileSync(new URL('./route.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loadedModule, exports: loadedModule.exports, require: name => name === 'node:crypto' ? crypto : { processCatHistoryRecovery: async () => { calls++; if (fails) throw new Error('private token'); return { restored: 1, duplicates: 0, conflicts: 0, cancelled: 0, retried: 0, repairedRows: 100 }; } }, process: { env }, Response, Buffer });
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL('./route.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loadedModule, exports: loadedModule.exports, require: name => name === 'node:crypto' ? crypto : name === '@/lib/server/operationalStore' ? { rfidPrimaryEnabled: () => false } : { processCatHistoryRecovery: async () => { calls++; if (fails) throw new Error('private token'); return { restored: 1, duplicates: 0, conflicts: 0, cancelled: 0, retried: 0, repairedRows: 100 }; } }, process: { env }, Response, Buffer });
   const request = value => new Request('https://test/api/cat-backup/process', { method: 'POST', headers: { Authorization: `Bearer ${value}` } });
   assert.equal((await loadedModule.exports.POST(request('secret'))).status, 401);
   env.CAT_HISTORY_PROCESS_SECRET = 'secret';

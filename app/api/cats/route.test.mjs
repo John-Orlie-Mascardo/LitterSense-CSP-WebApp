@@ -5,6 +5,7 @@ import test from 'node:test';
 import ts from 'typescript';
 
 function load(imports) {
+  imports = { '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false }, '@/lib/server/operationalCats': {}, '@/lib/server/operationalRfid': {}, ...imports };
   const loaded = { exports: {} };
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('./route.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name], Response });
   return loaded.exports;
@@ -51,7 +52,7 @@ test('only four client profile mutations switch to confirmed requests; photo cle
 
 test('real client profile methods require confirmed responses, show pending backup and preserve photos on rejected deletion', async () => {
   let mode = 'success';
-  const calls = [], photoDeletes = [], stateChanges = [];
+  const calls = [], photoDeletes = [], stateChanges = [], applied = [];
   const react = { createContext: () => ({ Provider: 'provider' }), useEffect: () => {}, useMemo: fn => fn(), useCallback: fn => fn, useRef: initial => ({ current: initial }), useState: initial => [initial, value => stateChanges.push(value)], createElement: (type, props) => ({ type, props }) };
   const loaded = { exports: {} };
   const imports = {
@@ -60,19 +61,20 @@ test('real client profile methods require confirmed responses, show pending back
     'firebase/firestore': { setDoc: () => { throw new Error('Client profile writes forbidden'); } },
     '@/lib/configs/firebase': { db: {} },
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user: { uid: 'owner-a', getIdToken: async () => 'good' }, loading: false }) },
-    '@/lib/hooks/useCatBackup': { useCatBackup: () => ({ snapshot: null, error: null, refresh: () => {} }) },
+    '@/lib/hooks/useCatBackup': { useCatBackup: () => ({ snapshot: null, error: null, refresh: () => {}, applyProfile: (mutation, revision) => applied.push({ mutation, revision }) }) },
     '@/lib/utils/catPhoto': { deleteCatPhoto: async (...args) => photoDeletes.push(args) },
     '@/lib/utils/sessionDate': { getLocalDateKey: () => '2026-10-04' },
   };
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../../../lib/contexts/CatContext.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name] ?? {}, Date, fetch: async (url, init) => {
     calls.push({ url, ...init });
     if (mode === 'network') throw new Error('Connection lost');
-    return { ok: mode !== 'unavailable', status: mode === 'unavailable' ? 503 : 200, json: async () => mode === 'unavailable' ? { error: 'Database unavailable' } : { saved: true, backupPending: mode === 'pending' } };
+    return { ok: mode !== 'unavailable', status: mode === 'unavailable' ? 503 : 200, json: async () => mode === 'unavailable' ? { error: 'Database unavailable' } : { saved: true, revision: 2, backupPending: mode === 'pending' } };
   } });
   const context = loaded.exports.CatProvider({ children: null }).props.value;
   await context.addCat({ id: 'cat-a', name: 'Cat', status: 'normal', avatar: null, isOnline: false });
   assert.equal(calls[0].headers.Authorization, 'Bearer good');
   assert.equal(JSON.parse(calls[0].body).catId, 'cat-a');
+  assert.equal(applied[0].mutation.action, 'create'); assert.equal(applied[0].revision, 2);
   mode = 'pending'; await context.updateDetails('cat-a', { breed: 'Mixed' });
   assert.ok(stateChanges.includes('owner-a'));
   mode = 'unavailable';
@@ -80,6 +82,7 @@ test('real client profile methods require confirmed responses, show pending back
   assert.equal(photoDeletes.length, 0);
   mode = 'network';
   await assert.rejects(context.updateCat('cat-a', { name: 'Updated' }), { name: 'CatProfileSaveError' });
+  assert.equal(applied.length, 2, 'Failed saves must never add or modify visible cats');
   mode = 'success'; await context.removeCat('cat-a');
   assert.equal(JSON.parse(calls.at(-1).body).today, '2026-10-04');
   assert.deepEqual(photoDeletes, [['owner-a', 'cat-a']]);

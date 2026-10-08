@@ -1,6 +1,9 @@
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { smsStoreRequest } from "./smsAccountSync";
 import { buildAlertMessage, type AlertContext } from "./smsTemplates";
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { projectOperationalAccount } from '@/lib/server/operationalRecords';
+import { claimOperationalAlerts } from '@/lib/server/operationalAlertRecipients';
 
 type NotificationPrefs = { healthAlerts?: boolean; ammoniaAlerts?: boolean; h2sAlerts?: boolean; perCat?: Array<{ catId: string; healthAlerts?: boolean }>; quietHours?: { enabled?: boolean; from?: string; to?: string } };
 type SmsAccount = { phone_number: string; notifications: NotificationPrefs; cats: Array<{ id: string; name?: string }> };
@@ -38,10 +41,17 @@ export async function processSmsOutbox(ownerId?: string) {
   if (process.env.SMS_SENDING_ENABLED !== "true") return { enabled: false, processed: 0 };
   const apiToken = process.env.IPROGSMS_API_TOKEN;
   if (!apiToken) throw new Error("SMS provider is not configured");
-  const claimed = await smsStoreRequest("rpc/claim_sms_outbox", { method: "POST", body: JSON.stringify({ p_owner_id: ownerId ?? null, p_limit: 2 }) });
-  if (!claimed.ok) throw new Error("Unable to claim SMS queue");
-  const records = await claimed.json() as SmsRecord[];
+  let records: SmsRecord[];
+  if (rfidPrimaryEnabled()) records = await claimOperationalAlerts<SmsRecord>('sms', ownerId);
+  else {
+    const claimed = await smsStoreRequest("rpc/claim_sms_outbox", { method: "POST", body: JSON.stringify({ p_owner_id: ownerId ?? null, p_limit: 2 }) });
+    if (!claimed.ok) throw new Error("Unable to claim SMS queue");
+    records = await claimed.json() as SmsRecord[];
+  }
   for (const record of records) {
+    let providerAttempted = false;
+    try {
+    if (rfidPrimaryEnabled()) await projectOperationalAccount(record.owner_id);
     // Re-read after the atomic claim to honor opt-out and device removal before dispatch.
     const latest = await smsStoreRequest(`sms_outbox?id=eq.${encodeURIComponent(record.id)}&status=eq.sending&select=sms_accounts(phone_number,notifications,cats)`);
     if (!latest.ok) throw new Error("Unable to verify current SMS recipient");
@@ -63,6 +73,7 @@ export async function processSmsOutbox(ownerId?: string) {
     }
     let outcome: Record<string, unknown>;
     try {
+      providerAttempted = true;
       const response = await fetch("https://www.iprogsms.com/api/v1/sms_messages", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ api_token: apiToken, phone_number: account.phone_number.slice(1), message: buildAlertMessage(record.reason, { ...record.context, catName: account.cats.find(cat => cat.id === record.cat_id)?.name, occurredAt: record.context?.occurredAt ?? record.created_at }) }),
@@ -77,6 +88,11 @@ export async function processSmsOutbox(ownerId?: string) {
       outcome = { status: "unknown", error_code: "provider_outcome_unknown" };
     }
     await updateRecord(record.id, outcome, "sending");
+    } catch {
+      // Retry only when no provider call was made; uncertain sends stay unknown.
+      try { await updateRecord(record.id, { status: providerAttempted ? 'unknown' : 'pending', error_code: providerAttempted ? 'provider_outcome_unknown' : 'recipient_check_unavailable' }, 'sending'); }
+      catch { console.warn('[sms] Delivery state unavailable; reconciliation required.'); }
+    }
   }
   const query = `sms_outbox?status=eq.accepted&select=id,provider_message_id&order=last_checked_at.asc.nullsfirst,created_at.asc&limit=2${ownerId ? `&owner_id=eq.${encodeURIComponent(ownerId)}` : ""}`;
   const accepted = await smsStoreRequest(query);

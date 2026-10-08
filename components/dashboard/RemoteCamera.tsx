@@ -24,6 +24,7 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     let timer: ReturnType<typeof setTimeout>;
     let active: AbortController | undefined;
     let socket: WebSocket | undefined;
+    let pendingSocket: WebSocket | undefined;
     let renewTimer: ReturnType<typeof setTimeout>;
     let socketEverConnected = false;
     let polling = false;
@@ -37,6 +38,13 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     let fetchCount = 0, fetchTotalMs = 0, fetchMaxMs = 0;
     let newFrames = 0, duplicateFrames = 0, emptyResponses = 0;
     let ageCount = 0, ageTotalMs = 0, ageMaxMs = 0;
+    let lastArrival = 0, maxGapMs = 0, decodeTotalMs = 0, decodeMaxMs = 0;
+    let lastRelayReceipt = 0;
+    let receiptAgeTotalMs = 0, receiptAgeMinMs = Infinity, receiptAgeMaxMs = -Infinity;
+    const openedAt = Date.now();
+    let startupReported = false;
+    let sampleStartedAt = 0, sampleFrames = 0, sampleMaxGapMs = 0;
+    let sampleLongGaps = 0, sampleDisconnects = 0, sampleInterrupted = false, sampleReported = false;
     const request = async (url: string, options?: RequestInit) => {
       active = new AbortController();
       return fetch(url, { ...options, cache: "no-store", signal: AbortSignal.any([active.signal, AbortSignal.timeout(10000)]) });
@@ -129,8 +137,9 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     setStale(false);
     onStreamStateChange("unknown");
     const startSocket = async () => {
-      if (stopped || document.hidden || polling) return;
+      if (stopped || document.hidden || polling || pendingSocket) return;
       const generation = ++connectionGeneration;
+      const sessionStartedAt = performance.now();
       try {
         const response = await request("/api/camera/session", { headers: { Authorization: `Bearer ${await user.getIdToken()}` } });
         const session = await response.json();
@@ -140,27 +149,80 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
         renewAt = Date.now() + (session.expiresIn - 30) * 1000;
         if (!session.streamUrl) { polling = true; void tick(); return; }
         const ws = new WebSocket(session.streamUrl);
-        socket = ws;
+        const replacing = socket?.readyState === WebSocket.OPEN;
+        if (replacing) pendingSocket = ws;
+        else socket = ws;
+        const expiresAt = renewAt;
+        const connectedAt = performance.now();
+        console.info("Camera session timing", { renewal: replacing, sessionMs: Math.round(connectedAt - sessionStartedAt) });
+        const scheduleRenewal = () => {
+          clearTimeout(renewTimer);
+          renewTimer = setTimeout(() => { void startSocket(); }, Math.max(1000, expiresAt - Date.now()));
+        };
         ws.binaryType = "arraybuffer";
         const connectTimeout = setTimeout(() => ws.close(), 10000);
         ws.onopen = () => {
-          clearTimeout(connectTimeout);
+          if (!replacing) clearTimeout(connectTimeout);
           socketEverConnected = true;
-          setMessage("Waiting for a fresh camera frame...");
-          renewTimer = setTimeout(() => ws.close(), Math.max(1000, renewAt - Date.now()));
+          console.info("Camera connection opened", { renewal: replacing, handshakeMs: Math.round(performance.now() - connectedAt) });
+          if (!replacing) {
+            setMessage("Waiting for a fresh camera frame...");
+            scheduleRenewal();
+          }
         };
         ws.onmessage = async event => {
-          if (stopped || socket !== ws || document.hidden || !(event.data instanceof ArrayBuffer) || event.data.byteLength < 12) return;
+          if (stopped || (socket !== ws && pendingSocket !== ws) || document.hidden || !(event.data instanceof ArrayBuffer) || event.data.byteLength < 12) return;
+          const arrivedAt = Date.now();
+          const decodeStartedAt = performance.now();
+          const receivedAt = Number(new DataView(event.data).getBigUint64(0));
+          if (lastArrival) {
+            const gapMs = arrivedAt - lastArrival;
+            maxGapMs = Math.max(maxGapMs, gapMs);
+            sampleMaxGapMs = Math.max(sampleMaxGapMs, gapMs);
+            if (gapMs > 2500) {
+              sampleLongGaps++;
+              console.info("Camera frame gap timing", { gapMs, relayReceiptGapMs: lastRelayReceipt ? receivedAt - lastRelayReceipt : null });
+            }
+          }
+          lastArrival = arrivedAt;
+          lastRelayReceipt = receivedAt;
           const next = URL.createObjectURL(new Blob([event.data.slice(8)], { type: "image/jpeg" }));
           try {
             const image = new Image();
             image.src = next;
             await image.decode();
-            if (stopped || socket !== ws || document.hidden) { URL.revokeObjectURL(next); return; }
+            if (stopped || (socket !== ws && pendingSocket !== ws) || document.hidden) { URL.revokeObjectURL(next); return; }
+            if (pendingSocket === ws) {
+              const previousSocket = socket;
+              socket = ws;
+              pendingSocket = undefined;
+              clearTimeout(connectTimeout);
+              scheduleRenewal();
+              console.info("Camera renewal timing", { replacementFirstFrameMs: Math.round(performance.now() - connectedAt) });
+              // Keep demand and the displayed frame uninterrupted until replacement is usable.
+              previousSocket?.close(1000, "Viewer renewed");
+            }
             const previous = objectUrl;
             objectUrl = next;
             setFrame(next);
             lastFrame = Date.now();
+            if (!sampleStartedAt) {
+              sampleStartedAt = lastFrame;
+              if (!startupReported) {
+                startupReported = true;
+                console.info("Camera startup timing", { firstFrameWaitMs: lastFrame - openedAt });
+              }
+            }
+            sampleFrames++;
+            const decodeMs = performance.now() - decodeStartedAt;
+            decodeTotalMs += decodeMs;
+            decodeMaxMs = Math.max(decodeMaxMs, decodeMs);
+            // Diagnostic only: this includes any server/browser clock offset.
+            // Freshness continues to use local elapsed time, never this value.
+            const receiptAgeMs = lastFrame - receivedAt;
+            receiptAgeTotalMs += receiptAgeMs;
+            receiptAgeMinMs = Math.min(receiptAgeMinMs, receiptAgeMs);
+            receiptAgeMaxMs = Math.max(receiptAgeMaxMs, receiptAgeMs);
             newFrames++;
             setStale(false);
             setMessage("");
@@ -175,29 +237,59 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
             if (ws.readyState === WebSocket.OPEN) ws.close();
           }
         };
-        ws.onclose = () => {
+        ws.onclose = event => {
           clearTimeout(connectTimeout);
+          if (pendingSocket === ws) {
+            pendingSocket = undefined;
+            if (!stopped && !document.hidden) timer = setTimeout(startSocket, 1000);
+            console.info("Camera renewal retry timing", { code: event.code, clean: event.wasClean });
+            return;
+          }
           if (socket !== ws) return;
+          console.info("Camera connection timing", { code: event.code, clean: event.wasClean, lastFrameAgoMs: Date.now() - lastFrame });
+          if (sampleStartedAt) sampleDisconnects++;
           clearTimeout(renewTimer);
           socket = undefined;
           if (stopped || document.hidden) return;
           markStale();
+          if (pendingSocket) return;
           if (!socketEverConnected) { polling = true; void tick(); }
           else timer = setTimeout(startSocket, 1500);
         };
         ws.onerror = () => ws.close();
       } catch (error) {
         if (stopped || generation !== connectionGeneration) return;
-        setMessage(error instanceof Error ? error.message : "Camera unavailable.");
-        onStreamStateChange("error");
+        console.info("Camera session retry timing", { sessionMs: Math.round(performance.now() - sessionStartedAt), existingStreamOpen: socket?.readyState === WebSocket.OPEN });
+        if (socket?.readyState !== WebSocket.OPEN) {
+          setMessage(error instanceof Error ? error.message : "Camera unavailable.");
+          onStreamStateChange("error");
+        }
         timer = setTimeout(startSocket, 5000);
       }
     };
     const visibility = () => {
+      if (document.hidden && sampleStartedAt) sampleInterrupted = true;
+      console.info("Camera visibility timing", { hidden: document.hidden, sampleRestarted: !document.hidden });
+      // Measure continuous foreground viewing, excluding deliberate background pauses.
+      // Start a new sample on the first decoded frame after returning to Live.
+      if (!document.hidden) {
+        sampleStartedAt = sampleFrames = sampleMaxGapMs = sampleLongGaps = sampleDisconnects = 0;
+        sampleInterrupted = sampleReported = false;
+        lastArrival = 0;
+        lastRelayReceipt = 0;
+        maxGapMs = 0;
+        newFrames = decodeTotalMs = decodeMaxMs = receiptAgeTotalMs = 0;
+        receiptAgeMinMs = Infinity;
+        receiptAgeMaxMs = -Infinity;
+        metricsAt = Date.now();
+      }
       if (polling) return;
       ++connectionGeneration;
       clearTimeout(timer);
       clearTimeout(renewTimer);
+      const pending = pendingSocket;
+      pendingSocket = undefined;
+      pending?.close();
       socket?.close();
       socket = undefined;
       if (!document.hidden) void startSocket();
@@ -206,9 +298,32 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
     const freshness = setInterval(() => {
       if (document.hidden || stopped) return;
       markStale();
+      if (!polling && sampleStartedAt && !sampleReported && Date.now() - sampleStartedAt >= 300000) {
+        sampleReported = true;
+        console.info("Camera five-minute timing", {
+          durationMs: Date.now() - sampleStartedAt, frames: sampleFrames,
+          framesPerSecond: Math.round(sampleFrames / ((Date.now() - sampleStartedAt) / 1000) * 100) / 100,
+          maxGapMs: Math.max(sampleMaxGapMs, Date.now() - lastFrame),
+          gapsOver2500Ms: sampleLongGaps, disconnects: sampleDisconnects,
+          uninterruptedVisibleTest: !sampleInterrupted,
+          currentlyStale: Date.now() - lastFrame > 2500,
+        });
+      }
       if (!polling && Date.now() - metricsAt >= 10000) {
-        console.info("Camera live timing", { transport: "websocket", newFrames, intervalMs: Date.now() - metricsAt, lastFrameAgoMs: Date.now() - lastFrame });
+        console.info("Camera live timing", {
+          transport: "websocket", newFrames, intervalMs: Date.now() - metricsAt,
+          lastFrameAgoMs: Date.now() - lastFrame, maxGapMs,
+          decodeAvgMs: newFrames ? Math.round(decodeTotalMs / newFrames) : null,
+          decodeMaxMs: Math.round(decodeMaxMs),
+          serverReceiptAgeAvgMs: newFrames ? Math.round(receiptAgeTotalMs / newFrames) : null,
+          serverReceiptAgeMinMs: newFrames ? receiptAgeMinMs : null,
+          serverReceiptAgeMaxMs: newFrames ? receiptAgeMaxMs : null,
+          ageIncludesClockOffset: true,
+        });
         newFrames = 0;
+        maxGapMs = decodeTotalMs = decodeMaxMs = receiptAgeTotalMs = 0;
+        receiptAgeMinMs = Infinity;
+        receiptAgeMaxMs = -Infinity;
         metricsAt = Date.now();
       }
     }, 1000);
@@ -219,6 +334,9 @@ export function RemoteCamera({ onStreamStateChange }: { readonly onStreamStateCh
       document.removeEventListener("visibilitychange", visibility);
       clearInterval(freshness);
       clearTimeout(renewTimer);
+      const pending = pendingSocket;
+      pendingSocket = undefined;
+      pending?.close();
       socket?.close();
       active?.abort();
       clearTimeout(timer);

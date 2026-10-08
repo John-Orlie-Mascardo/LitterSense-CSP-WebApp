@@ -17,6 +17,8 @@ import {
 import { storage } from "@/lib/configs/firebase";
 
 import { uploadPhoto } from "./catPhoto";
+import { operationalPrimary } from "./operationalMode";
+import { primaryPhoto } from "./operationalPhoto";
 
 export const OWNER_PHOTO_UPLOAD_TIMEOUT_MS = 45_000;
 
@@ -62,6 +64,7 @@ export async function uploadOwnerPhoto({ uid, file, onProgress, signal }: Upload
 
 export async function deleteOwnerPhoto(uid: string, path: string): Promise<void> {
   if (!canDeleteOwnerPhotoPath(uid, path)) return;
+  if (await operationalPrimary()) { await primaryPhoto(path); return; }
   try {
     await deleteObject(ref(storage, path));
   } catch (error) {

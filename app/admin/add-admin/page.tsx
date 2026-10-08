@@ -8,7 +8,7 @@ import {
 import { ToastContainer } from "@/components/ui/Toast";
 import {
   collection, doc, setDoc, getDocs, deleteDoc, serverTimestamp,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { initializeApp, getApps } from "firebase/app";
 import {
   getAuth, createUserWithEmailAndPassword, signOut,

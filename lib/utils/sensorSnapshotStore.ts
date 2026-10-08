@@ -34,7 +34,7 @@ async function rpc(path: string, body: Record<string, unknown>, returnsJson = tr
   return returnsJson ? response.json() : undefined;
 }
 
-// Call only after Firestore has verified the token's owner. This does not rotate other mappings.
+// Call only after the active primary store has verified ownership. This does not rotate other mappings.
 export async function rememberSensorDevice(ownerId: string, configToken: string): Promise<void> {
   await rpc("remember_sensor_device", { p_owner_id: owner(ownerId), p_token_hash: tokenHash(configToken) }, false);
 }
@@ -54,7 +54,13 @@ export async function saveSensorMirror(configToken: string, source: SensorSource
 }
 
 // ownerId comes from verified Firebase identity, never the dashboard request body.
-export async function readSensorMirrors(ownerId: string): Promise<StoredSensorSnapshot[]> {
-  const rows = await rpc("read_sensor_mirrors", { p_owner_id: owner(ownerId) }) as Array<{ source: SensorSource; data: Record<string, unknown>; received_at: string }>;
+export async function readSensorMirrors(ownerId: string, configToken?: string): Promise<StoredSensorSnapshot[]> {
+  let rows: Array<{ source: SensorSource; data: Record<string, unknown>; received_at: string }>;
+  if (configToken) {
+    // Primary reads use only the current credential, even if removal of an old alert mapping is pending.
+    const response = await smsStoreRequest(`sensor_snapshots?token_hash=eq.${tokenHash(configToken)}&sms_devices.owner_id=eq.${encodeURIComponent(owner(ownerId))}&select=source,data,received_at,sms_devices!inner(owner_id)`);
+    if (!response.ok) throw new Error('Sensor snapshot storage unavailable');
+    rows = await response.json();
+  } else rows = await rpc("read_sensor_mirrors", { p_owner_id: owner(ownerId) }) as typeof rows;
   return rows.map((row) => ({ source: row.source, data: row.data, receivedAt: row.received_at }));
 }

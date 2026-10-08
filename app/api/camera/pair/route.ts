@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { getAdminFirestore } from "@/lib/configs/firebase-admin";
-import { CAMERA_ID, NO_STORE, cameraKeyHash, cameraOwner, cameraRelayConfig } from "@/lib/server/cameraCloud";
+import { CAMERA_ID, NO_STORE, cameraKeyHash, cameraOwner, cameraRelayConfig, pairOperationalCamera } from "@/lib/server/cameraCloud";
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,10 @@ export async function POST(request: Request) {
     if (!origin.startsWith("https://")) return Response.json({ error: "Pair from the deployed HTTPS website." }, { status: 400, headers: NO_STORE });
     const deviceId = `cam_${randomBytes(16).toString("hex")}`;
     const key = randomBytes(32).toString("hex");
+    if (rfidPrimaryEnabled()) {
+      await pairOperationalCamera(ownerId, deviceId, key);
+      return Response.json({ pairingCode: `${origin}/api/camera/device-session#${deviceId}.${key}` }, { headers: NO_STORE });
+    }
     const db = getAdminFirestore();
     const ownerRef = db.doc(`users/${ownerId}/deviceState/camera`);
     await db.runTransaction(async tx => {

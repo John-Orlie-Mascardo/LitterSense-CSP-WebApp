@@ -6,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { ref, listAll, deleteObject, type StorageReference } from "firebase/storage";
 import { db, storage } from "@/lib/configs/firebase";
+import { operationalPrimary } from './operationalMode';
 
 /**
  * Performs a hard delete of a user's account and all associated data.
@@ -15,6 +16,7 @@ import { db, storage } from "@/lib/configs/firebase";
  * @throws Error if deletion fails at any step
  */
 export async function deleteUserData(userId: string): Promise<void> {
+  if (await operationalPrimary()) throw new Error('Use the approved admin account deletion flow.');
   try {
     // Step 1: Delete all Firestore data for the user
     await deleteUserFirestoreData(userId);

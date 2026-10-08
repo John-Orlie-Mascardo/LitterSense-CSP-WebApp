@@ -29,7 +29,7 @@ import {
   onSnapshot,
   runTransaction,
   setDoc,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
@@ -104,7 +104,7 @@ interface CatContextType {
     options?: RecordVisitOptions,
   ) => Promise<void>;
   isLoading: boolean;
-  backupStatus: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null };
+  backupStatus: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null; operationalPrimary?: boolean };
 }
 
 type FirestoreData = Record<string, unknown>;
@@ -432,10 +432,12 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const uid = user?.uid;
   const backup = useCatBackup();
   const backupSnapshot = backup.snapshot;
+  const operationalPrimary = backupSnapshot?.operationalPrimary === true;
+  const backupReady = Boolean(backupSnapshot);
   const fallbackCats = backupSnapshot?.catalogSource === 'supabase';
   const fallbackHistory = backupSnapshot?.historySource === 'supabase';
   const pendingCount = backupSnapshot?.pendingCount ?? 0;
-  const backupMode = Boolean(fallbackCats || fallbackHistory);
+  const backupMode = Boolean(fallbackCats || fallbackHistory) && !operationalPrimary;
   const [primaryOwner, setPrimaryOwner] = useState<string | null>(null);
   const lastOwnerRef = useRef<string | null>(null);
   const [listenerRevision, setListenerRevision] = useState(0);
@@ -485,6 +487,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    if (!backupReady && !backup.error) return;
     const unsubCats = onSnapshot(
       collection(db, "users", uid, "cats"),
       { includeMetadataChanges: true },
@@ -623,7 +626,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     };
   // The refresh callback is stable; a confirmed recovery bumps listenerRevision once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, authLoading, isHistoryRoute, listenerRevision]);
+  }, [uid, authLoading, isHistoryRoute, listenerRevision, backupReady, backup.error, operationalPrimary]);
 
   useEffect(() => {
     if (previousBackupMode && !backupMode) queueMicrotask(() => setListenerRevision(value => value + 1));
@@ -643,7 +646,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const visibleDailyStats = useMemo(() => fallbackHistory ? {} : catDailyStats, [fallbackHistory, catDailyStats]);
   const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
-  const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error };
+  const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error, operationalPrimary };
   const backupNotice = getCatBackupNotice(backupStatus);
 
   useEffect(() => {
@@ -688,11 +691,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [uid, rawCats, backupMode, ownerReady]);
+  }, [uid, rawCats, backupMode, operationalPrimary, ownerReady]);
 
   // Recompute and persist session log counts whenever sessions or details change.
   useEffect(() => {
-    if (!uid || backupMode || pendingCount > 0 || !ownerReady || rawCats.length === 0) return;
+    if (!uid || backupMode || operationalPrimary || pendingCount > 0 || !ownerReady || rawCats.length === 0) return;
 
     const writeSessionLogs = async () => {
       for (const cat of rawCats) {
@@ -728,7 +731,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
     void writeSessionLogs();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uid, sessions, catDailyStats, catDetails, backupMode, pendingCount, ownerReady]);
+  }, [uid, sessions, catDailyStats, catDetails, backupMode, operationalPrimary, pendingCount, ownerReady]);
 
   const getStatsByCatId = useCallback(
     (id: string): CatStats | undefined =>
@@ -775,6 +778,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
       setProfileBackupNotice(result.backupPending ? user.uid : null);
+      backup.applyProfile(mutation, result.revision);
     } catch (error) {
       if (error instanceof Error && error.name === "CatProfileSaveError") throw error;
       throw Object.assign(new Error("Could not confirm the cat profile save. Check your connection and refresh before trying again."), { name: "CatProfileSaveError", saveUnconfirmed: true });

@@ -14,10 +14,14 @@ import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getApps } from "firebase-admin/app";
 import { smsStoreRequest } from "@/lib/utils/smsAccountSync";
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { isOperationalAdmin } from '@/lib/server/operationalRecords';
+import { beginOperationalDeletion, deleteOwnerMedia, finishOperationalDeletion } from '@/lib/server/operationalDeletion';
 
 const MASTER_ADMIN_EMAIL = "maclaurenz.cultura@gmail.com";
 
 async function isAdminEmail(email: string): Promise<boolean> {
+  if (rfidPrimaryEnabled()) return isOperationalAdmin(email);
   if (email === MASTER_ADMIN_EMAIL) return true;
   try {
     const db = getFirestore(getApps()[0]);
@@ -84,6 +88,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (rfidPrimaryEnabled()) {
+      await beginOperationalDeletion(userId, requestId);
+      await deleteOwnerMedia(userId);
+      try { await adminAuth.deleteUser(userId); }
+      catch (error) { if ((error as { code?: string }).code !== 'auth/user-not-found') throw error; }
+      await finishOperationalDeletion(userId, requestId);
+      return NextResponse.json({ success: true });
+    }
     const db = getFirestore(getApps()[0]);
 
     // 3. Delete Firestore sub-collections first (cats, catDetails)

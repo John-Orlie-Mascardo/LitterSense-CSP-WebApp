@@ -241,6 +241,9 @@ export default function CatsPage() {
       newErrors.dob = "Date of birth is required";
     }
 
+    if (!formData.rfidTag.trim()) {
+      newErrors.rfidTag = "Scan and verify an RFID tag before saving this cat.";
+    }
     const existingRfids = cats
       .map((c) => contextCatDetails[c.id]?.rfidTag)
       .filter(Boolean);
@@ -269,7 +272,7 @@ export default function CatsPage() {
       breed: formData.breed,
       gender,
       dob: formData.dob,
-      rfidTag: formData.rfidTag.trim().toUpperCase() || "—",
+      rfidTag: formData.rfidTag.trim().toUpperCase(),
       healthInsight: "",
       baseline: {
         avgVisitsPerDay: 0,
@@ -658,7 +661,7 @@ export default function CatsPage() {
                   <Wifi className="w-4 h-4 text-litter-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-litter-text">RFID Tag ID</p>
+                  <p className="text-sm font-semibold text-litter-text">RFID Tag ID <span className="text-red-500">*</span></p>
                   <p className="text-xs text-litter-muted">Tap the scan button on your LitterSense device</p>
                 </div>
               </div>
@@ -668,6 +671,8 @@ export default function CatsPage() {
                   value={formData.rfidTag}
                   readOnly
                   aria-label="Scanned RFID tag ID"
+                  aria-required="true"
+                  aria-invalid={Boolean(errors.rfidTag)}
                   placeholder="No tag scanned yet"
                   className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />

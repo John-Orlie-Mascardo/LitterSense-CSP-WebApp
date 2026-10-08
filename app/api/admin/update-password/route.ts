@@ -11,10 +11,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { getApps } from "firebase-admin/app";
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { isOperationalAdmin } from '@/lib/server/operationalRecords';
 
 const MASTER_ADMIN_EMAIL = "maclaurenz.cultura@gmail.com";
 
 async function isAdminEmail(email: string): Promise<boolean> {
+  if (rfidPrimaryEnabled()) return isOperationalAdmin(email);
   if (email === MASTER_ADMIN_EMAIL) return true;
   try {
     // Check the admins collection

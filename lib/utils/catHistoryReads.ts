@@ -8,6 +8,8 @@ import { buildVisitBackup, validateBackupDate, validateBackupId } from './catHis
 import { readCatalogBackup, readVisitBackups, saveCatalogBackup } from './catHistoryStore';
 import { primaryVisitFailureStatus } from './catVisitRecovery';
 import { normalizeSessionDocument } from './sessionNormalization';
+import { rfidPrimaryEnabled, listOperationalRecords } from '@/lib/server/operationalStore';
+import { readOperationalCatalog } from '@/lib/server/operationalCats';
 
 export class HistoryReadError extends Error {
   constructor(message: string, readonly status: number, readonly resetRequired = false) { super(message); }
@@ -25,6 +27,7 @@ function emptyCatalog(): CatalogBackup { return { revision: 0, profiles: [], com
 
 export async function readCatCatalog(ownerId: string): Promise<{ catalog: CatalogBackup; source: 'firebase' | 'supabase'; backupPending: boolean }> {
   checkOwner(ownerId);
+  if (rfidPrimaryEnabled()) return { catalog: await readOperationalCatalog(ownerId), source: 'supabase', backupPending: false };
   try {
     const catalog = await captureCatalog(ownerId);
     let backupPending = false;
@@ -64,6 +67,16 @@ export async function readCatHistory(ownerId: string, query: HistoryQuery): Prom
   if (query.states?.some(state => !allowedStates.has(state))) throw new HistoryReadError('Invalid history states', 400);
   const filters = JSON.stringify({ startDate: query.startDate, endDate: query.endDate, catId: query.catId ?? 'all', states: query.states ?? [...allowedStates], sort: query.sort, limit: query.limit });
   const cursor = query.cursor ? decodeCursor(query.cursor, ownerId, filters) : null;
+  if (rfidPrimaryEnabled()) {
+    if (cursor && cursor.source !== 'supabase-primary') throw new HistoryReadError('History source changed', 409, true);
+    const catalog = await readOperationalCatalog(ownerId), prefix = `users/${ownerId}/sessions/`;
+    const rows = (await listOperationalRecords(ownerId, prefix)).filter(row => !row.document_path.slice(prefix.length).includes('/')).map(row => buildVisitBackup(row.document_path.slice(prefix.length), { ...normalizeSessionDocument(row.document_path.slice(prefix.length), row.data), date: row.data.date }, null, 'primary_saved'));
+    const catIds = new Set(catalog.profiles.map(profile => profile.catId));
+    const baselineIds = new Set(catalog.profiles.filter(profile => { const baseline = profile.details.baseline as Record<string, unknown> | undefined; return baseline && Number(baseline.avgVisitsPerDay) > 0 && Number(baseline.avgDurationSecs) > 0 && baseline.lastUpdated; }).map(profile => profile.catId));
+    const selected = rows.filter(row => (!cursor || compare({ date: String(row.data.date), id: row.sessionId }, cursor, query.sort) > 0) && filterAndSortHistorySessions([normalizeSessionDocument(row.sessionId, row.data)], { ...query, catId: query.catId ?? 'all', states: query.states ?? [...allowedStates], preset: 'custom' }, catIds, baselineIds).length).sort((a, b) => compare({ date: String(a.data.date), id: a.sessionId }, { date: String(b.data.date), id: b.sessionId }, query.sort));
+    const page = selected.slice(0, query.limit), last = page.at(-1);
+    return { rows: page, nextCursor: selected.length > query.limit && last ? encodeCursor(ownerId, filters, 'supabase-primary', { date: String(last.data.date), id: last.sessionId }) : null, source: 'supabase', complete: true, backedUpAt: catalog.sourceReadAt, pendingCount: 0 };
+  }
   let catalog: CatalogBackup, primary = true;
   try { catalog = await captureCatalog(ownerId); }
   catch (error) { if (!primaryUnavailable(error)) throw error; primary = false; try { catalog = await readCatalogBackup(ownerId) ?? emptyCatalog(); } catch { throw new HistoryReadError('Cat history is temporarily unavailable', 503); } }

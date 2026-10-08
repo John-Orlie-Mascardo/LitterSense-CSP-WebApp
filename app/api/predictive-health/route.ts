@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth, getAdminFirestore } from "@/lib/configs/firebase-admin";
 import { createPredictiveHealthRateLimiter } from "@/lib/server/predictiveHealthLimiter";
+import { createOperationalAnalysisLimiter } from '@/lib/server/operationalAnalysisLimiter';
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
 import {
   buildPredictiveHealthPrompt,
   createPredictiveHealthAnalysis,
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   let requestLimiter;
   let limit;
   try {
-    requestLimiter = createPredictiveHealthRateLimiter(getAdminFirestore(), COOLDOWN_MS);
+    requestLimiter = rfidPrimaryEnabled() ? createOperationalAnalysisLimiter(COOLDOWN_MS) : createPredictiveHealthRateLimiter(getAdminFirestore(), COOLDOWN_MS);
     limit = await requestLimiter.begin(uid);
   } catch {
     return NextResponse.json({ error: "AI analysis is temporarily unavailable." }, { status: 503 });

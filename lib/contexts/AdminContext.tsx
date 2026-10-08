@@ -7,7 +7,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs } from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import type { AdminUser, AdminCat } from "@/lib/data/mockData";
 import { generateId } from "@/lib/utils/formatters";

@@ -1,5 +1,7 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { doc, getDoc, getFirestore } from "firebase/firestore/lite";
+import { rfidPrimaryEnabled, OperationalError } from '@/lib/server/operationalStore';
+import { readPublicOperationalConfig } from '@/lib/server/operationalDevices';
 
 export const runtime = "nodejs";
 
@@ -71,6 +73,11 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ configToken: string }> },
 ) {
+  if (rfidPrimaryEnabled()) {
+    const { configToken } = await context.params;
+    try { return Response.json(await readPublicOperationalConfig(configToken), { headers: { 'Cache-Control': 'no-store' } }); }
+    catch (error) { return Response.json({ error: 'Device config unavailable.' }, { status: error instanceof OperationalError ? error.status : 503, headers: { 'Cache-Control': 'no-store' } }); }
+  }
   const db = getDb();
   if (!db) {
     return Response.json(
@@ -113,7 +120,6 @@ export async function GET(
     const message = getErrorMessage(error);
 
     console.error("Failed to read device provisioning config.", {
-      configToken,
       code,
       message,
     });

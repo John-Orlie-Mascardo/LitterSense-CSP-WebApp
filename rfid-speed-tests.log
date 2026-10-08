@@ -1,0 +1,31 @@
+✔ primary gas push starts while SMS is still waiting (2.0468ms)
+✔ primary gas SMS failure cannot skip push (0.7441ms)
+✔ primary RFID push starts while SMS is still waiting (0.8597ms)
+✔ primary RFID SMS failure cannot skip push (0.6173ms)
+✔ app records preserve timestamps, ownership, notification dedupe and existing admin policy (1320.1571ms)
+✔ owners can read only their deletion requests, including the collection used by the app (783.743ms)
+✔ primary device setup rotates credentials atomically, isolates owners and keeps Wi-Fi contract (754.8481ms)
+✔ primary gas snapshots use existing SQL, keep active-low readings and never call Firestore (1534.659ms)
+✔ primary readiness, owner identity, stale/busy reader and cancellation fail safely (746.4713ms)
+✔ five-second proof, removal reset, expired proof, duplicate tag and atomic registration (854.5176ms)
+✔ visits and counters commit once; interruption, unknown tag and identity conflicts are safe (835.5423ms)
+✔ primary endpoints authenticate, acknowledge only durable visits and read Supabase without Firestore (867.81ms)
+✔ canonical history paginates and isolates owners, including empty history (811.839ms)
+✔ real RFID queue keeps one push and repairs notification history on a duplicate retry (838.2257ms)
+✔ imported camera credentials reconnect and pair through Supabase with Firestore blocked (759.8889ms)
+✔ new primary accounts, settings, health logs and reports work without Firestore; rejected paths cannot bypass dedicated flows (732.939ms)
+✔ Supabase analysis limiter rejects overlapping work and preserves cooldown and lease ownership (733.9748ms)
+✔ approved deletion removes canonical credentials and alert account, preserves audit and other owners, and can retry (712.7477ms)
+✔ primary token updates preserve multiple devices and saved-notification dispatch reads canonical records with Firestore blocked (775.6796ms)
+✔ canonical push tokens repair a missing mirror and move atomically between accounts (760.7636ms)
+✔ runtime readiness refuses an imported database before cutover is marked (743.8295ms)
+✔ scoped alert claims never cancel another owner before their canonical recipient is repaired (724.9584ms)
+✔ idle RFID heartbeat skips catalog scans but still persists reader state (711.4759ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16631.1005

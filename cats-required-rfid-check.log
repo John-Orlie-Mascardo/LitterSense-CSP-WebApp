@@ -1,0 +1,468 @@
+
+> littersense-capstone@0.1.0 check
+> npm run lint && npm test && npm run test:camera-relay && npm run build
+
+
+> littersense-capstone@0.1.0 lint
+> eslint
+
+
+C:\Users\Admin\LitterSense-CSP-WebApp\migration-private\release-qa-2026-10-07.mjs
+  7:66  warning  'deployment' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+
+
+> littersense-capstone@0.1.0 test
+> node --test "app/**/*.test.*" "components/**/*.test.*" "lib/**/*.test.*" "public/**/*.test.*"
+
+✔ password reset pages use the same dark and teal treatment as login (2.1747ms)
+✔ reset requests prevent duplicate submissions (0.2355ms)
+✔ the confirmation page resends through Firebase instead of a mock delay (0.2ms)
+✔ the confirmation page opens Gmail for Gmail reset addresses (0.3515ms)
+✔ both login methods block duplicate requests and disable while loading (1.2148ms)
+✔ successful authentication shows a toast before the resolved redirect (0.2019ms)
+✔ login uses privacy-safe mapped errors instead of raw Firebase messages (1.1902ms)
+✔ workerRejectsMissingOrWrongSecret and default disabled gate; only aggregates returned (194.7132ms)
+✔ sync authenticates owner and does not start history copying without a complete stored catalog (191.2832ms)
+✔ history endpoint binds verified owner and rejects changed/foreign cursors without leaking rows (174.5576ms)
+✔ callerCannotChooseOwner; unavailable primary rejects edits and pending mirror keeps a confirmed save (204.7503ms)
+✔ only four client profile mutations switch to confirmed requests; photo cleanup remains after deletion (0.9338ms)
+✖ real client profile methods require confirmed responses, show pending backup and preserve photos on rejected deletion (208.6427ms)
+✔ live route authenticates the owner, exposes only invalidations and closes resources on abort (173.6527ms)
+✔ real saved alerts still queue once; removed test requests cannot send (188.6097ms)
+✔ primary gas push starts while SMS is still waiting (3.4351ms)
+✔ primary gas SMS failure cannot skip push (1.1882ms)
+✔ primary RFID push starts while SMS is still waiting (1.0119ms)
+✔ primary RFID SMS failure cannot skip push (0.9082ms)
+RFID alert queue unavailable; device retry required.
+Sensor mirror unavailable; original sensor response preserved.
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: 'test failure' }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: 'test failure' }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: 'test failure' }
+ESP32 sensor sync failed. { status: 503, message: 'Unknown error', detail: 'test failure' }
+ESP32 sensor sync failed. { status: 403, message: 'Unknown error', detail: 'test failure' }
+SMS queue unavailable: Unknown error
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: 'test failure' }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: undefined }
+✔ authenticated display falls back during quota and recovery, preserving source age and owner isolation (161.2105ms)
+✔ RFID entry, exit, retry and authenticated owner snapshot through the route (595.5609ms)
+✔ live upload mirroring survives quota but never acknowledges unsaved visits or invalid ownership (108.1197ms)
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: undefined }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: undefined }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: undefined }
+ESP32 sensor sync failed. { status: 429, message: 'Unknown error', detail: undefined }
+Outage visit backup unavailable; original device retry response preserved.
+ESP32 sensor sync failed. { status: 403, message: 'Unknown error', detail: undefined }
+ESP32 sensor sync failed. {
+  status: 409,
+  message: 'Visit persistence failed; retry or review the device authority and session identity.',
+  detail: undefined
+}
+ESP32 sensor sync failed. { status: 500, message: 'Unknown error', detail: undefined }
+ESP32 sensor sync failed. {
+  status: 503,
+  message: 'Visit persistence failed; retry or review the device authority and session identity.',
+  detail: undefined
+}
+ESP32 sensor sync failed. {
+  status: 403,
+  message: 'Visit persistence failed; retry or review the device authority and session identity.',
+  detail: undefined
+}
+✔ durable outage visits acknowledge only verified storage; primary recovery counts once (283.1651ms)
+(node:22272) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Admin/LitterSense-CSP-WebApp/lib/utils/sensorEndpointDiagnostics.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\Admin\LitterSense-CSP-WebApp\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ local camera proxy works locally and hosted deployments require the authenticated viewer (104.1381ms)
+✔ cat detail renders three fully labeled seven-day trend charts (1.2787ms)
+✔ existing points are passed through presentation helpers without replacement data (0.3061ms)
+✔ cat forms validate files and upload cropped blobs to Storage (1.2731ms)
+✔ newly selected photos persist Storage URLs instead of fresh data URIs (0.3077ms)
+✔ photo inputs declare the shared accepted image types (0.1826ms)
+✔ photo removal and cat deletion clean up the owner-scoped object (0.1705ms)
+✔ editing without a new photo omits avatar from the cat update (0.2818ms)
+✔ history persists filters and incrementally loads grouped session cards (1.9683ms)
+✔ history renders required first-run, filtered-empty, skeleton, and retry states (0.2467ms)
+✔ history preserves loading cat filters and renders Unattributed after named sessions (0.1898ms)
+✔ desktop filters stay visible and mobile filters use a bottom sheet (0.2272ms)
+✔ the calendar is full width with touch buttons and highlighted ranges (0.1698ms)
+✔ recent activity shows three sorted visits and links to dedicated History (1.6704ms)
+✔ recent activity is grouped under friendly date labels (0.2878ms)
+✔ home replaces the greeting with one shared state key in each responsive position (0.2917ms)
+✔ selected cat summary precedes both responsive state keys and stays visible (0.3437ms)
+✔ mobile state key precedes the chart and primary metric sections (0.2242ms)
+✔ mobile state key uses a native disclosure that starts collapsed (0.2268ms)
+✔ home derives presentation states and distinguishes missing metrics from real zeroes (0.2558ms)
+✔ behavior chart labels duration in minutes on the left and visits on the right (0.1787ms)
+✔ behavior chart orders the current week from Monday through Sunday (0.2388ms)
+✔ predictive analysis lives on its own per-cat page linked before notifications (1.5371ms)
+✔ AI hides confidence and chemical labels while retaining environment data (0.3866ms)
+✔ previous report download opens the printable report instead of showing a fake download toast (1.2004ms)
+✔ report surfaces retain activity naming and the existing CSV filename (0.2389ms)
+✔ the shared six-state key appears immediately above the grouped session log (0.2576ms)
+✔ session groups are single-open on screen and all expanded for print (0.1677ms)
+✔ owner-facing tables and CSV exports use the same plain metric names (0.3186ms)
+✔ report trends use labeled seven-day owner-facing charts (0.3168ms)
+✔ PDF exports set and restore the requested filename and disable chart animation (0.6289ms)
+✔ device network settings open Wi-Fi provisioning from a row (1.445ms)
+✔ device network summary prefers live sensor SSID over saved config (0.3103ms)
+✔ device network settings appear before notification settings (0.2502ms)
+✔ Wi-Fi provisioning form lives inside a dedicated bottom sheet (0.1887ms)
+✔ Wi-Fi setup instructions explain the setup network fallback (0.1896ms)
+✔ PDF export prints from the current page without opening a popup (0.1804ms)
+✔ Export All does not offer JSON downloads (0.2131ms)
+✔ PDF and DOC exports omit settings data (0.2013ms)
+✔ owner photos upload to Storage before Auth and mirror the URL to Firestore (0.3723ms)
+✔ report print mode forces light readable abnormal row colors (1.2342ms)
+✔ hold circle interpolates smoothly, resets on removal and only confirms backend success (248.3587ms)
+✔ tooltip sorts by its own axis maximum and preserves tied order (1098.4342ms)
+✔ axis text meets 4.5:1 contrast on light and dark cards (0.5677ms)
+✔ the chart renders titled axes, ticks, baseline, and normal range (0.3458ms)
+✔ the tooltip keeps metric, value, unit, and day on one readable line (0.2661ms)
+✔ zero data renders an empty message without chart axes (0.2261ms)
+✔ metric identity owns domains and tick formatting for single and dual axes (0.1873ms)
+✔ push setup waits for a tap and contains no test controls (205.7999ms)
+✔ already permitted devices verify registration; failed registration and another account never show enabled (83.1707ms)
+✔ camera keeps delivering while renewal waits, and switches only after replacement frame (338.2523ms)
+✔ failed replacement leaves the working stream connected (109.3656ms)
+✔ cleanup closes both current and pending camera connections (65.2521ms)
+✔ gas alerts honor switches, independent board status, deduplication, recovery and retry (147.6387ms)
+✔ primary dashboards never create additional copies of server gas alerts (59.1239ms)
+✔ recent activity session cards show the recorded date (1.3036ms)
+✔ session presentation uses the shared resolver (0.2905ms)
+✔ history can add a shared six-state badge and Unattributed presentation (0.3912ms)
+✔ timeouts and reboots never display an invented physical exit (241.3451ms)
+✔ dismissal preserves history, hides read and unread items, and admits new arrivals (2.3635ms)
+✔ clearing is confirmed and account-scoped while the empty panel keeps its history link (0.5587ms)
+✔ the LitterSense logo is a keyboard-accessible dashboard link (0.2905ms)
+✔ skeleton library preserves predictable content shapes (1.504ms)
+✔ each primary route renders its matching skeleton (2.8859ms)
+✔ backup warning only describes incomplete displayed fallback, not healthy Firebase reads (93.0521ms)
+✔ a device restart alone does not mark a cat abnormal (90.4411ms)
+✔ interrupted visits remain visible in history without hiding summary-backed normal visits (26.9482ms)
+✔ maps live MQ gas detection into alert readings (1.3065ms)
+✔ maps clear online MQ sensors into normal readings (0.2511ms)
+✔ loads every bounded backup page and retains owner identity with no duplicate visits (132.7701ms)
+✔ source reset retries from start and owner switch cannot reuse old results (33.3466ms)
+✔ healthy reads stop after status page and never query sensor endpoints (23.2067ms)
+✔ confirmed catalog writes show immediately without discarding visits or other cat details (15.5717ms)
+✔ dashboard consumers share one loop with responsive idle, visit, gas and background rates (188.7877ms)
+✔ failures back off, preserve error display, then recover the normal cadence (38.318ms)
+✔ requests never overlap and cleanup aborts pending work without sharing a previous owner's data (44.3322ms)
+✔ PWA install prompt is captured from the root app lifecycle (1.8166ms)
+✔ closing unlocks the form and an old attempt cannot reset a retry (161.4808ms)
+✔ an already active visit does not replay entry or the previous exit on load (21.4861ms)
+✔ does not replay old alerts and announces an exit only after its session is saved (18.7025ms)
+✔ matches a completed session to a cat with the registered RFID tag (0.2899ms)
+✔ does not assign an unknown RFID tag to the only registered cat (0.2088ms)
+✔ skips a session that already exists in Firestore (0.2782ms)
+✔ does not write Firestore visits for completed device-synced sessions (16.2894ms)
+✔ history uses inclusive date bounds, deterministic ordering, cursors, and limits (2.1973ms)
+✔ history keeps raw errors in logs and exposes retry-safe owner copy (0.2342ms)
+✔ the global full-session listener is suspended only on the History route (0.2887ms)
+✔ quota history fallback uses authenticated owner pages and resets changed cursors (0.1894ms)
+✔ completed duration precedes anomaly and baseline, preserving the 30-second boundary (1.4792ms)
+✔ a cat without recorded evidence displays insufficient data (0.2657ms)
+✔ ordinary sessions cannot display normal before a baseline exists (0.2396ms)
+✔ an established baseline and existing normal classification display normal (0.1846ms)
+✔ existing abnormal and watch classifications remain visible (0.2214ms)
+✔ incomplete and unattributed sessions keep their explicit display states (0.1694ms)
+✔ group severity selects the strongest existing state and defaults safely (0.2299ms)
+✔ missing metrics say no data yet while a real zero remains zero (0.1925ms)
+✔ the shared reference contains each state exactly once (1.2986ms)
+✔ a power-interrupted visit is incomplete regardless of its duration (0.7187ms)
+✔ credential-related failures do not reveal whether an account exists (1.3662ms)
+✔ email login explains throttling and connection failures plainly (0.2245ms)
+✔ Google login distinguishes cancellation, popup blocking, and connection failures (0.2024ms)
+✔ legacy alerts and session labels display friendly wording without changing other text (1.3637ms)
+✔ report rows and session-log counters agree on unflagged short visits (19.2681ms)
+✔ a cat with no sessions or baseline is grouped as Insufficient data (0.3141ms)
+✔ normal is shown only when the cat has an established baseline (0.2598ms)
+✔ a named group uses the most severe real session state and visit count (0.2463ms)
+✔ unattributed sessions form one explanatory group after every named cat (0.3312ms)
+✔ defaults to the last 30 days, all cats, all six states, newest first (2.4741ms)
+✔ round-trips valid URL filters and rejects stale cat IDs (1.4883ms)
+✔ preserves a stored cat filter until registered cats finish loading (0.3061ms)
+✔ calendar selection emphasizes a start then an inclusive end (0.2397ms)
+✔ filters inclusive endpoints, Unattributed, multiple states, and order (0.7406ms)
+✔ each state filter returns exactly the sessions bearing that state (0.5808ms)
+✔ groups sessions under full owner-facing dates (34.0494ms)
+✔ applies cat, multi-state, date, and ascending sort filters together (0.3516ms)
+✔ partitions unattributed sessions after registered-cat sessions (0.3335ms)
+✔ builds single-cat references from central deviation values (3.7025ms)
+✔ omits references while the baseline is still building (0.2812ms)
+✔ aggregates visits by sum and other metrics by expected-visit weight (0.4419ms)
+✔ converts only duration series values from seconds to minutes (0.4674ms)
+✔ formats one readable tooltip line (0.2849ms)
+✔ duration uses one tick format and a domain containing its complete normal band (0.5483ms)
+✔ identical metric inputs always produce identical domains (0.2438ms)
+✔ key validation and ticket scope/expiry are bound to one camera (2.7227ms)
+✔ view endpoint requires authentication and checks camera ownership and revocation (27.7438ms)
+✔ device session accepts only its private key and never issues a view ticket (18.6826ms)
+✔ realtime filters notification invalidations by authenticated owner and never forwards records (117.4782ms)
+✔ canonical recipients are repaired before claim filters; failed owners are never claimed (144.566ms)
+✔ archived report photos are copied and renewed from owned pointers; nested previews cannot be imported (180.1399ms)
+✔ primary photos validate owner, MIME and bytes before uploading; refresh only known owned storage URLs (28.637ms)
+✔ media endpoint rejects bad auth, cross-owner paths and oversized chunked bodies (51.8585ms)
+✔ private media migration blocks broad anonymous storage policy and caps prepared images (2233.2445ms)
+✔ asset copy verifies byte hashes, preserves source, refuses conflicts and blocks importing dry-run photo pointers (3.0792ms)
+✔ app records preserve timestamps, ownership, notification dedupe and existing admin policy (3460.496ms)
+✔ owners can read only their deletion requests, including the collection used by the app (1049.6784ms)
+✔ primary device setup rotates credentials atomically, isolates owners and keeps Wi-Fi contract (836.0905ms)
+✔ primary gas snapshots use existing SQL, keep active-low readings and never call Firestore (1373.5249ms)
+✔ primary readiness, owner identity, stale/busy reader and cancellation fail safely (735.4653ms)
+✔ five-second proof, removal reset, expired proof, duplicate tag and atomic registration (828.7134ms)
+✔ visits and counters commit once; interruption, unknown tag and identity conflicts are safe (824.3693ms)
+✔ primary endpoints authenticate, acknowledge only durable visits and read Supabase without Firestore (885.2021ms)
+✔ canonical history paginates and isolates owners, including empty history (814.9967ms)
+✔ real RFID queue keeps one push and repairs notification history on a duplicate retry (826.5822ms)
+✔ imported camera credentials reconnect and pair through Supabase with Firestore blocked (759.7537ms)
+✔ new primary accounts, settings, health logs and reports work without Firestore; rejected paths cannot bypass dedicated flows (751.2906ms)
+✔ Supabase analysis limiter rejects overlapping work and preserves cooldown and lease ownership (741.9892ms)
+✔ approved deletion removes canonical credentials and alert account, preserves audit and other owners, and can retry (733.0907ms)
+✔ primary token updates preserve multiple devices and saved-notification dispatch reads canonical records with Firestore blocked (784.9607ms)
+✔ canonical push tokens repair a missing mirror and move atomically between accounts (828.6515ms)
+✔ runtime readiness refuses an imported database before cutover is marked (713.633ms)
+✔ scoped alert claims never cancel another owner before their canonical recipient is repaired (779.0094ms)
+✔ independent instances share leases and cooldown, recover after failure, and reject stale releases (4.5309ms)
+✔ new cats require a valid RFID tag while existing untagged profiles can still be edited (222.6344ms)
+✔ completeEmptyCatalogDiffersFromUnavailable; primaryUnavailableDoesNotReportProfileSaved (63.2855ms)
+✔ confirmed profile mutations preserve details, delete summaries and advance atomic revisions (72.8247ms)
+✔ legacy weightKg is copied as supported weight without changing primary details (47.4517ms)
+✔ mirrorFailureKeepsConfirmedPrimaryMutation; invalid mutations never write (37.7584ms)
+✔ olderProfileCopyCannotResurrectCat because capture and deletion carry ordered primary revisions (36.4372ms)
+✔ another cat cannot claim an existing tag at save time; its current owner can keep it (90.5197ms)
+✔ backfill1201SessionsWithoutTruncation; importDoesNotIncrementPrimaryCounters (210.8833ms)
+✔ restartDoesNotSkipUnstoredPage or a stored page whose progress response was lost (64.0174ms)
+✔ repair reports this page rather than cumulative imported rows (68.3435ms)
+✔ unsupported rows report incomplete and do not advance the cursor (24.7665ms)
+✔ a full 100-row page is not completion; legacy timestamps retain their original times (38.0289ms)
+✔ receipt does not change digest; meaningful changes and duplicate IDs are distinguished (205.2454ms)
+✔ legacy dates remain undated; bad paths, states, numbers and unsupported fields fail closed (53.2688ms)
+✔ sameSessionInBothStoresShowsAndCountsOnce; pendingRowsRemainVisibleAfterPrimaryRecovers (226.557ms)
+✔ sourceChangeRestartsCursorSafely; accountSwitchCannotLeakRows (58.2623ms)
+✔ incompleteBackupIsNotEmptyHistory; bothStoresUnavailableIsCloudError; permission errors stay closed (83.9443ms)
+✔ a completed copy cannot claim outage history is complete after a later mirror failure (33.3637ms)
+✔ backup-only duplicate pages advance until a later pending visit is visible (44.754ms)
+✔ primary cursor uses the stored query date when the displayed activity date differs (41.3851ms)
+✔ backup adapter scopes owners, hashes devices, validates inputs, preserves dates and handles void RPC (262.5241ms)
+✔ exact ID lookups bind the owner, escape filters, cap batches and fail closed (51.5871ms)
+✔ accepts common images and rejects unsupported or oversized files (7.4586ms)
+✔ accepts the exact 10 MB boundary (0.2699ms)
+✔ builds only the owner-scoped deterministic avatar path (1.1512ms)
+✔ converts a cropped JPEG data URL to a Blob (86.5402ms)
+✔ resumable upload reports initial and transferred-byte progress before resolving (81.0333ms)
+✔ closing cancels upload and ignores late progress and completion (47.2793ms)
+✔ prepared uploads enforce the 2 MB cap and do not start when canceled (24.1054ms)
+✔ resumable upload cancels and rejects when its deadline expires (72.2033ms)
+✔ keeps loading for an empty cache-only cats snapshot (1.2463ms)
+✔ finishes loading when cache snapshot already has cats (0.2184ms)
+✔ finishes loading when server confirms there are no cats (0.27ms)
+✔ healthySavedVisitMirrorsOnce and healthy backup only uses confirmed primary records (47.4734ms)
+✔ quotaRetryStoresOnePendingVisit; delayedReceiptKeepsOriginalDay (111.7982ms)
+✔ partialCatalogCannotAuthorizeVisit; ambiguousTagIsRejected; malformedAndRevokedTokensNeverQueue (23.1045ms)
+✔ batches over 100 retain every countable event; ignored events never become visits (210.6843ms)
+✔ firmware retry clock jitter preserves first times while changed duration, status, gas or real time conflicts (139.5962ms)
+✔ backup acknowledgement excludes quarantined records, changed owner and ambiguous batches (79.38ms)
+✔ firmware jitter across midnight retains the first activity day, including two retries in one batch (42.6715ms)
+✔ lostCommitResponseCountsOnce and boardAndWorkerRaceCountsOnce (625.4297ms)
+✔ pastDayNeverIncrementsToday, olderReplayPreservesLastVisit and midnightReplayKeepsStoredDay (100.0931ms)
+✔ crashBeforeFinalizeIsSafe, importedRowsNeverReplay and meaningful conflicts do not increment (80.1087ms)
+✔ deletedCatOrRevokedDeviceCancels; authorityUnavailableRetries and repair is bounded (320.5392ms)
+✔ current backup mapping and leases are checked; invalid records and permission errors stay closed (119.5168ms)
+✔ primary quota backs off the claimed batch and repair without repeated primary calls (63.4899ms)
+✔ corrupted claimed content is quarantined without counters or endless retries (102.6674ms)
+✔ interrupted reboot records persist once without polluting measured visit summaries (129.2917ms)
+✔ fallback average excludes the unknown duration of an interrupted visit (1.3206ms)
+✔ formats average duration from non-empty trend days (0.2518ms)
+✔ uses recent sessions when today's stats are empty (0.1749ms)
+✔ uses today's recent sessions when stored visit stats have not caught up (13.0684ms)
+✔ behavior trend ignores empty edge days (0.3156ms)
+✔ shows live connected SSID before saved provisioning SSID (1.2779ms)
+✔ labels saved SSID as configured when live SSID is unavailable (0.2175ms)
+✔ keeps the loading message while provisioning config is loading (0.1751ms)
+✔ prompts setup when neither saved nor live network is available (0.1677ms)
+✔ omits localhost config URLs from hardware provisioning bodies (1.3605ms)
+✔ omits 127.0.0.1 config URLs from hardware provisioning bodies (0.2248ms)
+✔ includes LAN or deployed config URLs in hardware provisioning bodies (0.772ms)
+✔ omits invalid config URLs from hardware provisioning bodies (0.3417ms)
+✔ uses configured LAN origin when browser origin is localhost (0.5933ms)
+✔ keeps LAN browser origin for hardware provisioning (0.5076ms)
+✔ falls back to browser origin when no LAN origin is configured (0.2776ms)
+✔ RFID heartbeat reports entry without counting a visit and exit clears active state (4.9502ms)
+✔ increments snapshot counters and preserves the latest recorded event (0.446ms)
+✔ stores live MQ sensor readings from a sync request (1.6207ms)
+✔ maps a fresh stored snapshot into the sensor API response shape (0.7275ms)
+✔ marks stored snapshot offline when the snapshot is stale (0.2635ms)
+✔ idle heartbeats stay online until ninety seconds and reject future timestamps (0.6209ms)
+✔ can force a fresh stored snapshot offline after a failed live poll (1.6292ms)
+✔ keeps a month draft visible before a year is selected (2.3121ms)
+✔ keeps a year draft visible before a month is selected (0.2714ms)
+✔ emits a complete DOB after month and year are selected in either order (0.2267ms)
+✔ clears an invalid day when the selected month has fewer days (1.6294ms)
+✔ Firestore token exchange and reads have deadlines and propagate network failures (137.5278ms)
+✔ gas idle heartbeat stays fresh for one-minute upload plus thirty seconds of grace (5.3837ms)
+✔ separate gas board validates readings and fails offline independently of RFID (47.7324ms)
+✔ distinguishes stale heartbeats and unknown cloud data independently (1.875ms)
+✔ marks MQ sensors offline when the stored sensor payload is not online (1.1335ms)
+✔ marks RFID offline when the stored sensor payload is not online (0.2195ms)
+✔ online RFID reports current idle or occupied state, never an old event (0.2065ms)
+✔ cloud and browser errors hide retained online readings without declaring hardware offline (4.1231ms)
+✔ ultrasonic no echo remains distinct from offline and first load is connecting (0.3792ms)
+✔ keeps live sensors normal when the device is online and clear (0.203ms)
+✔ healthy gas cards expose the actual last received timestamp (0.2059ms)
+✔ notification stream handles split frames, renews and stops without later callbacks (217.2848ms)
+✔ empty successful HTTP streams back off instead of reconnecting repeatedly (27.7036ms)
+✔ treats missing onboardingComplete as complete for existing users (2.6261ms)
+✔ keeps explicit false onboardingComplete for new users (0.2775ms)
+✔ shows inline dashboard onboarding for incomplete non-admin users (0.1872ms)
+✔ does not show inline dashboard onboarding for complete or admin users (0.1989ms)
+✔ uses requested onboarding notification defaults (1.0338ms)
+✔ primary adapter preserves timestamp nanos, filters/sorts and normalizes canonical notification dates without Firebase I/O (254.8358ms)
+✔ failed mode check stops reads/writes; transaction retries carry revisions and encoded field operations (62.9757ms)
+✔ primary listener stops on unsubscribe or account change instead of exposing previous owner records (39.6462ms)
+✔ visible primary subscriptions refresh within five seconds (70.1645ms)
+✔ tab return refreshes immediately and removes its handler on unsubscribe (75.5751ms)
+✔ write refresh waits for an outstanding read instead of overlapping it (70.5994ms)
+✔ live notification invalidation refreshes only notification listeners and cleanup removes them (52.3313ms)
+✔ PostgreSQL foundation: dry run, repeat import, conflicts, tag claims, ownership and atomic writes (2015.538ms)
+✔ legacy root snapshots and analysis leases are preserved under verified owners without replacing current snapshots (28.403ms)
+✔ completed deletion audits survive import without restoring deleted owners (0.662ms)
+✔ ambiguous imported push token ownership blocks cutover instead of assigning an account (0.2743ms)
+✔ import preserves IDs, rejects changed digest, duplicate tags and orphan details (0.9064ms)
+✔ camera import requires preserved credential ownership (0.459ms)
+✔ Firestore types preserve timestamp, reference, bytes and coordinates (2.5466ms)
+✔ dry run uses existing transport and never applies by default (37.7777ms)
+✔ failed source read never becomes a complete empty export (0.8861ms)
+✔ source changing between export passes is rejected (2.2352ms)
+✔ export bounds parallel source reads and retains both complete verification passes (54.171ms)
+✔ a verified private source checkpoint is preserved before ownership validation without becoming an import manifest (1.0827ms)
+✔ conflict reports do not echo database details containing secrets (0.7759ms)
+✔ pending Supabase visits join the export once; cancelled and conflicting backups never resurrect (1.0988ms)
+✔ approved visit conflict preserves both copies and rejects a changed approval fingerprint (3.4718ms)
+✔ owner photo storage helper exists (2.6818ms)
+✔ builds revisioned owner-scoped profile paths (278.2648ms)
+✔ profile photos resize proportionally and pass cancellation to the shared uploader (83.5024ms)
+✔ allows cleanup only inside the signed-in owner's profile directory (64.1014ms)
+✔ normalizes a Philippine local number to E.164 (4.1335ms)
+✔ keeps an optional phone number empty (0.2287ms)
+✔ rejects a phone number outside the E.164 digit limit (0.6853ms)
+✔ extracts the editable local number from a saved number (0.1944ms)
+✔ profile combines +63 with ten digits without doubling an international number (0.4239ms)
+✔ accepts a complete authenticated analysis request (2.239ms)
+✔ rejects malformed or unauthenticated analysis requests (0.243ms)
+✔ summarizes only usable sessions for analysis quality (1.1785ms)
+✔ converts displayed durations back to numeric evidence without guessing (0.4401ms)
+✔ builds exact evidence without asking Gemini to do the arithmetic (0.8968ms)
+✔ insufficient data never produces a reliable baseline comparison (0.2572ms)
+✔ describes metrics that exactly match the baseline (0.2227ms)
+✔ grounds Gemini's prompt in the official state and computed evidence (0.3823ms)
+✔ combines Gemini's summary with deterministic report sections (1.0791ms)
+✔ accepts only complete structured reports at the client boundary (0.4266ms)
+✔ extracts a short structured Gemini summary (10.8367ms)
+✔ early analysis includes available activity and independent environment evidence (9.7983ms)
+✔ zero visits explain setup without fabricating data or baseline readiness (35.6504ms)
+✔ one and two visits remain visible as chart points and individual records (4.3022ms)
+✔ incomplete visits stay visible but do not establish baseline evidence (0.949ms)
+✔ reboot duration placeholders never enter charts or baseline progress (0.3929ms)
+[alert timing] Push provider {
+  source: 'gas',
+  queueToProviderMs: 95,
+  providerMs: 36,
+  acceptedDevices: 1
+}
+[alert timing] Push provider {
+  source: 'gas',
+  queueToProviderMs: 28,
+  providerMs: 0,
+  acceptedDevices: 1
+}
+[alert timing] Push provider {
+  source: 'gas',
+  queueToProviderMs: 29,
+  providerMs: 0,
+  acceptedDevices: 1
+}
+[alert timing] Push provider {
+  source: 'visit',
+  queueToProviderMs: 267166481,
+  providerMs: 0,
+  acceptedDevices: 1
+}
+[alert timing] Push provider {
+  source: 'visit',
+  queueToProviderMs: 267166483,
+  providerMs: 1,
+  acceptedDevices: 1
+}
+✔ an unsent push survives a recipient outage and does not block another claimed owner (136.7566ms)
+✔ both gases send without a browser or phone number, with urgency and per-device acceptance evidence (31.2022ms)
+✔ push works without a profile phone, respects preferences and removes only expired tokens (38.3396ms)
+✔ primary push worker refreshes canonical preferences before delivery even with no app open (20.7165ms)
+✔ short sessions do not become report-level health concerns (1.073ms)
+✔ true abnormal sessions still count as report-level health concerns (0.2178ms)
+✔ normalizes Firestore report metadata into a previous report row (8.7788ms)
+✔ sorts newest generated reports first (2.16ms)
+✔ one confirmed five-second hold verifies, shorter or legacy scans never verify (1.9286ms)
+✔ removal resets and delayed packets do not restore old progress (0.4097ms)
+✔ registered tags identify their cat; expired, malformed and absent proofs fail closed (0.9011ms)
+✔ server builds entry and exit without a dashboard, using stable device identities (250.1941ms)
+✔ Firebase inbox writes run after durable queueing, so quota retries cannot hold the board response (57.027ms)
+✔ server skips disabled, ambiguous, unmatched, gas, stale and unstable events (52.6801ms)
+✔ atomic outbox deduplication creates one push-only alert and one inbox record on retries (37.7541ms)
+✔ classifies private LAN ESP32 URLs (1.5017ms)
+✔ classifies loopback sensor URLs (0.2194ms)
+✔ classifies public and invalid sensor URLs (0.2345ms)
+✔ skips LAN polling only from Vercel-like server runtimes (0.2598ms)
+✔ server SMS matches owner tags, excludes incomplete visits and never calls IPROG (75.4099ms)
+✔ sensor route queues during Firestore quota failure, preserves retry status and rejects invalid tokens (181.6218ms)
+✔ selects the newest receipt for each source without refreshing stale data (172.0845ms)
+✔ sensor mirror hashes ownership, filters secrets, scopes reads, and fails closed (38.0036ms)
+✔ RFID firmware payload preserves duration, matches full EPC and retries the same session (3.6618ms)
+✔ normalizes a root ESP32 replay payload into one countable sync event (0.3346ms)
+✔ filters false entries out of offline replay writes (0.2301ms)
+✔ normalizes the actual firmware SD session payload shape (0.3281ms)
+✔ matches replayed RFID cards to registered cat details only (0.2441ms)
+✔ builds idempotent Firestore write plans for synced visits (32.7001ms)
+✔ power-interrupted sessions are persisted explicitly and never disguised as normal visits (0.6135ms)
+✔ uses the session end timestamp before the stored date field (2.2732ms)
+✔ activity date follows the actual end timestamp when the stored date is stale (0.2739ms)
+✔ falls back to a plain stored date when timestamps are missing (0.2003ms)
+✔ normalizes Firestore timestamp-like values (0.4928ms)
+✔ normalizes the existing Firestore session shape (33.1986ms)
+✔ keeps current defaults for missing optional values (0.8533ms)
+✔ formats session time from endedAt instead of stored time (2.2483ms)
+✔ falls back to stored time when no endedAt exists (0.173ms)
+✔ sorts sessions by endedAt when available (0.1905ms)
+✔ SMS backup uses trusted owner records, hashes tokens, preserves backups on quota failure (233.1272ms)
+✔ an unsent SMS survives a recipient outage and does not block another claimed owner (249.3134ms)
+✔ SMS sender honors gates, current recipient, preferences and quiet hours (33.9684ms)
+✔ provider acceptance is reconciled, timeout becomes unknown and never blindly retried (83.4708ms)
+✔ legacy SMS number endpoint cannot override profile; worker rejects a wrong or Unicode secret (18.0065ms)
+✔ primary SMS worker refreshes profile phone and preferences before dispatch without Firestore or browser (24.0015ms)
+✔ each real alert has one ASCII message, real Manila time, and no raw placeholders (40.3617ms)
+✔ long or non-ASCII names do not turn an SMS into Unicode or remove its action (0.6317ms)
+✔ NH3 and H2S display system notifications with no app windows open (4.8596ms)
+✔ FCM notification payload displays real text and informs foreground clients (5.337ms)
+ℹ tests 364
+ℹ suites 0
+ℹ pass 363
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20803.2529
+
+✖ failing tests:
+
+test at app\api\cats\route.test.mjs:53:1
+✖ real client profile methods require confirmed responses, show pending backup and preserve photos on rejected deletion (208.6427ms)
+  Error [CatProfileSaveError]: Could not confirm the cat profile save. Check your connection and refresh before trying again.
+      at Object.<anonymous> (evalmachine.<anonymous>:647:41)
+      at step (evalmachine.<anonymous>:55:23)
+      at Object.next (evalmachine.<anonymous>:36:53)
+      at fulfilled (evalmachine.<anonymous>:27:58) {
+    saveUnconfirmed: true
+  }

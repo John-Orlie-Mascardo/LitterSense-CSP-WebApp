@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, serverTimestamp, setDoc } from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { PerCatNotificationPref } from "../interfaces/PerCatNotificationPref";
@@ -113,10 +113,11 @@ export function useSettings() {
   const uid = user?.uid;
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadedOwner, setLoadedOwner] = useState<string | undefined>();
 
   useEffect(() => {
     if (globalThis.window !== undefined) {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = uid ? localStorage.getItem(`${STORAGE_KEY}:${uid}`) : null;
       let nextSettings = defaultSettings;
       if (stored) {
         try {
@@ -128,15 +129,16 @@ export function useSettings() {
       queueMicrotask(() => {
         setSettings(nextSettings);
         setIsLoaded(true);
+        setLoadedOwner(uid);
       });
     }
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
-    if (isLoaded && globalThis.window !== undefined) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    if (uid && loadedOwner === uid && isLoaded && globalThis.window !== undefined) {
+      localStorage.setItem(`${STORAGE_KEY}:${uid}`, JSON.stringify(settings));
     }
-  }, [settings, isLoaded]);
+  }, [settings, isLoaded, uid, loadedOwner]);
 
   useEffect(() => {
     if (!uid || !isLoaded) return undefined;

@@ -9,6 +9,8 @@ test('sync authenticates owner and does not start history copying without a comp
   let failMirror = false;
   const loaded = { exports: {} };
   const imports = {
+    '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false },
+    '@/lib/server/operationalCats': {},
     '@/lib/configs/firebase-admin': { getAdminAuth: () => ({ verifyIdToken: async (token, revoked) => { assert.equal(revoked, true); if (token !== 'good') throw new Error(); return { uid: 'owner-a' }; } }) },
     '@/lib/utils/catCatalogSync': { captureCatalog: async owner => { calls.push(`capture:${owner}`); return { complete: true, revision: 1, profiles: [] }; } },
     '@/lib/utils/catHistoryStore': { saveCatalogBackup: async owner => { calls.push(`store:${owner}`); if (failMirror) throw new Error(); } },

@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "node --test \"app/**/*.test.*\" \"components/**/*.test.*\" \"lib/**/*.test.*\" \"public/**/*.test.*\"",
@@ -26,6 +26,7 @@
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

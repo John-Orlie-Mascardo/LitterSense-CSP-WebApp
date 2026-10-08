@@ -72,7 +72,7 @@ export interface DeleteRequest {
   userName: string;
   userEmail: string;
   requestedDate: string; // ISO date string
-  status: "pending" | "approved" | "rejected" | "deleted";
+  status: "pending" | "approved" | "rejected" | "deleting" | "deleted";
   resolvedDate?: string;
   reason?: string;
 }

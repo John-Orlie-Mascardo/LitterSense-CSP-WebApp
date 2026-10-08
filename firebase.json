@@ -8,7 +8,7 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.supabase-primary.rules"
   },
   "storage": {
     "rules": "storage.rules"

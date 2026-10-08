@@ -61,7 +61,7 @@ import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth, db } from "@/lib/configs/firebase";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "@/lib/utils/operationalClient";
 import {
   updateProfile,
   updatePassword,
@@ -322,6 +322,7 @@ export default function SettingsPage() {
     phoneCountryCode: "+63",
     phoneNumber: "",
   });
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(user?.photoURL ?? null);
   const [savedPhoneNumber, setSavedPhoneNumber] = useState("");
   const [savedPhoneCountryCode, setSavedPhoneCountryCode] = useState("+63");
 
@@ -337,6 +338,9 @@ export default function SettingsPage() {
 
     void getDoc(doc(db, "users", user.uid)).then((snapshot) => {
       const profile = snapshot.data();
+      const photo = typeof profile?.photoURL === "string" ? profile.photoURL : user.photoURL;
+      setProfilePhoto(photo);
+      setEditProfileForm(prev => ({ ...prev, photo }));
       const phoneCountryCode = profile?.phoneCountryCode || "+63";
       const phoneNumber = typeof profile?.phoneNumber === "string" ? profile.phoneNumber : "";
 
@@ -378,7 +382,7 @@ export default function SettingsPage() {
     if (!user) return;
     const upload = photoUpload.begin();
     const previousDisplayName = user.displayName;
-    const previousPhotoUrl = user.photoURL;
+    const previousPhotoUrl = profilePhoto;
     const previousPhotoPath = savedProfilePhotoPath;
     let nextPhotoUrl = previousPhotoUrl;
     let nextPhotoPath = previousPhotoPath;
@@ -421,6 +425,7 @@ export default function SettingsPage() {
       setSavedPhoneNumber(phoneNumber);
       setSavedPhoneCountryCode(editProfileForm.phoneCountryCode);
       setSavedProfilePhotoPath(nextPhotoPath);
+      setProfilePhoto(nextPhotoUrl);
       if (!upload.signal.aborted) setSelectedProfilePhotoFile(null);
       try {
         await refreshUser();
@@ -646,9 +651,9 @@ export default function SettingsPage() {
         <section className="bg-litter-card rounded-2xl p-4 shadow-sm border border-litter-border mb-2 mt-4">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-2xl shrink-0 overflow-hidden">
-              {user?.photoURL ? (
+              {profilePhoto ? (
                 <Image
-                  src={user.photoURL}
+                  src={profilePhoto}
                   alt="Profile"
                   width={64}
                   height={64}
@@ -675,7 +680,7 @@ export default function SettingsPage() {
                 setSelectedProfilePhotoFile(null);
                 setEditProfileForm((current) => ({
                   ...current,
-                  photo: user?.photoURL ?? null,
+                  photo: profilePhoto,
                 }));
                 setShowEditProfile(true);
               }}
@@ -1066,7 +1071,7 @@ export default function SettingsPage() {
         isOpen={showEditProfile}
         onClose={() => {
           photoUpload.cancel();
-          setEditProfileForm((current) => ({ ...current, displayName: user?.displayName || settings.account.displayName, photo: user?.photoURL || null, phoneCountryCode: savedPhoneCountryCode, phoneNumber: getNationalPhoneNumber(savedPhoneNumber, savedPhoneCountryCode) }));
+          setEditProfileForm((current) => ({ ...current, displayName: user?.displayName || settings.account.displayName, photo: profilePhoto, phoneCountryCode: savedPhoneCountryCode, phoneNumber: getNationalPhoneNumber(savedPhoneNumber, savedPhoneCountryCode) }));
           setSelectedProfilePhotoFile(null);
           setShowEditProfile(false);
         }}
@@ -1484,4 +1489,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

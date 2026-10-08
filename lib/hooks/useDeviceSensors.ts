@@ -107,7 +107,6 @@ function useSensorPolling() {
     let timeoutId: number;
     let inFlight = false;
     let failures = 0;
-    let active = false;
     const controller = new AbortController();
 
     const pollSensors = async () => {
@@ -118,13 +117,17 @@ function useSensorPolling() {
         const data = await fetchDeviceSensors(await user.getIdToken(), controller.signal);
         if (!isMounted) return;
         failures = 0;
-        active = (data.online && data.sessionActive) || ((data.gasUltrasonicOnline ?? data.online) && (data.mq135Raw === 0 || data.mq136Raw === 0));
         setState({ data, isLoading: false, error: null, ownerId: user.uid });
       } catch (error) {
         if (!isMounted || controller.signal.aborted) return;
         ++failures;
         setState((previous) => ({
-          data: previous.ownerId === user.uid ? previous.data : null,
+          data: previous.ownerId === user.uid && previous.data ? {
+            ...previous.data,
+            online: false,
+            gasUltrasonicOnline: false,
+            sessionActive: false,
+          } : null,
           ownerId: user.uid,
           isLoading: false,
           error:
@@ -136,7 +139,7 @@ function useSensorPolling() {
         inFlight = false;
         if (isMounted) {
           const retryMs = Math.min(60000, 5000 * 2 ** Math.min(failures - 1, 4));
-          const interval = failures ? retryMs : active ? 2000 : 5000;
+          const interval = failures ? retryMs : 2000;
           timeoutId = window.setTimeout(pollSensors, document.hidden ? Math.max(30000, interval) : interval);
         }
       }

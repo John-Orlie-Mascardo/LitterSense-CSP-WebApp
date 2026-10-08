@@ -5,14 +5,15 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 
 test('real saved alerts still queue once; removed test requests cannot send', async () => {
-  const records = []; const keys = new Set(); let afterCalls = 0;
+  const records = []; const keys = new Set(); let afterCalls = 0, source = 'system';
   const imports = {
+    '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false },
     'next/server': { after: () => { afterCalls++; } },
     '@/lib/configs/firebase-admin': {
       getAdminAuth: () => ({ verifyIdToken: async () => ({ uid: 'owner' }) }),
       getAdminFirestore: () => ({ doc: path => {
         assert.equal(path, 'users/owner/notifications/alert-1');
-        return { get: async () => ({ exists: true, data: () => ({ source: 'system', title: 'Device alert', message: 'Check the device.', createdAt: { toMillis: () => Date.now() } }) }) };
+        return { get: async () => ({ exists: true, data: () => ({ source, catId: 'cat-1', title: 'Device alert', message: 'Check the device.', createdAt: { toMillis: () => Date.now() } }) }) };
       } }),
     },
     '@/lib/utils/pushDelivery': { processPushOutbox: async () => {} },
@@ -32,4 +33,10 @@ test('real saved alerts still queue once; removed test requests cannot send', as
   assert.equal(records[0].push_status, 'pending');
   assert.deepEqual(await (await loaded.exports.POST(request({ notificationId: 'alert-1' }))).json(), { queued: false });
   assert.equal(afterCalls, 1);
+  source = 'dashboard_abnormal'; keys.clear();
+  assert.deepEqual(await (await loaded.exports.POST(request({ notificationId: 'alert-1' }))).json(), { queued: true });
+  assert.equal(records.at(-1).context.source, 'dashboard_abnormal');
+  assert.equal(records.at(-1).cat_id, 'cat-1');
+  source = 'h2s_alert';
+  assert.deepEqual(await (await loaded.exports.POST(request({ notificationId: 'alert-1' }))).json(), { queued: false });
 });

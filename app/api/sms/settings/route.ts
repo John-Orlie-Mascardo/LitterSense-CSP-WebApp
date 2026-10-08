@@ -6,11 +6,6 @@ async function owner(request: Request) {
   try { return (await getAdminAuth().verifyIdToken(request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "", true)).uid; }
   catch { return ""; }
 }
-export function normalizeSmsPhone(value: string) {
-  const digits = value.replace(/[\s()-]/g, "");
-  const phone = digits.startsWith("09") ? `+63${digits.slice(1)}` : digits.startsWith("639") ? `+${digits}` : digits;
-  return /^\+639\d{9}$/.test(phone) ? phone : "";
-}
 export async function GET(request: Request) {
   const uid = await owner(request);
   if (!uid) return Response.json({ error: "Unauthorized" }, { status: 401, headers });

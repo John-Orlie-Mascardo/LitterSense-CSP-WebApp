@@ -58,3 +58,6 @@ next-env.d.ts
 .docs
 
 /services/camera-relay/node_modules/
+
+# Private migration exports (include Wi-Fi configuration and account records).
+/migration-private/

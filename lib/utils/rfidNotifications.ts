@@ -4,6 +4,7 @@ import { getAdminFirestore } from '@/lib/configs/firebase-admin';
 import { buildSessionDocumentId, findCatIdByRfid, type NormalizedSensorSyncEvent } from './sensorSync';
 import { readVisitBackupsById } from './catHistoryStore';
 import { smsStoreRequest } from './smsAccountSync';
+import { rfidPrimaryEnabled, commitOperational, readOperationalRecord, setOperational } from '@/lib/server/operationalStore';
 
 type RfidAccount = {
   owner_id: string;
@@ -64,10 +65,16 @@ export async function queueRfidNotifications(payload: Record<string, unknown>, c
       body: JSON.stringify({ event_key: `push:${account.owner_id}:${notice.id}`, owner_id: account.owner_id, cat_id: notice.catId, reason: 'Saved notification', message: '', status: 'cancelled', push_status: 'pending', context: { source: 'rfid_visit', title: notice.title, body: notice.message, url: notice.route, occurredAt: notice.occurredAt } }),
     });
     if (!result.ok) throw new Error('Unable to queue RFID alert');
-    if (!(await result.json() as unknown[]).length) continue;
-    queued++;
+    const inserted = (await result.json() as unknown[]).length > 0;
+    if (!inserted && !rfidPrimaryEnabled()) continue;
+    if (inserted) queued++;
     after(async () => {
       try {
+        if (rfidPrimaryEnabled()) {
+          const path = `users/${account.owner_id}/notifications/${notice.id}`;
+          if (!await readOperationalRecord(account.owner_id, path)) await commitOperational(account.owner_id, [setOperational(path, null, { type: 'cat_visit', source: 'rfid_visit', title: notice.title, message: notice.message, catId: notice.catId, catName: notice.catName, route: notice.route, createdAt: now.toISOString(), isRead: false })]);
+          return;
+        }
         await getAdminFirestore().doc(`users/${account.owner_id}/notifications/${notice.id}`).create({ type: 'cat_visit', source: 'rfid_visit', title: notice.title, message: notice.message, catId: notice.catId, catName: notice.catName, route: notice.route, createdAt: now, isRead: false });
       } catch {
         // Firestore quota retries must not hold the board's HTTP response or the push worker.

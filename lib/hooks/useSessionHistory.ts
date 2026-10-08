@@ -24,7 +24,7 @@ import {
   where,
   type DocumentData,
   type QueryDocumentSnapshot,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useCats } from "@/lib/contexts/CatContext";
@@ -153,7 +153,7 @@ export function useSessionHistory(
         });
         if (collected.length > 0) setHasAnySessions(true);
       };
-      if (sourceRef.current === 'backup') {
+      if (backupStatus.operationalPrimary || sourceRef.current === 'backup') {
         await loadBackup(reset);
         return;
       }
@@ -223,7 +223,7 @@ export function useSessionHistory(
         setIsLoadingMore(false);
       }
     }
-  }, [baselineCatIds, catIds, stableFilters, user]);
+  }, [baselineCatIds, catIds, stableFilters, user, backupStatus.operationalPrimary]);
 
   useEffect(() => {
     if (ownerRef.current !== (user?.uid ?? null)) {
@@ -246,6 +246,7 @@ export function useSessionHistory(
 
   useEffect(() => {
     if (!user) return;
+    if (backupStatus.operationalPrimary) return;
     let active = true;
     const checkAnySessions = async () => {
       try {
@@ -263,15 +264,15 @@ export function useSessionHistory(
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, backupStatus.operationalPrimary]);
 
   useEffect(() => {
-    if (!user || (historySource !== 'backup' && backupStatus.pendingCount === 0)) return;
+    if (!user || (historySource !== 'backup' && !backupStatus.operationalPrimary && backupStatus.pendingCount === 0)) return;
     const timer = setTimeout(() => {
       if (!loadingRef.current) setRetryVersion(value => value + 1);
     }, document.hidden ? 60_000 : 30_000);
     return () => clearTimeout(timer);
-  }, [user, historySource, backupStatus.pendingCount, retryVersion]);
+  }, [user, historySource, backupStatus.pendingCount, backupStatus.operationalPrimary, retryVersion]);
 
   const loadMore = useCallback(() => fetchPage(false), [fetchPage]);
   const retry = useCallback(() => setRetryVersion((current) => current + 1), []);

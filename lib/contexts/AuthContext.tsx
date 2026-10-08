@@ -13,7 +13,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/utils/operationalClient";
 import { auth, db } from "@/lib/configs/firebase";
 import { resolveOnboardingComplete } from "@/lib/utils/onboardingState";
 

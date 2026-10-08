@@ -23,7 +23,7 @@ import {
   signInWithPopup,
   updateProfile,
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "@/lib/utils/operationalClient";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 

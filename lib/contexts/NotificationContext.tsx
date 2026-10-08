@@ -24,11 +24,14 @@ import {
   serverTimestamp,
   runTransaction,
   Timestamp,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { auth } from '@/lib/configs/firebase';
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useSettings } from "@/lib/hooks/useSettings";
+import { operationalPrimary } from '@/lib/utils/operationalMode';
+import { refreshNotificationRecords } from '@/lib/utils/operationalClient';
+import { subscribeNotificationLive } from '@/lib/utils/notificationLive';
 import type { Cat } from "@/lib/data/mockData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -185,6 +188,22 @@ export function NotificationProvider({
   const isLoading =
     authLoading || (userId ? syncState.userId !== userId || syncState.isLoading : false);
   const notificationsRef = useRef<AppNotification[]>([]);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const received = (event: MessageEvent) => { if (event.data?.type === 'littersense-push') refreshNotificationRecords(); };
+    navigator.serviceWorker.addEventListener('message', received);
+    return () => navigator.serviceWorker.removeEventListener('message', received);
+  }, []);
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+    let stopped = false, disconnect: (() => void) | undefined;
+    void operationalPrimary().then(primary => {
+      if (primary && !stopped) disconnect = subscribeNotificationLive(() => user.getIdToken(), refreshNotificationRecords);
+    }).catch(() => console.warn('[notifications] Live connection unavailable; normal refresh remains active.'));
+    return () => { stopped = true; disconnect?.(); };
+  }, [user, authLoading]);
 
   useEffect(() => {
     notificationsRef.current = notifications;

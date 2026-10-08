@@ -70,6 +70,7 @@ export function useDeviceProvisioning() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const hasLocalEditsRef = useRef(false);
+  const savedPrimaryTokenRef = useRef('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -81,12 +82,22 @@ export function useDeviceProvisioning() {
     }
 
     let isCancelled = false;
+    savedPrimaryTokenRef.current = '';
 
     const loadConfig = async () => {
       setIsLoading(true);
       hasLocalEditsRef.current = false;
 
       try {
+        const mode = await fetch('/api/device-provisioning', { headers: { Authorization: `Bearer ${await user.getIdToken()}` }, cache: 'no-store' });
+        if (!mode.ok) throw new Error('Device setup unavailable');
+        const setup = await mode.json();
+        if (setup.operationalPrimary) {
+          if (isCancelled) return;
+          savedPrimaryTokenRef.current = setup.config?.configToken ?? '';
+          if (!hasLocalEditsRef.current) setDeviceConfig(setup.config ? { ...setup.config, updatedAtLabel: setup.config.updatedAt ? new Date(setup.config.updatedAt).toLocaleString('en-US') : 'Not synced yet' } : defaultDeviceProvisioningConfig());
+          return;
+        }
         const ownerConfigRef = doc(
           db,
           "users",
@@ -160,6 +171,18 @@ export function useDeviceProvisioning() {
       setIsSaving(true);
 
       try {
+        const authHeaders = { Authorization: `Bearer ${await user.getIdToken()}` };
+        const mode = await fetch('/api/device-provisioning', { headers: authHeaders, cache: 'no-store' });
+        if (!mode.ok) throw new Error('Device setup unavailable. Try again.');
+        const setup = await mode.json();
+        if (setup.operationalPrimary) {
+          const saved = await fetch('/api/device-provisioning', { method: 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ deviceName, wifiSsid, wifiPassword: nextConfig.wifiPassword, configToken, previousToken: savedPrimaryTokenRef.current }) });
+          if (!saved.ok) throw new Error((await saved.json()).error ?? 'Unable to save device setup');
+          savedPrimaryTokenRef.current = configToken;
+          setDeviceConfig({ deviceName, wifiSsid, wifiPassword: nextConfig.wifiPassword, configToken, updatedAtLabel: 'Just now' });
+          hasLocalEditsRef.current = false;
+          return;
+        }
         const batch = writeBatch(db);
 
         const ownerConfigRef = doc(

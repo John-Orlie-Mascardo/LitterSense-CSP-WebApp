@@ -19,7 +19,7 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
-} from "firebase/firestore";
+} from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useCats, type CatTrendPoint } from "@/lib/contexts/CatContext";

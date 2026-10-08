@@ -36,6 +36,7 @@ export default function AdminRequestsPage() {
       requests.filter(
         (r) =>
           r.status === "approved" ||
+          r.status === "deleting" ||
           r.status === "rejected" ||
           r.status === "deleted"
       ),
@@ -45,7 +46,7 @@ export default function AdminRequestsPage() {
   async function handleApprove(id: string) {
     try {
       await approveRequest(id);
-      addToast("Account deletion approved. User removed.", "success");
+      addToast("Account deletion approved.", "success");
     } catch (error) {
       console.error("Failed to approve request:", error);
       addToast("Failed to approve request.", "error");
@@ -197,7 +198,7 @@ export default function AdminRequestsPage() {
                       Reject
                     </button>
                   </div>
-                ) : req.status === "approved" ? (
+                ) : req.status === "approved" || req.status === "deleting" ? (
                   <button
                     onClick={() => setConfirmDeleteId(req.id)}
                     disabled={deletingId === req.id}
@@ -208,7 +209,7 @@ export default function AdminRequestsPage() {
                     ) : (
                       <Trash2 className="w-3.5 h-3.5" />
                     )}
-                    Delete Account
+                    {req.status === "deleting" ? "Retry cleanup" : "Delete Account"}
                   </button>
                 ) : (
                   <span className="text-xs text-litter-muted shrink-0 italic capitalize">
@@ -256,8 +257,8 @@ export default function AdminRequestsPage() {
               </p>
             </div>
             <p className="text-xs text-litter-muted mb-5">
-              This will remove the user&apos;s Firebase Auth account and all
-              associated Firestore data (cats, readings, etc.).
+              This will remove the user&apos;s account and associated saved data
+              (cats, visits, photos and alerts).
             </p>
 
             <div className="flex gap-3">

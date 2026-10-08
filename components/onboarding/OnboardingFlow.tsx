@@ -15,7 +15,7 @@ import {
   Wind,
   type LucideIcon,
 } from "lucide-react";
-import { arrayUnion, doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc } from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { defaultOnboardingNotificationPreferences } from "@/lib/utils/onboardingState";
@@ -84,7 +84,7 @@ export function OnboardingFlow() {
           await setDoc(
             doc(db, "users", user.uid),
             {
-              fcmTokens: arrayUnion(token),
+              // The shared messaging helper already saves this token through /api/push/register.
               notificationPermission: "granted",
               updatedAt: serverTimestamp(),
             },

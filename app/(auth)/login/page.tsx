@@ -25,7 +25,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/configs/firebase";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "@/lib/utils/operationalClient";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";

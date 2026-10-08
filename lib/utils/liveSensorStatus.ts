@@ -97,14 +97,15 @@ export const getLiveAirQualityStatus = ({
   if (stored) return stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
 
-  return getOnlineSensorStatus(
+  const lastUpdatedAt = sensorData.gasUltrasonicUpdatedAt;
+  return { ...getOnlineSensorStatus(
     getLiveAirQualityValue(
       sensorData.mq135,
       sensorData.mq136,
       sensorData.mq135Raw,
       sensorData.mq136Raw,
     ),
-  );
+  ), ...(lastUpdatedAt ? { lastUpdatedAt } : {}) };
 };
 
 export const getLiveRfidStatus = ({

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { operationalPrimary } from '@/lib/utils/operationalMode';
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useAirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
@@ -14,7 +15,6 @@ export function RfidVisitBridge() {
   const gasAlerts = useRef(new Set<string>());
   const { addNotification } = useNotifications();
   const { settings } = useSettings();
-
   // RFID notices originate in authenticated sensor ingestion, even with no dashboard open.
 
   useEffect(() => {
@@ -22,6 +22,9 @@ export function RfidVisitBridge() {
   }, [user?.uid]);
 
   useEffect(() => {
+    let stopped = false;
+    void (async () => {
+    if (await operationalPrimary() || stopped) return;
     for (const [source, reading, enabled, title] of [
       ["ammonia_alert", readings.ammonia, settings.notifications.ammoniaAlerts, "Urine detected"],
       ["h2s_alert", readings.h2s, settings.notifications.h2sAlerts, "Stool detected"],
@@ -44,6 +47,8 @@ export function RfidVisitBridge() {
         console.error("Failed to save gas alert:", cause);
       });
     }
+    })().catch(() => console.warn('[notifications] Gas alert mode unavailable.'));
+    return () => { stopped = true; };
   }, [readings, settings.notifications.ammoniaAlerts, settings.notifications.h2sAlerts, isLoading, error, user, addNotification]);
 
   return null;

@@ -1,6 +1,8 @@
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { getFirestoreRestClient } from "@/lib/utils/firestoreRest";
 import { buildSmsAccountBackup, saveSmsAccountBackup } from "@/lib/utils/smsAccountSync";
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { projectOperationalAccount } from '@/lib/server/operationalRecords';
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "no-store" };
@@ -15,6 +17,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "SMS backup storage is not configured" }, { status: 503, headers });
   }
   try {
+    if (rfidPrimaryEnabled()) { await projectOperationalAccount(uid); return Response.json({ synced: true, source: 'supabase' }, { headers }); }
     const client = getFirestoreRestClient();
     const [profile, settings, cats, details, config] = await Promise.all([
       client.getDocument(`users/${uid}`),

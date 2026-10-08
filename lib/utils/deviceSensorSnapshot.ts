@@ -4,7 +4,8 @@ import type {
 } from "@/lib/utils/sensorSync";
 
 export const DEVICE_SENSOR_SNAPSHOT_PATH = "deviceState/current";
-export const SENSOR_SNAPSHOT_STALE_AFTER_MS = 180000;
+// Idle firmware uploads every 60 seconds; allow 30 seconds for transport delays.
+export const SENSOR_SNAPSHOT_STALE_AFTER_MS = 90000;
 
 export interface DeviceSensorSnapshot {
   online: boolean;

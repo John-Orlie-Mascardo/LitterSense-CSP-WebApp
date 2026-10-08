@@ -1,3 +1,6 @@
+// Idle firmware uploads every 60 seconds; allow 30 seconds for transport delays.
+export const GAS_ULTRASONIC_STALE_AFTER_MS = 90000;
+
 export const GAS_ULTRASONIC_OFFLINE = {
   gasUltrasonicOnline: false, mq135: "Unknown", mq136: "Unknown",
   mq135Raw: null, mq136Raw: null, distanceCm: null,
@@ -22,7 +25,7 @@ export function normalizeGasUltrasonic(value: unknown) {
 
 export function toGasUltrasonicResponse(data: Record<string, unknown>, now = Date.now()) {
   const age = now - Date.parse(typeof data.updatedAt === "string" ? data.updatedAt : "");
-  return age >= 0 && age <= 180000
+  return age >= 0 && age <= GAS_ULTRASONIC_STALE_AFTER_MS
     ? normalizeGasUltrasonic(data) ?? GAS_ULTRASONIC_OFFLINE
     : GAS_ULTRASONIC_OFFLINE;
 }

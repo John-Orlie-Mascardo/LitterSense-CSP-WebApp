@@ -17,6 +17,8 @@ import {
   uploadBytesResumable,
 } from "firebase/storage";
 import { storage } from "@/lib/configs/firebase";
+import { operationalPrimary } from "./operationalMode";
+import { primaryPhoto } from "./operationalPhoto";
 
 export const MAX_CAT_PHOTO_BYTES = 10 * 1024 * 1024;
 export const CAT_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
@@ -66,7 +68,7 @@ export function uploadCatPhoto({ uid, catId, blob, ...options }: UploadCatPhotoI
   return uploadPhoto(getCatPhotoPath(uid, catId), blob, options);
 }
 
-export function uploadPhoto(
+export async function uploadPhoto(
   path: string,
   blob: Blob,
   { onProgress, signal, timeoutMs = CAT_PHOTO_UPLOAD_TIMEOUT_MS }: {
@@ -77,6 +79,8 @@ export function uploadPhoto(
 ): Promise<string> {
   if (signal?.aborted) return Promise.reject(signal.reason);
   if (blob.size > 2 * 1024 * 1024) return Promise.reject(new Error("The prepared photo must be 2 MB or smaller."));
+  if (await operationalPrimary()) return primaryPhoto(path, blob, { onProgress, signal, timeoutMs });
+  signal?.throwIfAborted();
   const uploadTask = uploadBytesResumable(ref(storage, path), blob, {
     contentType: blob.type || "image/jpeg",
     cacheControl: "public,max-age=3600",
@@ -117,6 +121,7 @@ export function uploadPhoto(
 }
 
 export async function deleteCatPhoto(uid: string, catId: string): Promise<void> {
+  if (await operationalPrimary()) { await primaryPhoto(getCatPhotoPath(uid, catId)); return; }
   try {
     await deleteObject(ref(storage, getCatPhotoPath(uid, catId)));
   } catch (error) {

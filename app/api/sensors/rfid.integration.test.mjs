@@ -7,9 +7,9 @@ import ts from "typescript";
 import { loadVisitWriter } from '../../../lib/utils/testing/catVisitWriter.mjs';
 
 const require = createRequire(import.meta.url);
-const { buildDeviceSensorSnapshot, toDeviceSensorsResponse } = require("../../../lib/utils/deviceSensorSnapshot.ts");
+const { buildDeviceSensorSnapshot, toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS } = require("../../../lib/utils/deviceSensorSnapshot.ts");
 function loadTs(url, imports = {}) {
-  imports = { 'node:crypto': require('node:crypto'), '@/lib/utils/rfidNotifications': { queueRfidNotifications: async () => ({ queued: 0 }) }, '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
+  imports = { '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false }, '@/lib/server/operationalRfid': {}, '@/lib/server/operationalCats': {}, '@/lib/server/operationalRecords': {}, '@/lib/server/operationalDevices': {}, 'node:crypto': require('node:crypto'), '@/lib/utils/rfidNotifications': { queueRfidNotifications: async () => ({ queued: 0 }) }, '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
   const { outputText } = ts.transpileModule(readFileSync(url, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
@@ -28,7 +28,7 @@ const { selectSensorSnapshot } = loadTs(new URL("../../../lib/utils/sensorSnapsh
 test("authenticated display falls back during quota and recovery, preserving source age and owner isolation", async () => {
   class FirestoreRestError extends Error { constructor(status) { super("failure"); this.status = status; } }
   let failure = 429, backupFailure = false, reads = 0, gasOnlyFailure = false;
-  const fresh = new Date(Date.now() - 1000).toISOString(), old = new Date(Date.now() - 181000).toISOString();
+  const fresh = new Date(Date.now() - 1000).toISOString(), old = new Date(Date.now() - 91000).toISOString();
   let receipt = fresh, primaryReceipt = old;
   const route = loadTs(new URL("./route.ts", import.meta.url), {
     "@/lib/utils/catVisitIngestion": {}, "@/lib/utils/catHistoryNormalization": {}, "@/lib/utils/catHistoryStore": {},
@@ -42,7 +42,7 @@ test("authenticated display falls back during quota and recovery, preserving sou
       return { data: path.endsWith("current") ? { online: true, sessionActive: false, updatedAt: primaryReceipt } : { mq135Raw: 1, mq136Raw: 1, distanceCm: 20, updatedAt: fresh } };
     } }) },
     "@/lib/utils/sensorSync": {}, "@/lib/utils/sensorEndpointDiagnostics": {},
-    "@/lib/utils/deviceSensorSnapshot": { toDeviceSensorsResponse },
+    "@/lib/utils/deviceSensorSnapshot": { toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS },
     "@/lib/utils/gasUltrasonic": require("../../../lib/utils/gasUltrasonic.ts"),
     "@/lib/utils/rfidEnrollment": {}, "@/lib/utils/sensorSms": {}, "@/lib/utils/smsDelivery": {}, "next/server": {},
     "@/lib/configs/firebase-admin": { getAdminAuth: () => ({ verifyIdToken: async (token) => { if (token === "bad") throw new Error("bad"); return { uid: token }; } }) },
@@ -145,7 +145,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
     "@/lib/utils/gasUltrasonic": { ...require("../../../lib/utils/gasUltrasonic.ts"), fetchGasUltrasonic: async () => ({ gasUltrasonicOnline: false }) },
     "@/lib/utils/sensorEndpointDiagnostics": { shouldSkipServerSensorProxy: () => false },
-    "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse },
+    "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS },
     "@/lib/utils/rfidEnrollment": require("../../../lib/utils/rfidEnrollment.ts"),
     "@/lib/configs/firebase-admin": { getAdminAuth: () => ({verifyIdToken: async (token) => {
       if (token === "bad") throw new Error("bad token");
@@ -185,7 +185,7 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await post(gas, "cfg_unknown_unknown")).status, 404);
   assert.equal((await post(gas, "")).status, 400);
   assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/gasUltrasonic")), gasBeforeInvalid);
-  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 181000).toISOString();
+  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 91000).toISOString();
   displayed = await getOwner();
   assert.equal(displayed.gasUltrasonicOnline, false);
   assert.equal(displayed.gasUltrasonicState, "stale");
@@ -296,7 +296,7 @@ test("live upload mirroring survives quota but never acknowledges unsaved visits
     }) },
     "@/lib/utils/sensorSync": loadTs(new URL("../../../lib/utils/sensorSync.ts", import.meta.url)),
     "@/lib/utils/gasUltrasonic": require("../../../lib/utils/gasUltrasonic.ts"),
-    "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse },
+    "@/lib/utils/deviceSensorSnapshot": { buildDeviceSensorSnapshot, toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS },
     "@/lib/utils/sensorEndpointDiagnostics": {}, "@/lib/configs/firebase-admin": {},
     "@/lib/utils/rfidEnrollment": require("../../../lib/utils/rfidEnrollment.ts"),
     "@/lib/utils/sensorSms": { queueSensorSms: async () => { if (queueFailure) throw new Error("SMS unavailable"); return { recognized: false }; } },
@@ -392,7 +392,7 @@ test("durable outage visits acknowledge only verified storage; primary recovery 
     '@/lib/utils/catVisitRecovery': loadVisitWriter(client, token, sync, backup, normalization),
     '@/lib/utils/catHistoryStore': { readVisitBackupsById: async (_owner, ids) => ids.flatMap(id => rows.has(id) ? [rows.get(id)] : []) },
     '@/lib/utils/firestoreRest': { FirestoreRestError, getFirestoreRestClient: () => client }, '@/lib/utils/sensorSync': sync,
-    '@/lib/utils/deviceSensorSnapshot': { buildDeviceSensorSnapshot, toDeviceSensorsResponse }, '@/lib/utils/gasUltrasonic': require('../../../lib/utils/gasUltrasonic.ts'),
+    '@/lib/utils/deviceSensorSnapshot': { buildDeviceSensorSnapshot, toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS }, '@/lib/utils/gasUltrasonic': require('../../../lib/utils/gasUltrasonic.ts'),
     '@/lib/utils/sensorSnapshotStore': { rememberSensorDevice: async () => {}, saveSensorMirror: async (...args) => snapshots.push(args) },
     '@/lib/utils/rfidEnrollment': require('../../../lib/utils/rfidEnrollment.ts'), '@/lib/utils/sensorEndpointDiagnostics': {}, '@/lib/configs/firebase-admin': {},
     '@/lib/utils/sensorSms': { queueSensorSms: async () => { smsCalls++; return { recognized: false }; } }, '@/lib/utils/smsDelivery': { processSmsOutbox: async () => { senderCalls++; } },
