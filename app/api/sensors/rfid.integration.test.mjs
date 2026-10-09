@@ -185,7 +185,11 @@ test("RFID entry, exit, retry and authenticated owner snapshot through the route
   assert.equal((await post(gas, "cfg_unknown_unknown")).status, 404);
   assert.equal((await post(gas, "")).status, 400);
   assert.equal(JSON.stringify(docs.get("users/owner-a/deviceState/gasUltrasonic")), gasBeforeInvalid);
-  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 91000).toISOString();
+  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 94000).toISOString();
+  displayed = await getOwner();
+  assert.equal(displayed.gasUltrasonicOnline, true, 'gas stays online across the observed transport gap');
+  assert.equal(displayed.gasUltrasonicState, 'online');
+  docs.get("users/owner-a/deviceState/gasUltrasonic").data.updatedAt = new Date(Date.now() - 121000).toISOString();
   displayed = await getOwner();
   assert.equal(displayed.gasUltrasonicOnline, false);
   assert.equal(displayed.gasUltrasonicState, "stale");

@@ -21,7 +21,7 @@ import {
 import { getAdminAuth } from "@/lib/configs/firebase-admin";
 import { acceptEnrollmentScan, isEnrollmentActive, RFID_ENROLLMENT_PATH, type RfidEnrollment } from "@/lib/utils/rfidEnrollment";
 
-import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse } from "@/lib/utils/gasUltrasonic";
+import { fetchGasUltrasonic, normalizeGasUltrasonic, toGasUltrasonicResponse, GAS_ULTRASONIC_STALE_AFTER_MS } from "@/lib/utils/gasUltrasonic";
 import { queueSensorSms } from "@/lib/utils/sensorSms";
 import { processSmsOutbox } from "@/lib/utils/smsDelivery";
 import { processPushOutbox } from '@/lib/utils/pushDelivery';
@@ -178,7 +178,7 @@ async function getPrimarySensors(request: Request) {
         return { source: sources[index], data, receivedAt: getString(data.updatedAt) };
       });
       let now = Date.now();
-      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= SENSOR_SNAPSHOT_STALE_AFTER_MS;
+      const fresh = (snapshot: StoredSensorSnapshot | null) => !!snapshot && now - Date.parse(snapshot.receivedAt) >= 0 && now - Date.parse(snapshot.receivedAt) <= (snapshot.source === 'gas-ultrasonic' ? GAS_ULTRASONIC_STALE_AFTER_MS : SENSOR_SNAPSHOT_STALE_AFTER_MS);
       let mirrors: StoredSensorSnapshot[] = primaryMirrors;
       let mirrorUnavailable = false;
       if (!primaryRfid && !firebase.every(fresh)) {

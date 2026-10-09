@@ -1,5 +1,5 @@
-// Idle firmware uploads every 60 seconds; allow 30 seconds for transport delays.
-export const GAS_ULTRASONIC_STALE_AFTER_MS = 90000;
+// Gas uploads arrive roughly every minute, with observed transport/retry gaps up to 94s.
+export const GAS_ULTRASONIC_STALE_AFTER_MS = 120000;
 
 export const GAS_ULTRASONIC_OFFLINE = {
   gasUltrasonicOnline: false, mq135: "Unknown", mq136: "Unknown",

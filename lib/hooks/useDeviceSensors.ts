@@ -154,7 +154,7 @@ function useSensorPolling() {
             void pollSensors();
             return;
           }
-          const retryMs = Math.min(60000, 5000 * 2 ** Math.min(failures - 1, 4));
+          const retryMs = Math.min(10000, 5000 * 2 ** Math.min(failures - 1, 1));
           const interval = failures ? retryMs : 2000;
           timeoutId = window.setTimeout(pollSensors, interval);
         }
