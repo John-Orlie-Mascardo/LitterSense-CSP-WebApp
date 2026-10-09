@@ -8,7 +8,7 @@ import { setImmediate } from 'node:timers/promises';
 function harness(permission = 'default') {
   const slots = []; const pending = []; const focus = {};
   let index = 0; let user = { uid: 'owner', getIdToken: async () => 'auth' };
-  let fail = false; let tokenCalls = 0; let prompts = 0;
+  let fail = false; let tokenCalls = 0; let prompts = 0; let repairs = 0; let checks = 0;
   const notification = { permission, requestPermission: async () => { prompts++; notification.permission = 'granted'; return 'granted'; } };
   const jsx = (type, props) => ({ type, props });
   const imports = {
@@ -18,7 +18,7 @@ function harness(permission = 'default') {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user }) },
-    '@/lib/utils/firebaseMessaging': { getFirebaseMessagingToken: async () => { tokenCalls++; if (fail) throw Error('Registration unavailable'); return 'registered-token'; } },
+    '@/lib/utils/firebaseMessaging': { reconnectFirebaseMessagingToken: async () => { repairs++; if (fail) throw Error('Registration unavailable'); return 'new-device'; }, checkSystemNotification: async () => { checks++; }, getFirebaseMessagingToken: async () => { tokenCalls++; if (fail) throw Error('Registration unavailable'); return 'registered-token'; } },
   };
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('./PushNotifications.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
@@ -29,7 +29,7 @@ function harness(permission = 'default') {
   });
   const nodes = (tree) => [tree, ...[tree?.props?.children].flat(2).filter(value => value && typeof value === 'object').flatMap(nodes)];
   return {
-    get tokenCalls() { return tokenCalls; }, get prompts() { return prompts; },
+    get tokenCalls() { return tokenCalls; }, get repairs() { return repairs; }, get checks() { return checks; }, get prompts() { return prompts; },
     set fail(value) { fail = value; }, set user(value) { user = value; },
     notification,
     async render() { index = 0; exports.PushNotificationSettings(); pending.splice(0).forEach(effect => effect()); await setImmediate(); index = 0; return nodes(exports.PushNotificationSettings()); },
@@ -69,4 +69,18 @@ test('already permitted devices verify registration; failed registration and ano
   tree = await permitted.render();
   assert.equal(permitted.prompts, 0); assert.equal(permitted.tokenCalls, 1);
   assert.ok(tree.some(node => node.props?.children === 'Notifications enabled on this device'));
+});
+
+
+test('enabled devices can repair their subscription and check system display with a tap', async () => {
+  const h = harness('granted');
+  let tree = await h.render();
+  assert.equal(h.repairs, 0); assert.equal(h.checks, 0);
+  await tree.find(n => n.type === 'button' && n.props.children === 'Reconnect notifications').props.onClick();
+  tree = await h.render();
+  assert.equal(h.repairs, 1);
+  await tree.find(n => n.type === 'button' && n.props.children === 'Check system notification').props.onClick();
+  tree = await h.render();
+  assert.equal(h.checks, 1);
+  assert.ok(tree.some(n => String(n.props?.children).includes('notification panel')));
 });
