@@ -16,7 +16,9 @@ export async function readOperationalDeviceConfig(uid: string) {
   if (typeof token !== 'string' || !token) return null;
   const owned = await readOperationalRecord(uid, `deviceConfigs/${token}`);
   if (owned?.data.ownerId !== uid) throw new OperationalError('Device config owner mismatch', 403);
-  return readPublicOperationalConfig(token);
+  // The owner-scoped credential above already verifies the pointer. Avoid resolving
+  // and reading the same credential again on every sensor/UI request.
+  return publicFields(owned.data, token);
 }
 export async function readPublicOperationalConfig(token: string) {
   const uid = await resolveOperationalDevice(token);

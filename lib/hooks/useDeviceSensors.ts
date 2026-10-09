@@ -3,8 +3,10 @@
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { subscribeSensorChanges } from "@/lib/utils/notificationLive";
+import { applySensorPresence } from "@/lib/utils/sensorPresence";
 
 export type DeviceSensors = {
+  serverTime?: string;
   rfidCloudError?: boolean;
   gasUltrasonicCloudError?: boolean;
   rfidUpdatedAt?: string;
@@ -109,6 +111,8 @@ function useSensorPolling() {
     let inFlight = false;
     let failures = 0;
     let refreshPending = false;
+    let rawSnapshot: DeviceSensors | null = null;
+    let fetchedAt = 0, serverAt = 0;
     const controller = new AbortController();
 
     const pollSensors = async () => {
@@ -119,10 +123,15 @@ function useSensorPolling() {
         const data = await fetchDeviceSensors(await user.getIdToken(), controller.signal);
         if (!isMounted) return;
         failures = 0;
-        setState({ data, isLoading: false, error: null, ownerId: user.uid });
+        rawSnapshot = data;
+        fetchedAt = Date.now();
+        const serverTime = Date.parse(data.serverTime ?? '');
+        serverAt = Number.isFinite(serverTime) ? serverTime : fetchedAt;
+        setState({ data: applySensorPresence(data, serverAt), isLoading: false, error: null, ownerId: user.uid });
       } catch (error) {
         if (!isMounted || controller.signal.aborted) return;
         ++failures;
+        rawSnapshot = null;
         setState((previous) => ({
           data: previous.ownerId === user.uid && previous.data ? {
             ...previous.data,
@@ -158,10 +167,19 @@ function useSensorPolling() {
       if (!document.hidden) void pollSensors();
       else timeoutId = window.setTimeout(pollSensors, 2000);
     };
-    const stopRealtime = subscribeSensorChanges(() => {
+    const requestRefresh = () => {
       if (inFlight) refreshPending = true;
       else void pollSensors();
-    });
+    };
+    const stopRealtime = subscribeSensorChanges(requestRefresh);
+    window.addEventListener('online', requestRefresh);
+    const presenceTimer = window.setInterval(() => {
+      if (!rawSnapshot || !isMounted) return;
+      const data = applySensorPresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt));
+      setState(previous => previous.ownerId !== user.uid || !previous.data ||
+        (previous.data.online === data.online && previous.data.gasUltrasonicOnline === data.gasUltrasonicOnline)
+        ? previous : { ...previous, data });
+    }, 1000);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     pollSensors();
@@ -170,6 +188,8 @@ function useSensorPolling() {
       isMounted = false;
       controller.abort();
       stopRealtime();
+      window.clearInterval(presenceTimer);
+      window.removeEventListener('online', requestRefresh);
       window.clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

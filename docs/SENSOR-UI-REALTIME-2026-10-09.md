@@ -21,6 +21,30 @@ This change removes frontend waiting. It does not change firmware upload interva
 or manufacture fresh readings when the device has not uploaded. The existing
 90-second freshness window and RFID visit timeout remain independent of UI polling.
 
+## Web-only presence display update
+
+At the user's request, firmware remains unchanged. The UI now treats each board's
+heartbeat as recent for 15 seconds and reevaluates presence every second, even
+while an API request is pending. Expired data displays "No recent heartbeat";
+this does not distinguish loss of power from loss of network. The server's
+90-second enrollment/session grace window remains unchanged.
+
+The sensor response includes `serverTime`. The UI anchors heartbeat ages to that
+server time and advances them locally, so browser/server clock offset does not
+make a fresh device stale. Reading the same snapshot again never resets its age.
+Network restoration triggers an immediate fetch instead of waiting for retry
+backoff. Realtime invalidation and two-second fallback polling remain active.
+
+Sensor config reads now check the foundation, owner, pointer and owned credential
+once. Duplicate public-config resolution and duplicate route readiness checks
+are removed. Snapshot and mirror reads run concurrently. Existing account,
+credential rotation, owner isolation and migration readiness checks remain.
+
+The shorter UI window assumes accepted uploads less than 15 seconds apart. A
+slow upload/network can display "No recent heartbeat" even with power connected.
+Power-on still requires the device's first accepted upload; web changes cannot
+skip its Wi-Fi association, NTP/TLS setup or firmware retry schedule.
+
 For a read-only live subscription check, run `node scripts/verify-sensor-realtime.mjs`
 with `SUPABASE_URL` and `SUPABASE_SECRET_KEY` configured in `.env.local`. It verifies
 subscription acknowledgement without modifying sensor data or printing credentials.

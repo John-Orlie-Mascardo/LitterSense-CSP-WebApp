@@ -34,7 +34,7 @@ import { readVisitBackupsById } from "@/lib/utils/catHistoryStore";
 import type { VisitBackup } from "@/lib/interfaces/CatHistoryBackup";
 import { createHash } from 'node:crypto';
 import { persistVisitOnce, primaryVisitFailureStatus, VisitAuthorityError, VisitConflictError } from '@/lib/utils/catVisitRecovery';
-import { rfidPrimaryEnabled, OperationalError, readOperationalRecord, assertOperationalReady } from '@/lib/server/operationalStore';
+import { rfidPrimaryEnabled, OperationalError, readOperationalRecord } from '@/lib/server/operationalStore';
 import { resolveOperationalDevice } from '@/lib/server/operationalCats';
 import { readOperationalDeviceConfig } from '@/lib/server/operationalDevices';
 import { syncOperationalRfid } from '@/lib/server/operationalRfid';
@@ -159,13 +159,14 @@ async function getPrimarySensors(request: Request) {
     }
     try {
       const primaryRfid = rfidPrimaryEnabled();
-      if (primaryRfid) await assertOperationalReady(ownerId);
       const client = primaryRfid ? null : getFirestoreRestClient();
       const primaryConfig = primaryRfid ? await readOperationalDeviceConfig(ownerId) : null;
-      const primaryMirrors = primaryRfid && primaryConfig ? await readSensorMirrors(ownerId, primaryConfig.configToken) : [];
-      const results = await Promise.allSettled([
+      const [primaryMirrors, results] = await Promise.all([
+        primaryRfid && primaryConfig ? readSensorMirrors(ownerId, primaryConfig.configToken) : Promise.resolve([]),
+        Promise.allSettled([
         primaryRfid ? readOperationalRecord(ownerId, `users/${ownerId}/deviceState/current`) : client!.getDocument(`users/${ownerId}/deviceState/current`),
         primaryRfid ? Promise.resolve(null) : client!.getDocument(`users/${ownerId}/deviceState/gasUltrasonic`),
+        ]),
       ]);
       for (const result of results) {
         if (result.status === "rejected" && !(result.reason instanceof FirestoreRestError && (result.reason.status === 429 || result.reason.status >= 500))) throw result.reason;
@@ -193,6 +194,7 @@ async function getPrimarySensors(request: Request) {
       const gas = selectSensorSnapshot("gas-ultrasonic", firebase[1], mirrors, now);
       const rfidResponse = toDeviceSensorsResponse(rfid ? { ...rfid.data, updatedAt: rfid.receivedAt } : {}, { now: new Date(now) });
       return Response.json({
+        serverTime: new Date(now).toISOString(),
         ...rfidResponse,
         sessionActive: rfidResponse.online && rfidResponse.sessionActive,
         updatedAt: rfid?.receivedAt ?? "",
