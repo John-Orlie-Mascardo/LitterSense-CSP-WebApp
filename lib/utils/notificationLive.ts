@@ -18,6 +18,7 @@ export function subscribeNotificationLive(getToken: () => Promise<string>, chang
             if (frame === 'data: changed' && !stopped) { received = true; failures = 0; changed(); }
             if (frame === 'data: visits' && !stopped) { received = true; failures = 0; visitListeners.forEach(listener => listener()); }
             if (frame === 'data: cats' && !stopped) { received = true; failures = 0; catalogListeners.forEach(listener => listener()); }
+            if (frame === 'data: sensors' && !stopped) { received = true; failures = 0; sensorListeners.forEach(listener => listener()); }
           }
         }
       } finally { reader.releaseLock(); }
@@ -38,4 +39,10 @@ const visitListeners = new Set<() => void>();
 export function subscribeCatVisitChanges(listener: () => void) {
   visitListeners.add(listener);
   return () => { visitListeners.delete(listener); };
+}
+
+const sensorListeners = new Set<() => void>();
+export function subscribeSensorChanges(listener: () => void) {
+  sensorListeners.add(listener);
+  return () => { sensorListeners.delete(listener); };
 }

@@ -2,6 +2,7 @@
 
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { subscribeSensorChanges } from "@/lib/utils/notificationLive";
 
 export type DeviceSensors = {
   rfidCloudError?: boolean;
@@ -107,6 +108,7 @@ function useSensorPolling() {
     let timeoutId: number;
     let inFlight = false;
     let failures = 0;
+    let refreshPending = false;
     const controller = new AbortController();
 
     const pollSensors = async () => {
@@ -138,9 +140,14 @@ function useSensorPolling() {
       } finally {
         inFlight = false;
         if (isMounted) {
+          if (refreshPending) {
+            refreshPending = false;
+            void pollSensors();
+            return;
+          }
           const retryMs = Math.min(60000, 5000 * 2 ** Math.min(failures - 1, 4));
           const interval = failures ? retryMs : 2000;
-          timeoutId = window.setTimeout(pollSensors, document.hidden ? Math.max(30000, interval) : interval);
+          timeoutId = window.setTimeout(pollSensors, interval);
         }
       }
     };
@@ -149,8 +156,12 @@ function useSensorPolling() {
       if (inFlight) return;
       window.clearTimeout(timeoutId);
       if (!document.hidden) void pollSensors();
-      else timeoutId = window.setTimeout(pollSensors, 30000);
+      else timeoutId = window.setTimeout(pollSensors, 2000);
     };
+    const stopRealtime = subscribeSensorChanges(() => {
+      if (inFlight) refreshPending = true;
+      else void pollSensors();
+    });
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     pollSensors();
@@ -158,6 +169,7 @@ function useSensorPolling() {
     return () => {
       isMounted = false;
       controller.abort();
+      stopRealtime();
       window.clearTimeout(timeoutId);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };

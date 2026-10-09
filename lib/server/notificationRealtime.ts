@@ -1,5 +1,5 @@
 // Credentials and database payloads stay on the server. Clients receive invalidations only.
-export function watchNotificationChanges(uid: string, changed: (kind?: 'cats' | 'visits') => void, unavailable: () => void) {
+export function watchNotificationChanges(uid: string, changed: (kind?: 'cats' | 'visits' | 'sensors') => void, unavailable: () => void, sensorTokenHash?: string) {
   const base = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!base || !key) throw new Error('Notification realtime is not configured');
@@ -15,20 +15,25 @@ export function watchNotificationChanges(uid: string, changed: (kind?: 'cats' | 
   };
   const heartbeat = setInterval(() => send('heartbeat', {}, 'phoenix'), 15000);
   socket.onopen = () => send('phx_join', {
-    config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [{ event: '*', schema: 'public', table: 'operational_records', filter: `owner_id=eq.${uid}` }] },
+    config: { broadcast: { self: false }, presence: { key: '' }, postgres_changes: [
+      { event: '*', schema: 'public', table: 'operational_records', filter: `owner_id=eq.${uid}` },
+      ...(sensorTokenHash ? [{ event: '*', schema: 'public', table: 'sensor_snapshots', filter: `token_hash=eq.${sensorTokenHash}` }] : []),
+    ] },
     access_token: key,
   });
   socket.onmessage = event => {
     try {
       const message = JSON.parse(String(event.data));
       if (message.event === 'system') {
-        if (message.payload?.status === 'ok') { changed(); changed('cats'); changed('visits'); } // Reconcile changes during reconnect.
+        if (message.payload?.status === 'ok') { changed(); changed('cats'); changed('visits'); changed('sensors'); } // Reconcile changes during reconnect.
         else unavailable();
       }
       if (message.event === 'phx_reply' && message.payload?.status === 'error') unavailable();
       if (message.event === 'postgres_changes') {
         const data = message.payload?.data;
         const path = data?.record?.document_path ?? data?.old_record?.document_path;
+        if (data?.table === 'sensor_snapshots' && sensorTokenHash && data?.record?.token_hash === sensorTokenHash) changed('sensors');
+        if (typeof path === 'string' && path.startsWith(`users/${uid}/deviceState/`)) changed('sensors');
         if (typeof path === 'string' && path.startsWith(`users/${uid}/notifications/`)) changed();
         if (typeof path === 'string' && path.startsWith(`users/${uid}/sessions/`)) changed('visits');
         if (typeof path === 'string' && (path.startsWith(`users/${uid}/cats/`) || path.startsWith(`users/${uid}/catDetails/`))) changed('cats');
