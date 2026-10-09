@@ -10,11 +10,22 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
 }
 async function activeWorker() {
   if (!('serviceWorker' in navigator)) throw new Error('Push is unavailable in this browser.');
-  await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+  const rootScope = new URL('/', globalThis.location.origin).href;
+  const workerUrl = new URL('/sw.js', globalThis.location.origin).href;
+  const isActiveWorker = (registration: ServiceWorkerRegistration | undefined) =>
+    registration?.scope === rootScope && registration.active?.state === 'activated' && registration.active.scriptURL === workerUrl;
   let timer: ReturnType<typeof setTimeout>;
   try {
     return await Promise.race([
-      navigator.serviceWorker.ready,
+      (async () => {
+        // An already-installed worker can display locally without a network update.
+        const existing = await navigator.serviceWorker.getRegistration('/');
+        if (isActiveWorker(existing)) return existing!;
+        await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+        const registration = await navigator.serviceWorker.ready;
+        if (!isActiveWorker(registration)) throw new Error('Notification setup is incomplete. Reload and try again.');
+        return registration;
+      })(),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Notification setup took too long. Reload and try again.')), 15000); }),
     ]);
   } finally { clearTimeout(timer!); }
@@ -53,10 +64,11 @@ export function reconnectFirebaseMessagingToken() { return serialize(() => enrol
 export async function checkSystemNotification() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') throw new Error('Allow notifications in your browser settings first.');
   const registration = await activeWorker();
-  await registration.showNotification('LitterSense notification check', {
+  const options: NotificationOptions & { renotify: boolean } = {
     body: 'This checks system notification display on this device. If no banner appears, check your notification panel and device notification settings.',
-    icon: '/icons/icon-192x192.png', tag: 'littersense-local-check', data: { url: '/dashboard/settings' },
-  });
+    icon: '/icons/icon-192x192.png', tag: 'littersense-local-check', renotify: true, data: { url: '/dashboard/settings' },
+  };
+  await registration.showNotification('LitterSense notification check', options);
 }
 export async function unregisterFirebaseMessagingToken() {
   if (!(await isSupported()) || !auth.currentUser || !process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) return;

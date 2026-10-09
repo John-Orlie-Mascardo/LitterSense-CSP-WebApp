@@ -8,7 +8,7 @@ import { setImmediate } from 'node:timers/promises';
 function harness(permission = 'default') {
   const slots = []; const pending = []; const focus = {};
   let index = 0; let user = { uid: 'owner', getIdToken: async () => 'auth' };
-  let fail = false; let tokenCalls = 0; let prompts = 0; let repairs = 0; let checks = 0;
+  let fail = false; let tokenCalls = 0; let prompts = 0; let repairs = 0; let checks = 0; let clock = 10000;
   const notification = { permission, requestPermission: async () => { prompts++; notification.permission = 'granted'; return 'granted'; } };
   const jsx = (type, props) => ({ type, props });
   const imports = {
@@ -18,11 +18,11 @@ function harness(permission = 'default') {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user }) },
-    '@/lib/utils/firebaseMessaging': { reconnectFirebaseMessagingToken: async () => { repairs++; if (fail) throw Error('Registration unavailable'); return 'new-device'; }, checkSystemNotification: async () => { checks++; }, getFirebaseMessagingToken: async () => { tokenCalls++; if (fail) throw Error('Registration unavailable'); return 'registered-token'; } },
+    '@/lib/utils/firebaseMessaging': { reconnectFirebaseMessagingToken: async () => { repairs++; if (fail) throw Error('Registration unavailable'); return 'new-device'; }, checkSystemNotification: async () => { checks++; clock += 2300; }, getFirebaseMessagingToken: async () => { tokenCalls++; if (fail) throw Error('Registration unavailable'); return 'registered-token'; } },
   };
   const exports = {};
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('./PushNotifications.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
-    exports, require: name => imports[name], Notification: notification,
+    exports, require: name => imports[name], Notification: notification, Date: { now: () => clock },
     navigator: { userAgent: 'Chrome Android' },
     window: { Notification: notification, matchMedia: () => ({ matches: false }), addEventListener: (name, fn) => { focus[name] = fn; }, removeEventListener: name => { delete focus[name]; } },
     fetch: async () => Response.json({ queued: true }), console,
@@ -83,4 +83,5 @@ test('enabled devices can repair their subscription and check system display wit
   tree = await h.render();
   assert.equal(h.checks, 1);
   assert.ok(tree.some(n => String(n.props?.children).includes('notification panel')));
+  assert.ok(tree.some(n => String(n.props?.children).includes('2.3s')), 'display feedback should report browser request latency separately from visible Windows delivery');
 });

@@ -79,8 +79,10 @@ export function PushNotificationSettings() {
     if (busy) return;
     setBusy(true);
     try {
+      const startedAt = Date.now();
       await checkSystemNotification();
-      setStatus('Notification display requested. Check your notification panel. If nothing appears, review browser and device notification settings.');
+      const elapsedSeconds = (Math.max(0, Date.now() - startedAt) / 1000).toFixed(1);
+      setStatus(`Notification display requested in ${elapsedSeconds}s. Check your notification panel. If the banner appears later, the delay is in browser or device notification display.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Unable to display a system notification.');
     } finally { setBusy(false); }
