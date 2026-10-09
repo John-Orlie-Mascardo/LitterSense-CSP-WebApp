@@ -64,9 +64,10 @@ test("authenticated display falls back during quota and recovery, preserving sou
   assert.equal(data.rfidDataSource, "supabase", "recovery must not replace a newer backup with old Firebase data");
   assert.equal(data.gasUltrasonicDataSource, "firebase", "Firebase wins equal receipts");
   receipt = old;
+  primaryReceipt = new Date(Date.now() - 92000).toISOString();
   data = await (await get()).json();
   assert.equal(data.rfidState, "stale");
-  assert.equal(data.sessionActive, false);
+  assert.equal(data.sessionActive, true, 'stale connectivity must not fabricate an RFID exit');
   assert.equal(data.gasUltrasonicState, "online");
   assert.equal(data.rfidUpdatedAt, old);
   primaryReceipt = fresh;

@@ -24,7 +24,7 @@ export function applySensorPresence<T extends PresenceSnapshot>(snapshot: T, now
   return {
     ...snapshot, online,
     gasUltrasonicOnline: gasOnline,
-    sessionActive: online && snapshot.sessionActive === true,
+    // Freshness describes the connection; only RFID telemetry can end a visit.
     rfidState: online ? 'online' : snapshot.rfidState === 'unknown' ? 'unknown' : 'stale',
     gasUltrasonicState: gasOnline ? 'online' : snapshot.gasUltrasonicState === 'unknown' ? 'unknown' : 'stale',
   };

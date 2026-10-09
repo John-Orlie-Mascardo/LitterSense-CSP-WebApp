@@ -137,7 +137,7 @@ function useSensorPolling() {
             ...previous.data,
             online: false,
             gasUltrasonicOnline: false,
-            sessionActive: false,
+            // A cloud read failure cannot undo the last confirmed RFID entry.
           } : null,
           ownerId: user.uid,
           isLoading: false,

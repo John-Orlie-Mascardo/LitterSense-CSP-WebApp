@@ -88,10 +88,12 @@ export function SessionTimelineCard({
   cat,
   session,
   displayState,
+  liveUpdatePending = false,
 }: {
   readonly cat: Cat | null;
   readonly session: Session;
   readonly displayState?: BehaviorStateId;
+  readonly liveUpdatePending?: boolean;
 }) {
   const { getDetailsByCatId } = useCats();
   const state = displayState ?? getSessionDisplayState({
@@ -141,7 +143,7 @@ export function SessionTimelineCard({
                 <div className="mt-1 flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-litter-primary animate-pulse" />
                   <p className="text-sm font-semibold text-litter-primary">
-                    In litter box
+                    {liveUpdatePending ? "Awaiting RFID update" : "In litter box"}
                   </p>
                 </div>
               ) : (

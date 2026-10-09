@@ -66,3 +66,24 @@ test("timeouts and reboots never display an invented physical exit", () => {
     if (status === 'SESSION_INTERRUPTED') { assert.match(result,/Duration unknown/); assert.match(result,/Time uncertain/); }
   }
 });
+
+test('last known entry stays visible while waiting for a fresh RFID update', () => {
+  const loaded = { exports: {} };
+  const jsx = (type, props) => ({ type, props });
+  const imports = {
+    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': { default: 'img' },
+    'lucide-react': { Cat: 'cat', Clock3: 'clock', LogIn: 'in', LogOut: 'out' },
+    '@/lib/utils/formatters': { formatDuration: n => `${n}s` },
+    '@/components/behavior/BehaviorStateBadge': { BehaviorStateBadge: 'badge' },
+    '@/lib/presentation/behaviorStates': { getSessionDisplayState: () => 'incomplete', hasEstablishedBaseline: () => false },
+    '@/lib/contexts/CatContext': { useCats: () => ({ getDetailsByCatId: () => ({}) }) },
+  };
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, { exports: loaded.exports, require: name => imports[name], Date });
+  const text = tree => typeof tree === 'string' ? tree : Array.isArray(tree) ? tree.map(text).join(' ') : text(tree?.props?.children ?? '');
+  const props = { cat: { id: 'cat', name: 'Zeno' }, session: { sessionStatus: 'IN_PROGRESS', durationSecs: 30, startedAt: '2026-10-09T08:00:00Z' } };
+  assert.match(text(loaded.exports.SessionTimelineCard(props)), /In litter box/);
+  const pending = text(loaded.exports.SessionTimelineCard({ ...props, liveUpdatePending: true }));
+  assert.match(pending, /Enter/);
+  assert.match(pending, /Awaiting RFID update/);
+  assert.doesNotMatch(pending, /In litter box/);
+});

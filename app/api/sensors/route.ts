@@ -196,7 +196,7 @@ async function getPrimarySensors(request: Request) {
       return Response.json({
         serverTime: new Date(now).toISOString(),
         ...rfidResponse,
-        sessionActive: rfidResponse.online && rfidResponse.sessionActive,
+        // Keep last reported activity separate from heartbeat freshness.
         updatedAt: rfid?.receivedAt ?? "",
         ...toGasUltrasonicResponse(gas ? { ...gas.data, updatedAt: gas.receivedAt } : {}, now),
         rfidUpdatedAt: rfid?.receivedAt ?? "",

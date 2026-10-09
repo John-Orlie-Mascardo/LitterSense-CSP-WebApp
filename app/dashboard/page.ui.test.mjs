@@ -14,6 +14,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import vm from "node:vm";
+const { getDisplayTodayStats } = createRequire(import.meta.url)("../../lib/utils/dashboardBehaviorMetrics.ts");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, "page.tsx"), "utf8");
@@ -150,6 +153,20 @@ test("home derives presentation states and distinguishes missing metrics from re
   assert.match(source, /formatMetricValue/);
   assert.match(source, /No baseline yet/);
   assert.match(source, /displayState=/);
+});
+
+test('today metrics use persisted sessions while Recent Activity can project pending RFID exits', () => {
+  const metrics = sourceBetween('const displayStats = useMemo(', 'const displayAvgDuration = useMemo(');
+  const summary = { catId: 'cat-a', date: '2026-10-09', sessionStatus: 'DAILY_SUMMARY', summaryVisits: 2 };
+  const projectedExit = { catId: 'cat-a', date: '2026-10-09', sessionStatus: 'NORMAL', durationSecs: 30 };
+  const result = {};
+  vm.runInNewContext(metrics + '\nresult.stats = displayStats;', {
+    result, getDisplayTodayStats, useMemo: calculate => calculate(),
+    stats: { visits: 2, avgDuration: '0m 30s' }, activeCatId: 'cat-a',
+    displaySessions: [summary], recentVisits: [{ session: projectedExit }, { session: summary }],
+    getLocalDateKey: () => '2026-10-09',
+  });
+  assert.equal(result.stats.visits, 2, 'the visible exit is already included in the daily summary');
 });
 
 test("behavior chart labels duration in minutes on the left and visits on the right", () => {

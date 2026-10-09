@@ -37,19 +37,19 @@ import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import { BehaviorStateLegend } from "@/components/behavior/BehaviorStateLegend";
 import { DashboardContentSkeleton } from "@/components/ui/AppLoadingSkeletons";
 import { useNotificationPermission } from "@/lib/hooks/useNotificationPermission";
-import { useDeviceSensors, type DeviceSensors } from "@/lib/hooks/useDeviceSensors";
+import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { useAirQualityReadings, type AirQualityReadings } from "@/lib/hooks/useAirQualityReadings";
 import {
   getLiveAirQualityStatus,
   type SensorDisplayStatus,
 } from "@/lib/utils/liveSensorStatus";
 import { getSessionSortValue } from "@/lib/utils/sessionTime";
+import { buildRfidActivityVisits, mergeRfidActivityVisits, type RfidActivityVisit } from "@/lib/utils/rfidActivity";
 import {
   getDisplayTodayStats,
   getFallbackAverageDuration,
 } from "@/lib/utils/dashboardBehaviorMetrics";
 import type { Cat } from "@/lib/interfaces/Cat";
-import type { CatDetails } from "@/lib/interfaces/CatDetails";
 import type { Session } from "@/lib/interfaces/Session";
 import type { CatTrendPoint } from "@/lib/contexts/CatContext";
 import {
@@ -97,41 +97,12 @@ const formatDate = () => {
   return new Date().toLocaleDateString("en-US", options);
 };
 
-type RecentVisit = {
-  readonly cat: Cat;
-  readonly session: Session;
-};
+type RecentVisit = RfidActivityVisit;
 
 type RecentVisitGroup = {
   readonly dateKey: string;
   readonly dateLabel: string;
   readonly visits: RecentVisit[];
-};
-
-const normalizeRfidTag = (value: string) =>
-  value.toLowerCase().replace(/[^a-f0-9]/g, "");
-
-const hexToDec = (hex: string) => {
-  const n = Number.parseInt(hex, 16);
-  return Number.isNaN(n) ? "" : n.toString();
-};
-
-const rfidMatches = (
-  details: CatDetails | undefined,
-  card: string,
-  hex: string,
-) => {
-  const tag = normalizeRfidTag(details?.rfidTag ?? "");
-  if (!tag) return false;
-
-  const normalizedCard = normalizeRfidTag(card);
-  const normalizedHex = normalizeRfidTag(hex);
-  return (
-    tag === normalizedCard ||
-    tag === normalizedHex ||
-    tag === hexToDec(card) ||
-    tag === hexToDec(hex)
-  );
 };
 
 const getSessionStartedAt = (session: Session) => {
@@ -208,84 +179,13 @@ const groupRecentVisitsByDate = (visits: RecentVisit[]): RecentVisitGroup[] =>
     return groups;
   }, []);
 
-const buildLiveSessionVisit = (
-  sensorData: DeviceSensors | null,
-  cats: Cat[],
-  getDetailsByCatId: (id: string) => CatDetails | undefined,
-): RecentVisit | null => {
-  if (!sensorData?.sessionActive) return null;
-
-  const activeCard = sensorData.activeRfidCard || sensorData.rfidCard;
-  const activeHex = sensorData.activeRfidHex || sensorData.rfidHex;
-  if (!activeCard && !activeHex) return null;
-
-  const cat = cats.find((candidate) =>
-    rfidMatches(getDetailsByCatId(candidate.id), activeCard, activeHex),
-  );
-  if (!cat) return null;
-
-  const nowMs = Date.now();
-  const durationMs =
-    sensorData.activeSessionDurationMs ??
-    (sensorData.activeSessionStartMs
-      ? nowMs - sensorData.activeSessionStartMs
-      : 0);
-  const startedMs =
-    sensorData.activeSessionStartMs ??
-    nowMs - Math.max(1000, durationMs);
-  const startedAt = new Date(startedMs);
-
-  return {
-    cat,
-    session: {
-      id: `live-rfid-${cat.id}-${startedMs}`,
-      catId: cat.id,
-      date: getLocalDateKey(startedAt),
-      time: startedAt.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      startedAt: startedAt.toISOString(),
-      durationSecs: Math.max(1, Math.round(durationMs / 1000)),
-      // FIXME(defense): Live-only cards show zero gas deltas because the
-      // current device payload has no final per-session delta values.
-      mq135Delta: 0,
-      mq136Delta: 0,
-      anomaly: false,
-      anomalyType: null,
-      sessionStatus: "IN_PROGRESS",
-    },
-  };
-};
-
-const hasOverlappingLiveSession = (sessions: Session[], liveSession: Session) => {
-  const liveStartedAt = getSessionStartedAt(liveSession);
-
-  return sessions.some((session) => {
-    if (session.catId !== liveSession.catId) return false;
-    if (session.sessionStatus === "IN_PROGRESS" || !session.endedAt) return true;
-
-    const startedAt = getSessionStartedAt(session);
-    return Math.abs(startedAt - liveStartedAt) < 30_000;
-  });
-};
-
 const getRecentVisits = (
   sessions: Session[],
   getCatById: (id: string) => Cat | undefined,
-  liveVisit: RecentVisit | null,
-): RecentVisit[] => {
-  const storedVisits = sessions.flatMap((session) => {
-    const cat = getCatById(session.catId);
-    return cat ? [{ session, cat }] : [];
-  });
-  const visits = liveVisit && !hasOverlappingLiveSession(sessions, liveVisit.session)
-    ? [liveVisit, ...storedVisits]
-    : storedVisits;
-  return visits.sort((a, b) =>
-    getSessionTimelineSortValue(b.session) - getSessionTimelineSortValue(a.session),
-  );
-};
+  liveVisits: RecentVisit[],
+): RecentVisit[] => mergeRfidActivityVisits(sessions, getCatById, liveVisits).sort((a, b) =>
+  getSessionTimelineSortValue(b.session) - getSessionTimelineSortValue(a.session),
+);
 
 const getReadingStatus = (
   reading: AirQualityReadings["ammonia"] | AirQualityReadings["h2s"],
@@ -572,11 +472,12 @@ function PopulatedDashboardState({
                   <h3 className="text-xs font-semibold text-litter-muted">
                     {group.dateLabel}
                   </h3>
-                  {group.visits.map(({ cat, session }) => (
+                  {group.visits.map(({ cat, session, liveUpdatePending }) => (
                     <SessionTimelineCard
                       key={session.id}
                       cat={cat}
                       session={session}
+                      liveUpdatePending={liveUpdatePending}
                     />
                   ))}
                 </div>
@@ -746,17 +647,17 @@ export default function DashboardPage() {
 
   const airQualityStatus = getLiveAirQualityStatus({ sensorData, sensorsLoading, sensorsError });
   const isEmpty = !catsLoading && cats.length === 0;
-  const liveVisit = buildLiveSessionVisit(sensorData, cats, getDetailsByCatId);
-  const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisit);
+  const liveVisits = buildRfidActivityVisits(sensorData, cats, getDetailsByCatId);
+  const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisits);
   const displayStats = useMemo(
     () =>
       getDisplayTodayStats(
         stats,
-        recentVisits.map((visit) => visit.session),
+        displaySessions,
         activeCatId,
         getLocalDateKey(),
       ),
-    [activeCatId, recentVisits, stats],
+    [activeCatId, displaySessions, stats],
   );
   const displayAvgDuration = useMemo(
     () =>
