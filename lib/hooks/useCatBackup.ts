@@ -25,15 +25,26 @@ export type CatBackupSnapshot = {
   backupPending: boolean;
   truncated: boolean;
   operationalPrimary?: boolean;
+  historyLoading: boolean;
 };
 
-export async function fetchCatBackupSnapshot(owner: Owner, signal: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<CatBackupSnapshot> {
+// Catalog refreshes must not clear already displayed visits or overwrite a newer profile save.
+export function mergeCatBackupProgress(previous: CatBackupSnapshot | null, progress: CatBackupSnapshot): CatBackupSnapshot {
+  if (previous?.ownerId !== progress.ownerId) return progress;
+  const catalog = previous.catalog.revision > progress.catalog.revision ? previous.catalog : progress.catalog;
+  return { ...progress, catalog, historySource: previous.historySource, visits: previous.visits, pendingCount: previous.pendingCount, truncated: previous.truncated, complete: previous.complete && catalog.complete, historyLoading: previous.historyLoading };
+}
+
+export async function fetchCatBackupSnapshot(owner: Owner, signal: AbortSignal, fetchImpl: typeof fetch = fetch, onCatalog?: (snapshot: CatBackupSnapshot) => void): Promise<CatBackupSnapshot> {
   const token = await owner.getIdToken();
+  signal.throwIfAborted();
   const init = { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' as const, signal };
   const catsResponse = await fetchImpl('/api/cats', init);
   if (!catsResponse.ok) throw new Error('Cat profiles are unavailable');
   const catalog = await catsResponse.json() as CatalogBackup & { source: 'firebase' | 'supabase'; backupPending: boolean; operationalPrimary?: boolean };
-  const params = new URLSearchParams({ startDate: '0001-01-01', endDate: '2099-12-31', sort: 'desc', catId: 'all' });
+  signal.throwIfAborted();
+  onCatalog?.({ ownerId: owner.uid, catalog, catalogSource: catalog.source, historySource: catalog.source, visits: [], complete: false, pendingCount: 0, backupPending: catalog.backupPending, truncated: false, operationalPrimary: catalog.operationalPrimary === true, historyLoading: true });
+  const params = new URLSearchParams({ startDate: '0001-01-01', endDate: '2099-12-31', sort: 'desc', catId: 'all', limit: '100' });
   let visits: VisitBackup[] = [], cursor: string | null = null, historySource: CatBackupSnapshot['historySource'] = 'firebase', pendingCount = 0, complete = false;
   let truncated = false, resets = 0;
   for (let page = 0; page < 1000; page++) {
@@ -50,7 +61,8 @@ export async function fetchCatBackupSnapshot(owner: Owner, signal: AbortSignal, 
     if (!cursor) break;
     if (page === 999) truncated = true;
   }
-  return { ownerId: owner.uid, catalog, catalogSource: catalog.source, historySource, visits, complete: catalog.complete && complete && !truncated, pendingCount, backupPending: catalog.backupPending, truncated, operationalPrimary: catalog.operationalPrimary === true };
+  signal.throwIfAborted();
+  return { ownerId: owner.uid, catalog, catalogSource: catalog.source, historySource, visits, complete: catalog.complete && complete && !truncated, pendingCount, backupPending: catalog.backupPending, truncated, operationalPrimary: catalog.operationalPrimary === true, historyLoading: false };
 }
 
 export function useCatBackup() {
@@ -94,7 +106,9 @@ export function useCatBackup() {
       inFlight = true;
       let keepChecking = false;
       try {
-        const snapshot = await fetchCatBackupSnapshot(user, controller.signal);
+        const snapshot = await fetchCatBackupSnapshot(user, controller.signal, fetch, progress => {
+          if (active) setState(previous => ({ snapshot: mergeCatBackupProgress(previous.snapshot, progress), error: null, errorOwner: null }));
+        });
         if (!active) return;
         setState(previous => ({ snapshot: previous.snapshot?.ownerId === snapshot.ownerId && previous.snapshot.catalog.revision > snapshot.catalog.revision ? { ...snapshot, catalog: previous.snapshot.catalog } : snapshot, error: null, errorOwner: null }));
         keepChecking = snapshot.catalogSource === 'supabase' || snapshot.historySource !== 'firebase' || snapshot.pendingCount > 0 || snapshot.backupPending || !snapshot.complete;

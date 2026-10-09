@@ -11,7 +11,7 @@
 
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "@/lib/utils/operationalClient";
 import { auth, db } from "@/lib/configs/firebase";
@@ -58,6 +58,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(true);
   const [, forceUserRefresh] = useState(0);
+  const mounted = useRef(false);
+  const ownerUid = useRef<string | null>(null);
+  const authGeneration = useRef(0);
+  const profileGeneration = useRef(0);
+  const refreshGeneration = useRef(0);
 
   const loadUserProfile = useCallback(async (currentUser: User) => {
     let profileOnboardingComplete = true;
@@ -69,52 +74,86 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error("Error checking user profile:", error);
     }
-    setOnboardingComplete(profileOnboardingComplete);
+    return profileOnboardingComplete;
   }, []);
 
+  const loadAdminStatus = useCallback(async (currentUser: User) => {
+    if (DEV_ADMIN_OVERRIDE || (currentUser.email && ADMIN_EMAILS.includes(currentUser.email))) {
+      return true;
+    }
+    if (!currentUser.email) return false;
+    try {
+      const adminDocSnap = await getDoc(doc(db, "admins", currentUser.email));
+      return adminDocSnap.exists();
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      return false;
+    }
+  }, []);
+
+  const isCurrentOwner = useCallback((uid: string, generation: number) => (
+    mounted.current
+    && authGeneration.current === generation
+    && ownerUid.current === uid
+    && auth.currentUser?.uid === uid
+  ), []);
+
   useEffect(() => {
+    mounted.current = true;
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      const generation = ++authGeneration.current;
+      const profileRequest = ++profileGeneration.current;
+      ownerUid.current = currentUser?.uid ?? null;
       setUser(currentUser);
+      setLoading(Boolean(currentUser));
       setProfileLoading(Boolean(currentUser));
+      setIsAdmin(false);
+      setOnboardingComplete(true);
 
       if (currentUser) {
-        await loadUserProfile(currentUser);
-
-        if (DEV_ADMIN_OVERRIDE || (currentUser.email && ADMIN_EMAILS.includes(currentUser.email))) {
-          setIsAdmin(true);
-        } else if (currentUser.email) {
-          try {
-            const adminDocRef = doc(db, "admins", currentUser.email);
-            const adminDocSnap = await getDoc(adminDocRef);
-            setIsAdmin(adminDocSnap.exists());
-          } catch (error) {
-            console.error("Error checking admin status:", error);
-            setIsAdmin(false);
-          }
-        } else {
-          setIsAdmin(false);
+        const [profileComplete, admin] = await Promise.all([
+          loadUserProfile(currentUser),
+          loadAdminStatus(currentUser),
+        ]);
+        if (!isCurrentOwner(currentUser.uid, generation)) return;
+        setIsAdmin(admin);
+        // A successful refresh can replace the initial profile while its role
+        // lookup is still pending. Only the latest profile read may publish it.
+        if (profileGeneration.current === profileRequest) {
+          setOnboardingComplete(profileComplete);
+          setProfileLoading(false);
         }
-        setProfileLoading(false);
       } else {
-        setIsAdmin(false);
-        setOnboardingComplete(true);
         setProfileLoading(false);
       }
 
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [loadUserProfile]);
+    return () => {
+      mounted.current = false;
+      authGeneration.current += 1;
+      unsubscribe();
+    };
+  }, [isCurrentOwner, loadAdminStatus, loadUserProfile]);
 
-  const refreshUser = async () => {
-    if (auth.currentUser) {
-      await auth.currentUser.reload();
-      setUser(auth.currentUser);
-      forceUserRefresh((revision) => revision + 1);
-      await loadUserProfile(auth.currentUser);
-    }
-  };
+  const refreshUser = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+    const generation = authGeneration.current;
+    const refreshRequest = ++refreshGeneration.current;
+    await currentUser.reload();
+    if (!isCurrentOwner(currentUser.uid, generation)
+      || refreshGeneration.current !== refreshRequest) return;
+    setUser(currentUser);
+    forceUserRefresh((revision) => revision + 1);
+    const profileRequest = ++profileGeneration.current;
+    const profileComplete = await loadUserProfile(currentUser);
+    if (!isCurrentOwner(currentUser.uid, generation)
+      || profileGeneration.current !== profileRequest) return;
+    setOnboardingComplete(profileComplete);
+    setProfileLoading(false);
+  }, [isCurrentOwner, loadUserProfile]);
 
   return (
     <AuthContext.Provider

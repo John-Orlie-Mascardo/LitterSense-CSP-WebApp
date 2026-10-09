@@ -75,7 +75,7 @@ const csvCell = (value: string | number | boolean) => {
 };
 
 export default function ReportsPage() {
-  const { cats, isLoading: catsLoading } = useCats();
+  const { cats, isLoading: catsLoading, historyLoading } = useCats();
   const {
     isGenerating,
     progress,
@@ -132,6 +132,10 @@ export default function ReportsPage() {
   };
 
   const handleGenerate = async () => {
+    if (historyLoading) {
+      addToast("Visit history is still loading. Please wait before generating a report.", "info");
+      return;
+    }
     if (!hasCats) {
       addToast("Add a cat before generating a report", "info");
       return;
@@ -300,7 +304,7 @@ export default function ReportsPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || catsLoading || !hasCats}
+            disabled={isGenerating || catsLoading || historyLoading || !hasCats}
             className="w-full py-3.5 rounded-xl bg-litter-primary text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
@@ -311,7 +315,7 @@ export default function ReportsPage() {
             ) : (
               <>
                 <FileText className="w-5 h-5" />
-                Generate Report
+                {historyLoading ? "Loading visit history..." : "Generate Report"}
               </>
             )}
           </button>

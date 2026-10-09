@@ -11,9 +11,14 @@ export async function GET(request: Request) {
   try { uid = (await getAdminAuth().verifyIdToken(request.headers.get('authorization')?.match(/^Bearer (.+)$/)?.[1] ?? '', true)).uid; }
   catch { return Response.json({ error: 'Unauthorized' }, { status: 401, headers }); }
   const params = new URL(request.url).searchParams;
+  const requestedLimit = params.get('limit');
+  const limit = requestedLimit === null ? HISTORY_BATCH_SIZE : Number(requestedLimit);
+  if ((requestedLimit !== null && !/^\d+$/.test(requestedLimit)) || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+    return Response.json({ error: 'History batch size must be an integer from 1 to 100.' }, { status: 400, headers });
+  }
   const states = params.get('states')?.split(',').filter(Boolean) as BehaviorStateId[] | undefined;
   try {
-    const page = await readCatHistory(uid, { startDate: params.get('startDate') ?? '', endDate: params.get('endDate') ?? '', sort: params.get('sort') === 'asc' ? 'asc' : 'desc', catId: params.get('catId') ?? 'all', states, cursor: params.get('cursor') ?? undefined, limit: HISTORY_BATCH_SIZE });
+    const page = await readCatHistory(uid, { startDate: params.get('startDate') ?? '', endDate: params.get('endDate') ?? '', sort: params.get('sort') === 'asc' ? 'asc' : 'desc', catId: params.get('catId') ?? 'all', states, cursor: params.get('cursor') ?? undefined, limit });
     return Response.json(page, { headers });
   } catch (error) {
     if (error instanceof HistoryReadError && error.resetRequired) return Response.json({ error: 'History source changed', resetRequired: true }, { status: 409, headers });

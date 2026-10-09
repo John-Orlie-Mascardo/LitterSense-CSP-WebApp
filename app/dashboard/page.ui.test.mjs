@@ -155,6 +155,17 @@ test("home derives presentation states and distinguishes missing metrics from re
   assert.match(source, /displayState=/);
 });
 
+test('background history loading keeps live RFID cards and gas readings available without showing empty-history claims', () => {
+  const populated = sourceBetween('function PopulatedDashboardState({', 'export default function DashboardPage()');
+  assert.match(populated, /historyLoading \? "Loading" : formatMetricValue/);
+  assert.match(populated, /historyLoading \? "Loading recent activity" : "Waiting for RFID visits"/);
+  assert.match(populated, /recentVisits\.length > 0 \?/);
+  assert.match(populated, /liveUpdatePending=\{liveUpdatePending\}/);
+  assert.match(populated, /isLoading=\{historyLoading\}/);
+  const gasCards = populated.slice(populated.indexOf('Litter Box Environment'), populated.indexOf('Recent Activity'));
+  assert.doesNotMatch(gasCards, /historyLoading/);
+});
+
 test('today metrics use persisted sessions while Recent Activity can project pending RFID exits', () => {
   const metrics = sourceBetween('const displayStats = useMemo(', 'const displayAvgDuration = useMemo(');
   const summary = { catId: 'cat-a', date: '2026-10-09', sessionStatus: 'DAILY_SUMMARY', summaryVisits: 2 };

@@ -45,6 +45,7 @@ export function CatBehaviorTrends({
   trendData,
   references = null,
   showPoints = false,
+  isLoading = false,
 }: {
   readonly catName: string;
   readonly todayVisits: string | number;
@@ -52,6 +53,7 @@ export function CatBehaviorTrends({
   readonly trendData: CatTrendPoint[] | null;
   readonly references?: TrendReferenceSet | null;
   readonly showPoints?: boolean;
+  readonly isLoading?: boolean;
 }) {
   const hasTrendData = Boolean(trendData?.length);
   const points = trendData ?? [];
@@ -67,7 +69,7 @@ export function CatBehaviorTrends({
       <div className="mb-4 grid grid-cols-3 gap-3">
         <SummaryCard icon={Activity} label="Today's Visits" value={todayVisits} />
         <SummaryCard icon={Clock} label="Avg Duration" value={todayAvgDuration || "No data yet"} />
-        <SummaryCard icon={TrendingUp} label="Behavior Trend" value={getBehaviorTrendLabel(trendData)} />
+        <SummaryCard icon={TrendingUp} label="Behavior Trend" value={isLoading ? "Loading" : getBehaviorTrendLabel(trendData)} />
       </div>
 
       <div className="rounded-xl border border-litter-border bg-litter-card p-3 shadow-sm">
@@ -82,7 +84,7 @@ export function CatBehaviorTrends({
           hasData={hasTrendData}
           reference={references?.duration}
           baselineMessage={references ? undefined : "building"}
-          emptyMessage="Visit trends will appear after a few Litter Box Sessions."
+          emptyMessage={isLoading ? "Loading visit trends..." : "Visit trends will appear after a few Litter Box Sessions."}
           height={220}
           showPoints={showPoints}
         />

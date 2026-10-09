@@ -23,6 +23,12 @@ const accordionSource = readFileSync(
 );
 const layoutSource = readFileSync(join(__dirname, "layout.tsx"), "utf8");
 
+test('report generation waits for background history while the rest of the page remains usable', () => {
+  assert.match(source, /disabled=\{isGenerating \|\| catsLoading \|\| historyLoading \|\| !hasCats\}/);
+  assert.match(source, /historyLoading \? "Loading visit history\.\.\." : "Generate Report"/);
+  assert.match(source, /if \(historyLoading\) \{/);
+});
+
 test("previous report download opens the printable report instead of showing a fake download toast", () => {
   assert.match(source, /const handleDownloadPastReport = \(id: string\) => \{/);
   assert.match(source, /viewReport\(id\)/);

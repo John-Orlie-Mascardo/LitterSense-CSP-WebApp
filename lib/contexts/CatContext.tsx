@@ -104,6 +104,7 @@ interface CatContextType {
     options?: RecordVisitOptions,
   ) => Promise<void>;
   isLoading: boolean;
+  historyLoading: boolean;
   backupStatus: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null; operationalPrimary?: boolean };
 }
 
@@ -407,8 +408,9 @@ const getVisitAnomaly = (
   return { anomaly: true, anomalyType: "Extended duration" };
 };
 
-const getCatBackupNotice = (status: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null }) =>
+const getCatBackupNotice = (status: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null; historyLoading?: boolean }) =>
   status.error ? 'Cat history is temporarily unavailable. Retrying.'
+    : status.historyLoading ? 'Loading visit history. Live sensor readings are available.'
     : status.mode && status.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.'
     : status.mode ? 'Showing saved cat backup while the primary database recovers.'
     : status.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
@@ -434,6 +436,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const backupSnapshot = backup.snapshot;
   const operationalPrimary = backupSnapshot?.operationalPrimary === true;
   const backupReady = Boolean(backupSnapshot);
+  const historyLoading = backupSnapshot?.historyLoading === true;
   const fallbackCats = backupSnapshot?.catalogSource === 'supabase';
   const fallbackHistory = backupSnapshot?.historySource === 'supabase';
   const pendingCount = backupSnapshot?.pendingCount ?? 0;
@@ -483,6 +486,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       setPrimaryOwner(uid);
       if (ownerChanged) {
         setRawCats([]); setCatDetails({}); setSessions([]); setFirebaseCatStats({}); setCatDailyStats({}); setCatStats({});
+        setHealthLogs([]); setCatSessionLogs({});
         setIsLoading(true);
       }
     });
@@ -646,8 +650,10 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const visibleDailyStats = useMemo(() => fallbackHistory ? {} : catDailyStats, [fallbackHistory, catDailyStats]);
   const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
+  const visibleHealthLogs = useMemo(() => ownerReady ? healthLogs : [], [ownerReady, healthLogs]);
+  const visibleSessionLogs = useMemo(() => ownerReady ? catSessionLogs : {}, [ownerReady, catSessionLogs]);
   const backupStatus = { mode: backupMode, incomplete: Boolean(backupSnapshot && !backupSnapshot.complete), pendingCount, error: backup.error, operationalPrimary };
-  const backupNotice = getCatBackupNotice(backupStatus);
+  const backupNotice = getCatBackupNotice({ ...backupStatus, historyLoading });
 
   useEffect(() => {
     if (!uid || backupMode || !ownerReady || rawCats.length === 0) {
@@ -933,8 +939,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getHealthLogsByCatId = useCallback(
-    (id: string) => healthLogs.filter((log) => log.catId === id),
-    [healthLogs],
+    (id: string) => visibleHealthLogs.filter((log) => log.catId === id),
+    [visibleHealthLogs],
   );
 
   const getTrendData = useCallback(
@@ -943,8 +949,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getSessionLogByCatId = useCallback(
-    (id: string): CatSessionLog | undefined => fallbackHistory ? undefined : catSessionLogs[id],
-    [catSessionLogs, fallbackHistory],
+    (id: string): CatSessionLog | undefined => fallbackHistory ? undefined : visibleSessionLogs[id],
+    [visibleSessionLogs, fallbackHistory],
   );
 
   return (
@@ -954,8 +960,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         catStats: visibleLocalStats,
         catDetails: visibleDetails,
         sessions: visibleSessions,
-        healthLogs,
-        catSessionLogs: fallbackHistory ? {} : catSessionLogs,
+        healthLogs: visibleHealthLogs,
+        catSessionLogs: fallbackHistory ? {} : visibleSessionLogs,
         addCat,
         removeCat,
         updateCat,
@@ -971,6 +977,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         removeHealthLog,
         recordVisit,
         isLoading: fallbackCats ? false : isLoading,
+        historyLoading,
         backupStatus,
       }}
     >

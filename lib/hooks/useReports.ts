@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   collection,
   deleteDoc,
@@ -51,6 +51,17 @@ export type ReportHealthLog = HealthLog & {
 };
 
 export type { ReportData };
+
+type ReportCache = {
+  ownerId: string | null;
+  currentReport: ReportData | null;
+  pastReports: PastReport[];
+  archive: Record<string, ReportData>;
+};
+
+const emptyReportCache = (ownerId: string | null): ReportCache => ({
+  ownerId, currentReport: null, pastReports: [], archive: {},
+});
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -169,6 +180,7 @@ const buildAggregateTrendData = (
 
 export function useReports() {
   const { user } = useAuth();
+  const ownerId = user?.uid ?? null;
   const {
     cats,
     sessions: rawSessions,
@@ -176,22 +188,42 @@ export function useReports() {
     getHealthLogsByCatId,
     getSessionsByCatId,
     getTrendData,
+    historyLoading,
   } = useCats();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentReport, setCurrentReport] = useState<ReportData | null>(null);
-  const [pastReports, setPastReports] = useState<PastReport[]>([]);
-  const [reportArchive, setReportArchive] = useState<Record<string, ReportData>>({});
+  const [reportCache, setReportCache] = useState<ReportCache>(() => emptyReportCache(ownerId));
+  const reportOwner = useRef({ ownerId, generation: 0, active: true });
+  const visibleCache = reportCache.ownerId === ownerId ? reportCache : emptyReportCache(ownerId);
+  const { currentReport, pastReports, archive: reportArchive } = visibleCache;
+  const isCurrentOwner = useCallback(() => reportOwner.current.active && reportOwner.current.ownerId === ownerId, [ownerId]);
+
+  const setCurrentReport = useCallback((value: ReportData | null | ((previous: ReportData | null) => ReportData | null)) => {
+    if (!isCurrentOwner()) return;
+    setReportCache(previous => {
+      if (!isCurrentOwner()) return previous;
+      const current = previous.ownerId === ownerId ? previous : emptyReportCache(ownerId);
+      return { ...current, currentReport: typeof value === "function" ? value(current.currentReport) : value };
+    });
+  }, [isCurrentOwner, ownerId]);
 
   useEffect(() => {
-    if (!user) {
-      queueMicrotask(() => setPastReports([]));
-      return;
-    }
+    let active = true;
+    const generation = reportOwner.current.generation + 1;
+    reportOwner.current = { ownerId, generation, active: true };
+    queueMicrotask(() => {
+      if (active) setReportCache(previous => previous.ownerId === ownerId ? previous : emptyReportCache(ownerId));
+    });
+    const stop = () => {
+      active = false;
+      if (reportOwner.current.generation === generation) reportOwner.current.active = false;
+    };
+    if (!ownerId) return stop;
 
     const unsubscribe = onSnapshot(
-      collection(db, "users", user.uid, "reports"),
+      collection(db, "users", ownerId, "reports"),
       (snapshot) => {
+        if (!active) return;
         const nextArchive: Record<string, ReportData> = {};
         const loaded = snapshot.docs.map((reportDoc) => {
           const data = reportDoc.data();
@@ -200,18 +232,23 @@ export function useReports() {
           }
           return normalizePastReport(reportDoc.id, data);
         });
-        setPastReports(sortPastReports(loaded));
-        setReportArchive(nextArchive);
+        setReportCache(previous => {
+          if (!active) return previous;
+          const current = previous.ownerId === ownerId ? previous : emptyReportCache(ownerId);
+          return { ...current, pastReports: sortPastReports(loaded), archive: nextArchive };
+        });
       },
       (error) => {
         console.error("Failed to sync previous reports:", error);
       },
     );
 
-    return () => unsubscribe();
-  }, [user]);
+    return () => { stop(); unsubscribe(); };
+  }, [ownerId]);
 
   const generateReport = useCallback(async (config: ReportConfig): Promise<ReportData> => {
+    if (historyLoading) throw new Error("Visit history is still loading. Please wait before generating a report.");
+    if (!isCurrentOwner()) throw new Error("Your account has changed. Please generate the report again.");
     setIsGenerating(true);
     setProgress(0);
 
@@ -335,7 +372,11 @@ export function useReports() {
     };
 
     setCurrentReport(report);
-    setReportArchive((prev) => ({ ...prev, [report.id]: report }));
+    setReportCache(previous => {
+      if (!isCurrentOwner()) return previous;
+      const current = previous.ownerId === ownerId ? previous : emptyReportCache(ownerId);
+      return { ...current, archive: { ...current.archive, [report.id]: report } };
+    });
     setProgress(100);
     setIsGenerating(false);
 
@@ -354,32 +395,38 @@ export function useReports() {
         createdAt: serverTimestamp(),
       });
     } else {
-      setPastReports((prev) => sortPastReports([newPastReport, ...prev]));
+      setReportCache(previous => {
+        if (!isCurrentOwner()) return previous;
+        const current = previous.ownerId === ownerId ? previous : emptyReportCache(ownerId);
+        return { ...current, pastReports: sortPastReports([newPastReport, ...current.pastReports]) };
+      });
     }
 
     return report;
-  }, [cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, rawSessions, user]);
+  }, [cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
 
   const deleteReport = useCallback(async (reportId: string) => {
+    if (!isCurrentOwner()) return;
+    const generation = reportOwner.current.generation;
     if (user) {
       await deleteDoc(doc(db, "users", user.uid, "reports", reportId));
     }
-    if (!user) {
-      setPastReports((prev) => prev.filter((report) => report.id !== reportId));
-    }
-    setReportArchive((prev) => {
-      const next = { ...prev };
-      delete next[reportId];
-      return next;
+    if (!isCurrentOwner() || reportOwner.current.generation !== generation) return;
+    setReportCache(previous => {
+      if (!isCurrentOwner() || reportOwner.current.generation !== generation || previous.ownerId !== ownerId) return previous;
+      const archive = { ...previous.archive };
+      delete archive[reportId];
+      return { ...previous, archive, pastReports: !user ? previous.pastReports.filter(report => report.id !== reportId) : previous.pastReports };
     });
-  }, [user]);
+  }, [isCurrentOwner, ownerId, user]);
 
   const viewReport = useCallback((reportId: string) => {
+    if (!isCurrentOwner()) return false;
     const report = reportArchive[reportId];
     if (!report) return false;
     setCurrentReport(report);
     return true;
-  }, [reportArchive]);
+  }, [isCurrentOwner, reportArchive, setCurrentReport]);
 
   const downloadReport = useCallback((filename: string) => {
     console.log(`Downloading ${filename}...`);

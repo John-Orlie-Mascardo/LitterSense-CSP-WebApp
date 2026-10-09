@@ -302,6 +302,7 @@ function PopulatedDashboardState({
   trendReferences,
   recentVisits,
   displayAvgDuration,
+  historyLoading,
   onSelectCat,
 }: {
   readonly cats: Cat[];
@@ -323,6 +324,7 @@ function PopulatedDashboardState({
   readonly trendReferences: TrendReferenceSet | null;
   readonly recentVisits: RecentVisit[];
   readonly displayAvgDuration: string;
+  readonly historyLoading: boolean;
   readonly onSelectCat: (catId: string) => void;
 }) {
   const visibleRecentVisits = useMemo(
@@ -336,8 +338,8 @@ function PopulatedDashboardState({
   const selectedDisplayState = selectedCat
     ? catDisplayStates[selectedCat.id] ?? "insufficient"
     : "insufficient";
-  const displayVisits = formatMetricValue(stats?.visits ?? 0, selectedHasData);
-  const displayDuration = formatMetricValue(displayAvgDuration, selectedHasData);
+  const displayVisits = historyLoading ? "Loading" : formatMetricValue(stats?.visits ?? 0, selectedHasData);
+  const displayDuration = historyLoading ? "Loading" : formatMetricValue(displayAvgDuration, selectedHasData);
 
   return (
     <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-8 lg:items-start">
@@ -395,7 +397,8 @@ function PopulatedDashboardState({
             catName={selectedCat.name}
             todayVisits={displayVisits}
             todayAvgDuration={String(displayDuration)}
-            trendData={trendData}
+            trendData={historyLoading ? null : trendData}
+            isLoading={historyLoading}
             references={trendReferences}
           />
         )}
@@ -413,14 +416,14 @@ function PopulatedDashboardState({
               value={displayVisits}
               label="Today's Visits"
               status={selectedDisplayState}
-              statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
+              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
             <StatCard
               icon={Timer}
               value={displayDuration}
               label="Avg Duration"
               status={selectedDisplayState}
-              statusLabel={selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
+              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
             />
           </div>
         </section>
@@ -486,10 +489,10 @@ function PopulatedDashboardState({
           ) : (
             <div className="p-6 bg-litter-card rounded-xl border border-litter-border text-center">
               <p className="text-sm font-semibold text-litter-text">
-                Waiting for RFID visits
+                {historyLoading ? "Loading recent activity" : "Waiting for RFID visits"}
               </p>
               <p className="text-xs text-litter-muted mt-1">
-                Tap the key fob near the antenna to record the first visit.
+                {historyLoading ? "New RFID entries and exits will appear as they arrive." : "Tap the key fob near the antenna to record the first visit."}
               </p>
             </div>
           )}
@@ -513,6 +516,7 @@ export default function DashboardPage() {
     getStatsByCatId,
     getTrendData,
     isLoading: catsLoading,
+    historyLoading,
   } = useCats();
   const [selectedCatId, setSelectedCatId] = useState(cats[0]?.id || "");
   const {
@@ -696,6 +700,7 @@ export default function DashboardPage() {
             trendReferences={trendReferences}
             recentVisits={recentVisits}
             displayAvgDuration={displayAvgDuration}
+            historyLoading={historyLoading}
             onSelectCat={setSelectedCatId}
           />
         )}

@@ -29,19 +29,20 @@ type Identity = { uid: string; email?: string };
 export type RecordWrite = { path: string; action: 'set' | 'update' | 'delete'; data?: Record<string, unknown>; merge?: boolean; revision?: number };
 export async function accessRecord(identity: Identity, path: string, write = false): Promise<string> {
   if (typeof path !== 'string' || path.length > 1024 || /[\u0000-\u001f*%]/.test(path) || path.split('/').some(s => !s || s === '.' || s === '..')) throw new OperationalError('Invalid record path', 400);
-  const parts = path.split('/'), admin = await isOperationalAdmin(identity.email ?? '');
+  const parts = path.split('/');
   if (parts[0] === 'users') {
-    if (parts.length === 1) { if (write || !admin) throw new OperationalError('Forbidden', 403); return '@all'; }
-    if (parts[1] !== identity.uid && !admin) throw new OperationalError('Forbidden', 403);
+    if (parts.length === 1) { if (write || !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403); return '@all'; }
+    if (parts[1] !== identity.uid && !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403);
     if (parts.length > 2 && !allowed.has(parts[2])) throw new OperationalError('Forbidden', 403);
     if (write && (parts[1] !== identity.uid || ['cats', 'catDetails', 'deviceConfig', 'deviceState'].includes(parts[2]))) throw new OperationalError('Use the dedicated mutation endpoint', 403);
     return parts[1];
   }
   if (parts[0] === 'admins') {
-    if (!admin && (write || parts.length !== 2 || parts[1] !== identity.email)) throw new OperationalError('Forbidden', 403);
+    const ownRoleRead = !write && parts.length === 2 && parts[1] === identity.email;
+    if (!ownRoleRead && !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403);
     return '@system';
   }
-  if (parts[0] === 'deleteRequests') return admin ? '@all' : identity.uid;
+  if (parts[0] === 'deleteRequests') return await isOperationalAdmin(identity.email ?? '') ? '@all' : identity.uid;
   throw new OperationalError('Forbidden', 403);
 }
 async function fetchSpecial(owner: string, path: string, list = false) {
@@ -54,9 +55,8 @@ async function fetchSpecial(owner: string, path: string, list = false) {
 export async function readClientRecords(identity: Identity, path: string, list: boolean) {
   if (typeof path !== 'string' || path.split('/').length % 2 !== (list ? 1 : 0)) throw new OperationalError('Invalid record path', 400);
   const owner = await accessRecord(identity, path);
-  await assertOperationalFoundation();
-  if (path === `users/${identity.uid}`) await assertOperationalFoundation();
-  else if (!['@system', '@all'].includes(owner)) await assertOperationalReady(owner);
+  if (path === `users/${identity.uid}` || ['@system', '@all'].includes(owner)) await assertOperationalFoundation();
+  else await assertOperationalReady(owner);
   const rows = owner.startsWith('@') || path.split('/')[0] === 'deleteRequests' ? await fetchSpecial(owner, path, list) : list ? await listOperationalRecords(owner, `${path}/`) : [await readOperationalRecord(owner, path)].filter(Boolean) as OperationalRecord[];
   return Promise.all(rows.filter(row => !list || !row.document_path.slice(path.length + 1).includes('/')).map(async row => ({ path: row.document_path, revision: row.revision, data: await refreshPhotos(row.rawData ?? row.data, row.owner_id) })));
 }
