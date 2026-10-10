@@ -3,16 +3,18 @@
 import { motion } from "framer-motion";
 
 interface ToggleProps {
+  ariaLabel?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
 }
 
-export function Toggle({ checked, onChange, disabled = false }: Readonly<ToggleProps>) {
+export function Toggle({ checked, onChange, disabled = false, ariaLabel }: Readonly<ToggleProps>) {
   return (
     <button
       type="button"
       role="switch"
+      aria-label={ariaLabel}
       aria-checked={checked}
       disabled={disabled}
       onClick={() => !disabled && onChange(!checked)}

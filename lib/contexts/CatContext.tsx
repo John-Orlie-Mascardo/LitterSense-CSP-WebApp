@@ -410,7 +410,7 @@ const getVisitAnomaly = (
 
 const getCatBackupNotice = (status: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null; historyLoading?: boolean }) =>
   status.error ? 'Cat history is temporarily unavailable. Retrying.'
-    : status.historyLoading ? 'Loading visit history. Live sensor readings are available.'
+    : status.historyLoading ? null
     : status.mode && status.incomplete ? 'Cat backup is incomplete. Some profiles or visits may be missing.'
     : status.mode ? 'Showing saved cat backup while the primary database recovers.'
     : status.pendingCount > 0 ? 'New visits are saved in backup and awaiting recovery.' : null;
@@ -418,7 +418,7 @@ function CatBackupNotice({ message }: { message: string }) {
   const [dismissed, setDismissed] = useState(false);
   if (dismissed) return null;
   return (
-    <div role="status" className="relative mx-auto my-3 flex w-[calc(100%-2rem)] max-w-xl items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm shadow-lg">
+    <div role="status" className="fixed top-20 left-1/2 z-30 -translate-x-1/2 flex w-[calc(100%-2rem)] max-w-xl items-center gap-3 rounded-xl border border-amber-500/40 bg-litter-surface p-3 text-sm text-theme-text shadow-lg">
       <span className="flex-1">{message}</span>
       <button type="button" aria-label="Dismiss cat backup notice" onClick={() => setDismissed(true)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-litter-text-muted hover:bg-white/10 hover:text-litter-text focus-visible:outline-2 focus-visible:outline-litter-accent">
         <X size={18} aria-hidden="true" />

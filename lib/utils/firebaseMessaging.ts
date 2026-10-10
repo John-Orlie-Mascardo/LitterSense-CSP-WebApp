@@ -57,7 +57,13 @@ async function enroll(reconnect: boolean) {
   if (token) await save(token);
   return token;
 }
-export function getFirebaseMessagingToken() { return serialize(() => enroll(false)); }
+const disabledKey = 'littersense-device-push-disabled';
+export function devicePushDisabled() { return globalThis.localStorage?.getItem(disabledKey) === 'true'; }
+export function setDevicePushDisabled(disabled: boolean) {
+  if (disabled) globalThis.localStorage?.setItem(disabledKey, 'true');
+  else globalThis.localStorage?.removeItem(disabledKey);
+}
+export function getFirebaseMessagingToken() { return serialize(() => devicePushDisabled() ? Promise.resolve(null) : enroll(false)); }
 export function reconnectFirebaseMessagingToken() { return serialize(() => enroll(true)); }
 
 // Local display check deliberately bypasses FCM and never sends a server message.
