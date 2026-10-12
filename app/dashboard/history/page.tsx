@@ -18,6 +18,7 @@ import { AlertTriangle, Radio, RotateCcw } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { SessionTimelineCard } from "@/components/dashboard/SessionTimelineCard";
+import { GasSensorHistory } from "@/components/history/GasSensorHistory";
 import { SessionHistoryFilters } from "@/components/history/HistoryFilters";
 import { SessionHistorySkeleton } from "@/components/ui/AppLoadingSkeletons";
 import { useCats } from "@/lib/contexts/CatContext";
@@ -127,6 +128,7 @@ export default function SessionHistoryPage() {
           </p>
         </header>
 
+        <div className="mb-6"><GasSensorHistory /></div>
         <div className="grid gap-6 md:grid-cols-[minmax(280px,360px)_1fr] md:items-start">
           <SessionHistoryFilters
             key={filterKey}

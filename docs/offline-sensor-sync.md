@@ -79,3 +79,7 @@ Compilation and simulations do not prove actual board operation. No board upload
 - Fill queues: confirm explicit serial warnings, no overwriting, preserved live sensing and the RFID attribution guard.
 - Make the history receiver slow/unavailable while live ingestion works; observe live cadence, local doorway responsiveness and runtime memory.
 - Test repeated NVS replacement and controlled power cuts. Check for corruption/storage faults rather than assuming a successful compile proves flash behavior.
+
+## October 12 follow-up: gas notification/history integration
+
+The initial implementation above intentionally stored gas history without a UI or historical alerts. The later physical 8:17-8:18 PM test confirmed saved gas events while exposing the missing website integration. The local follow-up now adds gas history and missed gas detection notifications; see `docs/offline-gas-notifications-history.md` for the current behavior, SQL prerequisite, recovery of previously acknowledged records, verification, and activation boundaries. The earlier no-alert/no-history-screen description applies to the initial implementation only.

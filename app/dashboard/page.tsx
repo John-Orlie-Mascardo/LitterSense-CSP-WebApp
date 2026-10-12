@@ -31,6 +31,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SessionTimelineCard } from "@/components/dashboard/SessionTimelineCard";
+import { GasSensorHistory } from "@/components/history/GasSensorHistory";
 import { CatBehaviorTrends } from "@/components/dashboard/CatBehaviorTrends";
 import { CatChip } from "@/components/cats/CatChip";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
@@ -203,7 +204,7 @@ const getReadingStatusLabel = (
 };
 
 const sensorSubtitle = (name: string, status: SensorDisplayStatus) => status.lastUpdatedAt
-  ? `${name ? `${name} · ` : ""}Last update: ${new Date(status.lastUpdatedAt).toLocaleString()}`
+  ? `${name ? `${name} · ` : ""}Last received: ${new Date(status.lastUpdatedAt).toLocaleString()}`
   : name;
 
 function CatAvatar({
@@ -468,6 +469,7 @@ function PopulatedDashboardState({
             </Link>
           </div>
 
+          <div className="mb-5"><GasSensorHistory preview /></div>
           {recentVisits.length > 0 ? (
             <div className="space-y-5">
               {recentActivityGroups.map((group) => (

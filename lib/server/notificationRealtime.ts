@@ -34,6 +34,7 @@ export function watchNotificationChanges(uid: string, changed: (kind?: 'cats' | 
         const path = data?.record?.document_path ?? data?.old_record?.document_path;
         if (data?.table === 'sensor_snapshots' && sensorTokenHash && data?.record?.token_hash === sensorTokenHash) changed('sensors');
         if (typeof path === 'string' && path.startsWith(`users/${uid}/deviceState/`)) changed('sensors');
+        if (typeof path === 'string' && path.startsWith(`users/${uid}/sensorHistory/`)) changed('sensors');
         if (typeof path === 'string' && path.startsWith(`users/${uid}/notifications/`)) changed();
         if (typeof path === 'string' && path.startsWith(`users/${uid}/sessions/`)) changed('visits');
         if (typeof path === 'string' && (path.startsWith(`users/${uid}/cats/`) || path.startsWith(`users/${uid}/catDetails/`))) changed('cats');
