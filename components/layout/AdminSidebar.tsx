@@ -36,7 +36,7 @@ const isActive = (pathname: string, href: string, exact: boolean) =>
 function BrandHeader({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={`flex items-center gap-3 px-5 shrink-0 border-b border-litter-border
+      className={`flex items-center gap-3 px-6 shrink-0 border-b border-litter-border
         bg-gradient-to-br from-litter-primary-light/50 via-litter-primary-light/10 to-transparent
         ${compact ? "h-14" : "h-16"}`}
     >
@@ -50,10 +50,10 @@ function BrandHeader({ compact = false }: { compact?: boolean }) {
       </div>
       <div className="leading-tight">
         <p className={`font-display font-bold text-litter-text leading-none tracking-[-0.01em]
-          ${compact ? "text-sm" : "text-[15px]"}`}>
+          ${compact ? "text-sm" : "text-base"}`}>
           LitterSense
         </p>
-        <p className="text-[9px] text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-[3px]">
+        <p className="text-xs text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-[3px]">
           Admin Panel
         </p>
       </div>
@@ -87,14 +87,14 @@ function SidebarContent({
   return (
     <>
       {/* ── Section label ── */}
-      <div className="px-5 pt-5 pb-2">
+      <div className="px-6 pt-6 pb-2">
         <span className="text-[9.5px] font-semibold uppercase tracking-[0.15em] text-litter-muted/60 select-none">
           Menu
         </span>
       </div>
 
       {/* ── Nav links ── */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4 flex flex-col gap-0.5">
+      <nav className="flex-1 overflow-y-auto px-3 pb-4 flex flex-col gap-1">
         {NAV_ITEMS.map(({ label, href, icon: Icon, exact, badge }) => {
           const active = isActive(pathname, href, exact);
           return (
@@ -103,7 +103,7 @@ function SidebarContent({
               href={href}
               onClick={onNavigate}
               className={`
-                group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                group flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
                 transition-all duration-200
                 ${
                   active
@@ -125,7 +125,7 @@ function SidebarContent({
               {badge && pendingCount > 0 && (
                 <span
                   className={`
-                    text-[10px] font-bold min-w-[18px] h-[18px] px-1.5 rounded-full
+                    text-xs font-bold min-w-[18px] h-[18px] px-2 rounded-full
                     flex items-center justify-center leading-none shrink-0
                     ${active ? "bg-white/25 text-white" : "bg-litter-danger-bg text-litter-danger-text"}
                   `}
@@ -155,18 +155,18 @@ function SidebarContent({
 
           {/* Name + email */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <p className="text-sm font-semibold text-litter-text leading-none truncate">
                 {adminName}
               </p>
             </div>
-            <p className="text-[10px] text-litter-muted leading-none mt-1 truncate">
+            <p className="text-xs text-litter-muted leading-none mt-1 truncate">
               {adminEmail}
             </p>
           </div>
 
           {/* Role badge */}
-          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider
+          <span className="shrink-0 text-xs font-bold uppercase tracking-wider
             text-litter-primary bg-litter-primary-light px-2 py-1 rounded-full leading-none">
             Admin
           </span>
@@ -176,7 +176,7 @@ function SidebarContent({
         <button
           onClick={onLogout}
           disabled={loggingOut}
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium
             text-litter-muted hover:text-red-500 hover:bg-red-500/8
             transition-all duration-200 group
             disabled:opacity-50 disabled:cursor-not-allowed"
@@ -240,7 +240,7 @@ export function AdminSidebar() {
         bg-litter-card border-b border-litter-border sticky top-0 z-40">
 
         {/* Brand mark */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg bg-litter-primary flex items-center justify-center
             shadow-sm shadow-litter-primary/20">
             <Shield size={13} className="text-white" strokeWidth={2.5} />
@@ -249,7 +249,7 @@ export function AdminSidebar() {
             <p className="font-display font-bold text-litter-text text-sm leading-none">
               LitterSense
             </p>
-            <p className="text-[8px] text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-0.5">
+            <p className="text-xs text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-0.5">
               Admin
             </p>
           </div>
@@ -257,13 +257,13 @@ export function AdminSidebar() {
 
         {/* Right side: user pill + menu button */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl
             bg-litter-bg border border-litter-border">
             <div className="w-5 h-5 rounded-full bg-litter-primary flex items-center justify-center
-              text-white text-[10px] font-bold shrink-0">
+              text-white text-xs font-bold shrink-0">
               {adminInitial}
             </div>
-            <span className="text-[11px] font-medium text-litter-text leading-none max-w-[96px] truncate">
+            <span className="text-xs font-medium text-litter-text leading-none max-w-[96px] truncate">
               {adminName}
             </span>
           </div>
@@ -297,7 +297,7 @@ export function AdminSidebar() {
             <div className="flex items-center justify-between px-4 shrink-0
               border-b border-litter-border
               bg-gradient-to-br from-litter-primary-light/50 via-litter-primary-light/10 to-transparent">
-              <div className="flex items-center gap-2.5 h-14">
+              <div className="flex items-center gap-3 h-14">
                 <div className="w-7 h-7 rounded-lg bg-litter-primary flex items-center justify-center
                   shadow-sm shadow-litter-primary/20">
                   <Shield size={13} className="text-white" strokeWidth={2.5} />
@@ -306,14 +306,14 @@ export function AdminSidebar() {
                   <p className="font-display font-bold text-litter-text text-sm leading-none">
                     LitterSense
                   </p>
-                  <p className="text-[8px] text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-0.5">
+                  <p className="text-xs text-litter-primary font-semibold uppercase tracking-[0.15em] leading-none mt-0.5">
                     Admin Panel
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="p-1.5 rounded-lg text-litter-muted hover:text-litter-text
+                className="p-2 rounded-lg text-litter-muted hover:text-litter-text
                   hover:bg-litter-overlay transition-colors"
               >
                 <X size={15} />

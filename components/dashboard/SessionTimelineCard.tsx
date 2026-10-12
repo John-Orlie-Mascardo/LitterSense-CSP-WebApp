@@ -108,7 +108,7 @@ export function SessionTimelineCard({
   const activityDate = formatActivityDate(endedAt ?? startedAt, session.date);
 
   return (
-    <div className="bg-litter-card rounded-xl border border-litter-border shadow-sm p-4">
+    <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4">
       <div className="flex items-start gap-3">
         <Avatar cat={cat} />
         <div className="min-w-0 flex-1">
@@ -116,18 +116,18 @@ export function SessionTimelineCard({
             <p className="font-body text-sm font-semibold text-litter-text leading-snug">
               {cat?.name ?? "Unattributed"}
             </p>
-            <span className="rounded-full bg-litter-primary-light px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-litter-primary">
+            <span className="rounded-full bg-litter-primary-light px-2 py-1 text-xs font-semibold uppercase tracking-wide text-litter-primary">
               {cat ? "Litter Box Session" : "Detected Session"}
             </span>
-            <BehaviorStateBadge state={state} compact />
+            {!['insufficient', 'incomplete', 'unattributed'].includes(state) && <BehaviorStateBadge state={state} compact />}
             <span className="text-xs font-medium text-litter-muted">
               Recorded {activityDate}
             </span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-litter-bg px-3 py-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-litter-muted">
-                <LogIn className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">
+                <LogIn className="h-4 w-4" />
                 Enter
               </div>
               <p className="mt-1 text-sm font-semibold text-litter-text">
@@ -135,8 +135,8 @@ export function SessionTimelineCard({
               </p>
             </div>
             <div className="rounded-lg bg-litter-bg px-3 py-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-litter-muted">
-                <LogOut className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">
+                <LogOut className="h-4 w-4" />
                 Out
               </div>
               {inProgress ? (
@@ -153,8 +153,8 @@ export function SessionTimelineCard({
               )}
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-litter-muted">
-            <Clock3 className="h-3.5 w-3.5" />
+          <div className="mt-3 flex items-center gap-2 text-xs text-litter-muted">
+            <Clock3 className="h-4 w-4" />
             <span>{interrupted ? "Duration unknown - device restarted" : formatDuration(session.durationSecs)}</span>
           </div>
         </div>

@@ -94,7 +94,7 @@ export const getLiveAirQualityStatus = ({
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
   const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt, sensorData?.gasUltrasonicCloudError);
-  if (stored) return stored;
+  if (stored) return sensorData?.gasUltrasonicState === 'stale' ? { ...stored, label: 'Offline' } : stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
 
   const lastUpdatedAt = sensorData.gasUltrasonicUpdatedAt;

@@ -161,11 +161,11 @@ function VideoPlayer({ recording }: { readonly recording: RecordingEvent | null 
         className="absolute inset-0 opacity-30"
         style={{ background: `linear-gradient(135deg, ${recording.thumbnailColor}, #1A2E2B)` }}
       />
-      <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
+      <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
         <Clock className="w-3 h-3 text-white" />
         <span className="text-white text-xs font-medium">{recording.timestamp}</span>
       </div>
-      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-2.5 py-1">
+      <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
         <span className="text-white text-xs font-semibold tracking-wide">HD</span>
       </div>
       <button
@@ -254,7 +254,7 @@ function RecordingRow({
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="p-1.5 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+        className="p-2 rounded-lg text-theme-muted hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
         title="Delete recording"
       >
         <Trash2 className="w-4 h-4" />
@@ -284,30 +284,30 @@ function LiveHeader({
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => onActiveTabChange("live")}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
               activeTab === "live"
                 ? "bg-litter-primary text-white border-litter-primary"
                 : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
             }`}
           >
-            <Radio className="w-3.5 h-3.5" />
+            <Radio className="w-4 h-4" />
             Live
           </button>
           <button
             onClick={() => onActiveTabChange("recordings")}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
               activeTab === "recordings"
                 ? "bg-litter-primary text-white border-litter-primary"
                 : "bg-litter-card text-theme-muted border-litter-border hover:border-litter-primary/40"
             }`}
           >
-            <Video className="w-3.5 h-3.5" />
+            <Video className="w-4 h-4" />
             Recordings
           </button>
         </div>
       ) : (
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-1.5 text-sm font-medium text-litter-primary">
-          <Radio className="w-3.5 h-3.5" />
+        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-litter-primary/20 bg-litter-primary/10 px-4 py-2 text-sm font-medium text-litter-primary">
+          <Radio className="w-4 h-4" />
           Live
         </div>
       )}
@@ -346,7 +346,7 @@ function DeviceGate({
             { step: "3", label: "Open the viewer, then choose Pair camera" },
           ].map(({ step, label }) => (
             <div key={step} className="flex items-center gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-litter-primary text-[11px] font-bold text-white">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-litter-primary text-xs font-bold text-white">
                 {step}
               </span>
               <span className="text-sm text-theme-muted">{label}</span>
@@ -434,7 +434,7 @@ function DeviceStatusCard({
 }) {
   return (
     <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
-      <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+      <p className="text-xs font-bold tracking-widest text-litter-primary uppercase mb-3">
         Device Status
       </p>
       <div className="flex items-center justify-between">
@@ -450,7 +450,7 @@ function DeviceStatusCard({
         </div>
         <button
           onClick={onDisconnect}
-          className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+          className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
         >
           Disconnect
         </button>
@@ -472,12 +472,12 @@ function RecordingFilters({
 }) {
   return (
     <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
-      <p className="text-[10px] font-bold tracking-widest text-litter-primary uppercase mb-3">
+      <p className="text-xs font-bold tracking-widest text-litter-primary uppercase mb-3">
         Filters
       </p>
       <div className="flex items-center gap-2 mb-3">
-        <Calendar className="w-3.5 h-3.5 text-theme-muted shrink-0" />
-        <div className="flex gap-1.5 flex-wrap">
+        <Calendar className="w-4 h-4 text-theme-muted shrink-0" />
+        <div className="flex gap-2 flex-wrap">
           {(["all", "today", "yesterday"] as const).map((date) => (
             <button
               key={date}
@@ -494,8 +494,8 @@ function RecordingFilters({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Filter className="w-3.5 h-3.5 text-theme-muted shrink-0" />
-        <div className="flex gap-1.5 flex-wrap">
+        <Filter className="w-4 h-4 text-theme-muted shrink-0" />
+        <div className="flex gap-2 flex-wrap">
           {MOCK_CATS.map((cat) => (
             <button
               key={cat}

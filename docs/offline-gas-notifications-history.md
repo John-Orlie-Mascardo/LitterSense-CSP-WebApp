@@ -2,7 +2,7 @@
 
 ## Status — October 12, 2026
 
-Implemented locally on `orlie-branch`. This change has not been pushed, deployed to Vercel, applied to production Supabase, or tested on a physical phone. No firmware changed and no SMS or push was sent while developing/testing.
+Production Supabase migration applied on October 12, 2026, following explicit approval. The deployed Vercel app was verified to expose gas history and the notification interface. The 9:03 PM test notification was recovered, stored once, and delivered through the existing push worker. The user confirmed it appeared on both phone and website. No SMS was sent and no firmware changed during activation. Source Git push/commit state was not changed during this activation.
 
 ## What failed in the physical test
 
@@ -31,7 +31,7 @@ The gas board captured and uploaded the readings correctly. The verified product
 
 ## Activation order
 
-Production activation requires a separate deployment instruction. Firmware does not need another upload for this website-only change.
+The activation below was completed for this production project on October 12, 2026. Firmware did not need another upload. Retain this sequence for future releases; production database changes still require authorization.
 
 1. Apply the new SQL migration to the intended Supabase project. It requires existing operational primary/cutover and gas notification/outbox/snapshot tables. It does not automatically send old alerts.
 2. Deploy the webapp to Vercel and verify its production alias is ready.
@@ -45,9 +45,29 @@ Database regression tests use the real PostgreSQL schema (PGlite), including act
 
 Additional tests cover authenticated API reads, immutable acknowledgments, background push without SMS, bounded cursors with microseconds, history rendering, account changes, realtime invalidation, and existing push delivery. Production build passed. The initial full app run caught an unnecessary background worker for undated gas history; corrected and the original database regression now passes. The full app suite passed 539 tests; the final focused run passed 16 tests after the last SQL checks, including short outages and service-role permissions. Targeted ESLint and the production build passed. Results are recorded in the workspace verification log.
 
-Physical display/delivery, production SQL application, production recovery, and deployment remain unverified until activation.
+Production SQL application, exact test recovery, website notification display, and gas history timestamps were verified. Phone system notification display was confirmed directly by the user. A new physical outage after activation remains the next acceptance check for automatic trigger operation; recovery of an already uploaded test alone does not prove future automatic delivery.
 
 ## Rollback
 
 Revert the website patch to hide the added history reader/UI. To stop future historical alerts, drop only the `queue_missed_gas_history` trigger on `public.operational_records`. Restore `save_gas_notification_history` from the prior `20261008094002_notification_realtime.sql` migration if reverting its presentation too. Preserve the historical readings and existing notification/outbox records. Reverting source does not unsend already delivered notifications; use owner/event-scoped reconciliation for pending outbox state when necessary.
 
+
+
+## Production activation evidence — October 12, 2026
+
+All times UTC+08:00.
+
+- Correct Supabase project verified: `yrshzmpyiibchtznbjkv` (LitterSense SMS). Required Vercel variables present; deployed primary mode true. Secret values remained hidden.
+- Previous production `save_gas_notification_history` function was read and backed up before changes.
+- First migration transaction hit PostgreSQL deadlock `40P01` while live uploads continued and rolled back. Added the existing writer's advisory-lock order and explicit table lock with five-second lock timeout and thirty-second statement timeout; ten real SQL tests passed after this guard. The guarded transaction then succeeded.
+- Production API schema exposes `reconcile_gas_history` and `queue_missed_gas_event` after application.
+- Recovery processed only exact gas-board events `a68ef1b7c8bab87e_66` and `_67`, asserting two rows and one owner, under the same commit lock. It did not replay every user's history.
+- One recovered notification: `Urine detected (saved detection)`, occurred `2026-10-12T13:03:06.000Z` (9:03:06 PM).
+- Its SMS status is `cancelled`; push status `sent`. Provider accepted four of four registered devices at 9:20:19 PM. The user independently confirmed phone and web display.
+- Gas history UI shows detection Recorded 9:03:06 PM / Uploaded 9:04:27 PM and clear Recorded 9:03:14 PM / Uploaded 9:04:28 PM. Current gas cards stayed Clear.
+- Dashboard gas history preview and full Session History gas section verified in the existing production Vercel deployment after refreshing the older open tab. No new Vercel deployment or environment edit was performed during database activation.
+- Verification screenshot and sanitized activation results saved in the Codex workspace outputs. No secret values are included.
+
+### Remaining physical check
+
+Run a fresh offline detect/clear cycle with the LitterSense hotspot and boards powered. Restore internet and confirm the new notification arrives automatically without manual recovery. This is separate from the recovered-event delivery already confirmed.

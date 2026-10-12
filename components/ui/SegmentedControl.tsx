@@ -21,7 +21,7 @@ export function SegmentedControl<T extends string>({
           type="button"
           disabled={option.disabled}
           onClick={() => !option.disabled && onChange(option.value)}
-          className={`relative px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none ${
+          className={`relative px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none ${
             option.disabled
               ? "text-theme-muted cursor-not-allowed"
               : value === option.value
@@ -38,7 +38,7 @@ export function SegmentedControl<T extends string>({
           )}
           <span className="relative z-10">{option.label}</span>
           {option.disabled && (
-            <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] bg-gray-300 text-theme-secondary rounded">
+            <span className="absolute -top-1 -right-1 px-1 py-1 text-xs bg-gray-300 text-theme-secondary rounded">
               Soon
             </span>
           )}

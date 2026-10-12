@@ -1,6 +1,7 @@
 "use client";
 
 import { ownerText } from "@/lib/presentation/ownerText";
+import { markNotificationIdsRead, reconcileNotificationReads } from '@/lib/utils/notificationReads';
 import React, {
   createContext,
   useContext,
@@ -188,6 +189,10 @@ export function NotificationProvider({
   const isLoading =
     authLoading || (userId ? syncState.userId !== userId || syncState.isLoading : false);
   const notificationsRef = useRef<AppNotification[]>([]);
+  const optimisticReadsRef = useRef({ userId, pending: new Set<string>() });
+  useEffect(() => {
+    optimisticReadsRef.current = { userId, pending: new Set<string>() };
+  }, [userId]);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -245,7 +250,7 @@ export function NotificationProvider({
         );
         setSyncState({
           userId,
-          notifications: loaded,
+          notifications: reconcileNotificationReads(loaded, optimisticReadsRef.current.userId === userId ? optimisticReadsRef.current.pending : new Set()),
           isLoading: false,
         });
       },
@@ -324,29 +329,28 @@ export function NotificationProvider({
     [settings, user],
   );
 
-  const markAsRead = useCallback(
-    async (id: string) => {
-      if (!user) return;
-      await updateDoc(doc(db, "users", user.uid, "notifications", id), {
-        isRead: true,
-      });
-    },
-    [user]
-  );
-
-  const markAllAsRead = useCallback(async () => {
+  const markRead = useCallback(async (ids: string[]) => {
     if (!user) return;
-    const unread = notifications.filter((n) => !n.isRead);
-    if (unread.length === 0) return;
-
-    const batch = writeBatch(db);
-    unread.forEach((n) => {
-      batch.update(doc(db, "users", user.uid, "notifications", n.id), {
-        isRead: true,
-      });
+    const pending = optimisticReadsRef.current.pending;
+    const setRead = (changed: string[], isRead: boolean) => setSyncState(current => current.userId !== user.uid ? current : {
+      ...current, notifications: current.notifications.map(notification => changed.includes(notification.id) ? { ...notification, isRead } : notification),
     });
-    await batch.commit();
+    await markNotificationIdsRead(notifications.filter(notification => ids.includes(notification.id)), pending, changed => setRead(changed, true), changed => setRead(changed, false), async (changed, committed) => {
+      // Operational commits accept at most 100 writes; keep larger notification lists usable.
+      for (let start = 0; start < changed.length; start += 100) {
+        if (auth.currentUser?.uid !== user.uid) throw new Error('Account changed');
+        const batch = writeBatch(db);
+        const chunk = changed.slice(start, start + 100);
+        chunk.forEach(id => batch.update(doc(db, 'users', user.uid, 'notifications', id), { isRead: true }));
+        await batch.commit();
+        // Do not roll back a successfully committed chunk if a later chunk fails.
+        chunk.forEach(id => committed.add(id));
+      }
+      refreshNotificationRecords();
+    });
   }, [user, notifications]);
+  const markAsRead = useCallback((id: string) => markRead([id]), [markRead]);
+  const markAllAsRead = useCallback(() => markRead(notifications.filter(notification => !notification.isRead).map(notification => notification.id)), [markRead, notifications]);
 
   const deleteNotification = useCallback(
     async (id: string) => {

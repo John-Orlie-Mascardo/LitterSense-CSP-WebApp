@@ -72,7 +72,7 @@ export function HistoryDateRangeCalendar({
       </div>
       <div className="grid grid-cols-7 text-center">
         {WEEKDAYS.map((weekday) => (
-          <span key={weekday} className="pb-2 text-[10px] font-semibold uppercase text-litter-muted">
+          <span key={weekday} className="pb-2 text-xs font-semibold uppercase text-litter-muted">
             {weekday}
           </span>
         ))}

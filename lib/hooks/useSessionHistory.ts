@@ -270,7 +270,7 @@ export function useSessionHistory(
     if (!user || (historySource !== 'backup' && !backupStatus.operationalPrimary && backupStatus.pendingCount === 0)) return;
     const timer = setTimeout(() => {
       if (!loadingRef.current) setRetryVersion(value => value + 1);
-    }, document.hidden ? 60_000 : 30_000);
+    }, 30_000);
     return () => clearTimeout(timer);
   }, [user, historySource, backupStatus.pendingCount, backupStatus.operationalPrimary, retryVersion]);
 

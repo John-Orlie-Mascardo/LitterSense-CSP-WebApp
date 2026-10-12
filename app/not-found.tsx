@@ -357,7 +357,7 @@ export default function NotFound() {
         >
           <Link
             href="/"
-            className="group w-full sm:w-auto py-3.5 px-8 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/35 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2.5"
+            className="group w-full sm:w-auto py-4 px-8 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/35 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-3"
           >
             <Home className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" />
             Return to Home

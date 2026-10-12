@@ -118,7 +118,7 @@ export function useCatBackup() {
         keepChecking = true;
       } finally {
         inFlight = false;
-        if (active && keepChecking) timer = setTimeout(() => { void run(); }, document.hidden ? 60_000 : 30_000);
+        if (active && keepChecking) timer = setTimeout(() => { void run(); }, 30_000);
       }
     };
     void run();

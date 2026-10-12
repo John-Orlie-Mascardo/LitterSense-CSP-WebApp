@@ -36,12 +36,13 @@ export const CAT_BREEDS = [
 
 // ── BreedPicker ───────────────────────────────────────────────────────────────
 export interface BreedPickerProps {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
   hasError?: boolean;
 }
 
-export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
+export function BreedPicker({ id, value, onChange, hasError }: BreedPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,9 +77,10 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
   return (
     <div ref={containerRef} className="relative">
       <button
+        id={id}
         type="button"
         onClick={() => { setOpen((o) => !o); setTimeout(() => inputRef.current?.focus(), 50); }}
-        className={`w-full flex items-center gap-2 px-3.5 py-3 rounded-xl border transition-all text-left ${
+        className={`w-full flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-left ${
           open
             ? "border-litter-primary ring-2 ring-litter-primary/20"
             : hasError
@@ -99,7 +101,7 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
 
       {open && (
         <div className="absolute z-50 mt-1.5 w-full rounded-2xl border border-litter-border bg-litter-card shadow-xl overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-litter-border">
+          <div className="flex items-center gap-2 px-3 py-3 border-b border-litter-border">
             <Search className="w-4 h-4 text-litter-muted shrink-0" />
             <input
               ref={inputRef}
@@ -111,7 +113,7 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
             />
             {query && (
               <button type="button" onClick={() => setQuery("")}>
-                <XIcon className="w-3.5 h-3.5 text-litter-muted hover:text-litter-text transition-colors" />
+                <XIcon className="w-4 h-4 text-litter-muted hover:text-litter-text transition-colors" />
               </button>
             )}
           </div>
@@ -120,12 +122,12 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
             {filteredPinned.length > 0 && (
               <>
                 <li className="px-4 pt-2 pb-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-litter-primary">Philippines</span>
+                  <span className="text-xs font-semibold uppercase tracking-widest text-litter-primary">Philippines</span>
                 </li>
                 {filteredPinned.map((breed) => (
                   <li key={breed}>
                     <button type="button" onClick={() => select(breed)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-litter-text hover:bg-litter-primary/10 transition-colors text-left">
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm text-litter-text hover:bg-litter-primary/10 transition-colors text-left">
                       {breed}
                       {value === breed && <Check className="w-4 h-4 text-litter-primary shrink-0" />}
                     </button>
@@ -139,13 +141,13 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
               <>
                 {filteredPinned.length > 0 && (
                   <li className="px-4 pt-1 pb-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-litter-muted">All Breeds</span>
+                    <span className="text-xs font-semibold uppercase tracking-widest text-litter-muted">All Breeds</span>
                   </li>
                 )}
                 {filteredBreeds.map((breed) => (
                   <li key={breed}>
                     <button type="button" onClick={() => select(breed)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-litter-text hover:bg-litter-primary/10 transition-colors text-left">
+                      className="w-full flex items-center justify-between px-4 py-3 text-sm text-litter-text hover:bg-litter-primary/10 transition-colors text-left">
                       {breed}
                       {value === breed && <Check className="w-4 h-4 text-litter-primary shrink-0" />}
                     </button>
@@ -161,7 +163,7 @@ export function BreedPicker({ value, onChange, hasError }: BreedPickerProps) {
                 )}
                 <li>
                   <button type="button" onClick={() => select(trimmed)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-litter-primary hover:bg-litter-primary/10 transition-colors text-left font-medium">
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-litter-primary hover:bg-litter-primary/10 transition-colors text-left font-medium">
                     <Plus className="w-4 h-4 shrink-0" />
                     Use &ldquo;{trimmed}&rdquo;
                   </button>

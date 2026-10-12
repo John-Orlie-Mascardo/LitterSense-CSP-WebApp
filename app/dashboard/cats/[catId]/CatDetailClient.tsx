@@ -501,7 +501,7 @@ export default function CatDetailClient() {
 
           <button
             onClick={openEdit}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-litter-card border border-litter-border text-sm font-medium text-theme-secondary hover:border-litter-primary hover:text-litter-primary transition-all shadow-sm"
           >
             <Pencil className="w-4 h-4" />
             Edit
@@ -542,7 +542,7 @@ export default function CatDetailClient() {
               {/* NOTE(manuscript): Section 3.3.7 profile header no longer displays weight. */}
             </p>
 
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-[#E8F5F1] text-[#1B7A6E] text-xs font-mono font-medium mb-3">
               <Tag className="w-3 h-3" />
               RFID: {details?.rfidTag || "—"}
             </span>
@@ -610,7 +610,7 @@ export default function CatDetailClient() {
                       }}
                       className="w-full accent-litter-primary"
                     />
-                    <p className="text-[11px] text-litter-muted mt-1">Drag the photo to reposition.</p>
+                    <p className="text-xs text-litter-muted mt-1">Drag the photo to reposition.</p>
                   </div>
                 </>
               ) : (
@@ -644,7 +644,7 @@ export default function CatDetailClient() {
 
             {/* Basic Info */}
             <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
 
               <div>
                 <label htmlFor="edit-cat-name-input" className="block text-sm font-medium text-theme-secondary mb-1.5">
@@ -684,7 +684,7 @@ export default function CatDetailClient() {
                     }));
                     setEditErrors((p) => ({ ...p, gender: undefined }));
                   }}
-                  className={`w-full px-3.5 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-litter-input text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-litter-placeholder"}`}
+                  className={`w-full px-4 py-3 rounded-xl border ${editErrors.gender ? "border-red-500" : "border-litter-border"} bg-litter-input text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${editForm.gender ? "text-litter-text" : "text-litter-placeholder"}`}
                 >
                   <option value="" disabled>Select gender</option>
                   <option value="male">Male</option>
@@ -696,11 +696,11 @@ export default function CatDetailClient() {
 
             {/* Health Details */}
             <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
 
               <div>
                 <p className="block text-sm font-medium text-theme-secondary mb-1.5">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-2">
                     <CalendarDays className="w-4 h-4 text-litter-muted" />
                     Date of Birth <span className="text-red-500">*</span>
                   </span>
@@ -715,7 +715,7 @@ export default function CatDetailClient() {
 
             {/* Device */}
             <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Device</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Device</p>
               <div className="rounded-2xl border border-litter-border bg-litter-primary-light/20 p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-litter-primary/10 flex items-center justify-center">
@@ -733,7 +733,7 @@ export default function CatDetailClient() {
                     className="w-full px-4 py-3 pr-12 rounded-xl border border-litter-border bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all"
                   />
                   <button type="button" title="Auto-fill from device"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg text-litter-muted hover:text-litter-primary hover:bg-litter-primary/10 transition-all">
                     <ScanLine className="w-5 h-5" />
                   </button>
                 </div>
@@ -1042,7 +1042,7 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setFilter("all")}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             filter === "all"
               ? "bg-litter-primary text-white"
               : "bg-theme-overlay text-theme-secondary hover:bg-gray-200"
@@ -1052,7 +1052,7 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
         </button>
         <button
           onClick={() => setFilter("anomalies")}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             filter === "anomalies"
               ? "bg-litter-primary text-white"
               : "bg-theme-overlay text-theme-secondary hover:bg-gray-200"
@@ -1107,16 +1107,16 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
           {formatDuration(session.durationSecs)}
         </p>
         {isSummary && (
-          <p className="text-[11px] text-theme-muted">avg duration</p>
+          <p className="text-xs text-theme-muted">avg duration</p>
         )}
       </div>
       <div className="flex items-center gap-3">
         {isSummary ? (
-          <span className="px-2 py-0.5 bg-litter-primary-light text-litter-primary text-xs rounded-full">
+          <span className="px-2 py-1 bg-litter-primary-light text-litter-primary text-xs rounded-full">
             Synced
           </span>
         ) : (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
             <span className="text-sm text-theme-secondary">
               {session.mq135Delta}%
@@ -1272,7 +1272,7 @@ function HealthLogTab({
       {/* Add Note button */}
       <button
         onClick={() => setIsModalOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
+        className="flex items-center gap-2 px-4 py-3 bg-litter-primary text-white rounded-lg font-medium hover:bg-[#165a4e] transition-colors mb-4"
       >
         <Plus className="w-5 h-5" />
         Add Note
@@ -1378,7 +1378,7 @@ function LogCard({ log, onDelete }: Readonly<{ log: HealthLog; onDelete: () => v
         <div>
           <p className="text-sm text-theme-muted">{formatDate(log.date)}</p>
           <span
-            className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}
+            className={`inline-block mt-1 px-2 py-1 rounded-full text-xs font-medium ${typeColors.bg} ${typeColors.text}`}
           >
             {log.type}
           </span>

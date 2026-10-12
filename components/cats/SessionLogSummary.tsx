@@ -45,16 +45,16 @@ function SessionLogPill({ id, count }: StateRow) {
 
   return (
     <div
-      className={`flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 ${colors.bg} ${colors.border}`}
+      className={`flex flex-col items-center gap-2 rounded-xl border px-3 py-3 ${colors.bg} ${colors.border}`}
     >
       {/* Count bubble */}
       <span
-        className={`min-w-[2.25rem] text-center rounded-lg px-2 py-0.5 text-lg font-bold leading-tight ${colors.countBg} ${colors.text}`}
+        className={`min-w-[2.25rem] text-center rounded-lg px-2 py-1 text-lg font-bold leading-tight ${colors.countBg} ${colors.text}`}
       >
         {count}
       </span>
       {/* State label */}
-      <span className={`text-center text-[11px] font-semibold leading-tight ${colors.text}`}>
+      <span className={`text-center text-xs font-semibold leading-tight ${colors.text}`}>
         {state.label}
       </span>
     </div>
@@ -95,7 +95,7 @@ export function SessionLogSummary({ log }: SessionLogSummaryProps) {
 
       {/* Footer with last-updated timestamp */}
       {log?.updatedAt && (
-        <p className="mt-3 text-[11px] text-theme-muted text-right">
+        <p className="mt-3 text-xs text-theme-muted text-right">
           Updated {new Date(log.updatedAt).toLocaleString("en-US", {
             month: "short",
             day: "numeric",

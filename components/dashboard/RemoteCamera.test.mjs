@@ -44,7 +44,7 @@ function harness() {
   exports.RemoteCamera({ onStreamStateChange() {} });
   cleanup = effects[0]();
   return {
-    sockets, logs, cleanup,
+    sockets, logs, cleanup, document,
     async start() { await setImmediate(); sockets[0].open(); await sockets[0].frame(); },
     async renew() { timers.find(timer => !timer.cleared && timer.delay > 200000).fn(); await setImmediate(); },
     block() { let release; blockRenewal = new Promise(resolve => { release = resolve; }); return async () => { release(); await setImmediate(); }; },
@@ -82,4 +82,17 @@ test('cleanup closes both current and pending camera connections', async () => {
   assert.equal(h.sockets.length, 2);
   h.cleanup();
   assert.ok(h.sockets.every(socket => socket.readyState === 3));
+});
+
+test('hidden tab continues decoding and acknowledging frames and renewing its connection', async () => {
+  const h = harness(); await h.start();
+  h.document.hidden = true;
+  await h.sockets[0].frame();
+  assert.equal(h.sockets[0].sent.length, 2);
+  await h.renew();
+  assert.equal(h.sockets.length, 2);
+  h.sockets[1].open(); await h.sockets[1].frame();
+  assert.equal(h.sockets[1].sent.length, 1);
+  assert.equal(h.sockets[0].readyState, 3);
+  h.cleanup();
 });

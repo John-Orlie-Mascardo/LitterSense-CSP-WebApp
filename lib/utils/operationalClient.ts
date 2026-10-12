@@ -39,8 +39,8 @@ function decode(value: unknown): unknown {
 const recordRefreshListeners = new Set<() => void>();
 const notificationRefreshListeners = new Set<() => void>();
 export function refreshNotificationRecords() { notificationRefreshListeners.forEach(refresh => refresh()); }
-const VISIBLE_REFRESH_MS = 5000;
-const HIDDEN_REFRESH_MS = 60000;
+const REFRESH_MS = 5000;
+const MAX_RETRY_MS = 60000;
 async function request(body: unknown) {
   const user = auth.currentUser;
   if (!user) throw new Error('Sign in first');
@@ -92,7 +92,7 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
     if (inFlight) { refreshPending = true; return; }
     void poll();
   };
-  const onVisibility = () => { if (!document.hidden) refresh(); };
+  const onVisibility = refresh;
   document.addEventListener('visibilitychange', onVisibility);
   recordRefreshListeners.add(refresh);
   const listenerPath = specs.get(ref)?.path ?? (ref as fs.CollectionReference).path;
@@ -112,7 +112,7 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
     finally {
       inFlight = false;
       if (!stopped && !legacy && auth.currentUser?.uid === user) {
-        const delay = failures ? Math.min(HIDDEN_REFRESH_MS, VISIBLE_REFRESH_MS * 2 ** Math.min(failures, 4)) : document.hidden ? HIDDEN_REFRESH_MS : VISIBLE_REFRESH_MS;
+        const delay = failures ? Math.min(MAX_RETRY_MS, REFRESH_MS * 2 ** Math.min(failures, 4)) : REFRESH_MS;
         timer = setTimeout(poll, refreshPending ? 0 : delay);
         refreshPending = false;
       }

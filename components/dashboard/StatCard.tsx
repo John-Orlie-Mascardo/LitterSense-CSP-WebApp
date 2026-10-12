@@ -73,7 +73,7 @@ export function StatCard({
   statusLabel,
 }: Readonly<StatCardProps>) {
   return (
-    <div className="bg-litter-card rounded-2xl p-4 sm:p-5 shadow-sm border border-litter-border relative overflow-hidden">
+    <div className="bg-litter-card rounded-2xl p-4 sm:p-6 shadow-sm border border-litter-border relative overflow-hidden">
       {/* Top row: icon left, status label right */}
       <div className="flex items-center justify-between mb-3">
         <Icon className={`w-6 h-6 ${iconColors[status]}`} />

@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Clock, Loader2, XSquare } from "lucide-react";
 import type { AccountDeletionStatus } from "@/lib/utils/accountDeletion";
+import { SettingsIcon } from './SettingsIcon';
 
 interface AccountDeletionRowProps {
   status: AccountDeletionStatus;
@@ -21,7 +22,7 @@ export function AccountDeletionRow({
   if (status === "pending") {
     return (
       <div className="p-4">
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3.5 dark:border-amber-800 dark:bg-amber-950/30">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/30">
           <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
@@ -42,7 +43,7 @@ export function AccountDeletionRow({
             <button
               type="button"
               disabled
-              className="mt-3 rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 opacity-70 dark:border-amber-700 dark:text-amber-300"
+              className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 opacity-70 dark:border-amber-700 dark:text-amber-300"
             >
               Request pending
             </button>
@@ -56,7 +57,7 @@ export function AccountDeletionRow({
     const failed = status === "failed";
     return (
       <div className="p-4">
-        <div className="flex items-start gap-3 rounded-xl border border-litter-border bg-litter-bg p-3.5">
+        <div className="flex items-start gap-3 rounded-xl border border-litter-border bg-litter-bg p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-litter-muted" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-litter-text">
@@ -85,9 +86,9 @@ export function AccountDeletionRow({
     >
       <span className="flex items-center gap-3">
         {isSubmitting ? (
-          <Loader2 className="h-5 w-5 animate-spin text-red-500" />
+          <SettingsIcon icon={Loader2} className="bg-theme-overlay text-red-500 [&>svg]:animate-spin" />
         ) : (
-          <XSquare className="h-5 w-5 text-red-500" />
+          <SettingsIcon icon={XSquare} className="bg-theme-overlay text-red-500" />
         )}
         <span className="text-sm font-medium text-red-500">
           {isLoading

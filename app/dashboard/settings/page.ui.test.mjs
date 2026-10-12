@@ -28,31 +28,15 @@ function sourceBetween(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test("device network settings open Wi-Fi provisioning from a row", () => {
-  const section = sourceBetween(
-    "{/* Device Network Section */}",
-    "{/* Data & Privacy Section */}",
-  );
-
-  assert.match(section, /setShowWifiProvisioning\(true\)/);
-  assert.match(section, /deviceNetworkSummary/);
-  assert.doesNotMatch(section, /id="wifiSsid"/);
-  assert.doesNotMatch(section, /id="wifiPassword"/);
-  assert.doesNotMatch(section, /handleSendDeviceProvisioningToHardware/);
+test("device network section is removed without removing provisioning persistence", () => {
+  assert.doesNotMatch(source, /Device Network Section|DEVICE NETWORK|deviceNetworkSummary/);
+  assert.match(source, /useDeviceProvisioning\(\)/);
+  assert.match(source, /saveDeviceConfig/);
 });
 
-test("device network summary prefers live sensor SSID over saved config", () => {
-  assert.match(source, /useDeviceSensors\(\)/);
-  assert.match(source, /getDeviceNetworkSummary\(\{/);
-  assert.match(source, /configuredSsid:\s*deviceConfig\.wifiSsid/);
-  assert.match(source, /connectedSsid:\s*deviceSensors\?\.connectedSsid/);
-});
-
-test("device network settings appear before notification settings", () => {
-  assert.ok(
-    source.indexOf("{/* Device Network Section */}") <
-      source.indexOf("{/* Notifications Section */}"),
-  );
+test("privacy rows share the same icon container", () => {
+  const section = sourceBetween("{/* Data & Privacy Section */}", "{/* Appearance Section */}");
+  for (const icon of ['Database', 'Download', 'Shield']) assert.match(section, new RegExp(`<SettingsIcon icon=\\{${icon}\\}`));
 });
 
 test("Wi-Fi provisioning form lives inside a dedicated bottom sheet", () => {

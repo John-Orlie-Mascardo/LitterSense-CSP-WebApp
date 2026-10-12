@@ -264,7 +264,7 @@ export default function PredictiveHealthPage() {
             </div>
 
             <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-              <section className="rounded-xl border border-litter-border bg-litter-card p-5 shadow-sm">
+              <section className="rounded-xl border border-litter-border bg-litter-card p-6 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <Database className="h-5 w-5 text-litter-primary" aria-hidden="true" />
@@ -300,7 +300,7 @@ export default function PredictiveHealthPage() {
                 )}
               </section>
 
-              <section className="rounded-xl border border-litter-border bg-litter-card p-5 shadow-sm">
+              <section className="rounded-xl border border-litter-border bg-litter-card p-6 shadow-sm">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-litter-primary-light">
@@ -336,7 +336,7 @@ export default function PredictiveHealthPage() {
                   </button>
                 </div>
                 {analysis ? (
-                  <div className="mt-5 grid gap-3 border-t border-litter-border pt-5 sm:grid-cols-2">
+                  <div className="mt-5 grid gap-3 border-t border-litter-border pt-6 sm:grid-cols-2">
                     <div className="rounded-lg bg-litter-bg p-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-litter-muted">
                         Baseline comparison
@@ -357,7 +357,7 @@ export default function PredictiveHealthPage() {
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-litter-muted">
                         Observed changes
                       </h3>
-                      <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-litter-text">
+                      <ul className="mt-2 space-y-2 text-sm leading-relaxed text-litter-text">
                         {analysis.observedChanges.map((change) => (
                           <li key={change} className="flex gap-2">
                             <span className="text-litter-primary" aria-hidden="true">•</span>
@@ -394,18 +394,18 @@ export default function PredictiveHealthPage() {
               todayAvgDuration={displayDuration}
               trendData={trendData}
             />
-            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5">
+            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-6">
               <h2 className="font-display text-lg font-semibold text-litter-text">Recorded visits</h2>
               {overview.recentVisits.length ? <ul className="mt-3 divide-y divide-litter-border">
                 {overview.recentVisits.map(visit => <li key={visit.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm text-litter-text"><span>{visit.day} · {visit.sessionStatus === "DAILY_SUMMARY" ? `${visit.count} visits (daily summary)` : visit.timeLabel} (Philippine time)</span><span>{Math.floor(visit.durationSecs / 60)}m {Math.round(visit.durationSecs % 60)}s{visit.sessionStatus === "SHORT_SESSION" ? " · Incomplete" : ""}</span></li>)}
               </ul> : <p className="mt-3 text-sm text-litter-muted">No sessions have been recorded for this cat. Check that the collar tag is registered in My Cats and that the RFID device has internet access. Make a confirmed entry and exit to record a visit.</p>}
             </section>
-            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5">
+            <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-6">
               <h2 className="font-display text-lg font-semibold text-litter-text">Litter box environment</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2"><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Urine level: <span className="font-semibold capitalize">{environment.ammonia}</span></p><p className="rounded-lg bg-litter-bg p-3 text-sm text-litter-text">Stool level: <span className="font-semibold capitalize">{environment.h2s}</span></p></div>
               <p className="mt-3 text-xs text-litter-muted">These readings describe the shared litter box environment. Detection flags do not measure gas concentration or diagnose a cat.</p>
             </section>
-            {!presentation.baselineEstablished && <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-5 text-sm text-litter-muted">
+            {!presentation.baselineEstablished && <section className="mb-6 rounded-xl border border-litter-border bg-litter-card p-6 text-sm text-litter-muted">
               <h2 className="font-display text-lg font-semibold text-litter-text">General guidance — not your cat&apos;s personal baseline</h2>
               <p className="mt-3">Many adult cats urinate about twice a day and pass stool about once a day. Diet, hydration and age affect this; an RFID visit does not prove urine or stool was passed.</p>
               <p className="mt-3">Contact a vet for repeated small trips, straining, blood or discomfort. Straining with little or no urine can be an emergency: seek urgent veterinary care without waiting 24 hours. If you see no urine for 24 hours, contact a vet urgently.</p>

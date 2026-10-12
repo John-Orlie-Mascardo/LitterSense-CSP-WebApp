@@ -20,7 +20,17 @@ function loadComponent() {
   vm.runInNewContext(outputText, {
     module: sandboxModule,
     exports: sandboxModule.exports,
-    require,
+    require: (name) => {
+      if (name === './SettingsIcon') {
+        const { outputText: iconCode } = ts.transpileModule(readFileSync(path.join(__dirname, 'SettingsIcon.tsx'), 'utf8'), {
+          compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+        });
+        const iconModule = { exports: {} };
+        vm.runInNewContext(iconCode, { module: iconModule, exports: iconModule.exports, require });
+        return iconModule.exports;
+      }
+      return require(name);
+    },
   });
   return sandboxModule.exports.AccountDeletionRow;
 }

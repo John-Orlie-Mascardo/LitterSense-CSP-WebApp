@@ -71,9 +71,13 @@ export default function AdminRequestsPage() {
 
       {confirmTarget && (
         <div
+          role="presentation"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           onClick={(event) => {
             if (event.target === event.currentTarget) setConfirmUserId(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmUserId(null);
           }}
         >
           <div className="w-full max-w-sm rounded-2xl border border-litter-border bg-litter-card p-6 shadow-xl">
@@ -102,14 +106,14 @@ export default function AdminRequestsPage() {
               <button
                 type="button"
                 onClick={() => setConfirmUserId(null)}
-                className="flex-1 rounded-xl border border-litter-border py-2.5 text-sm font-medium text-litter-text hover:bg-litter-bg"
+                className="flex-1 rounded-xl border border-litter-border py-3 text-sm font-medium text-litter-text hover:bg-litter-bg"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => void handleApprove(confirmTarget.userId)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-medium text-white hover:bg-red-700"
               >
                 <Trash2 className="h-4 w-4" /> Delete Permanently
               </button>

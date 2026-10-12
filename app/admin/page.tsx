@@ -30,7 +30,7 @@ const tooltipStyle = {
   background: "var(--color-card)",
   border: "1px solid var(--color-border)",
   borderRadius: "12px",
-  fontSize: "13px",
+  fontSize: "14px",
   color: "var(--color-text)",
   boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
 };
@@ -164,7 +164,7 @@ export default function AdminOverviewPage() {
             </div>
 
             <div className="flex items-center justify-center gap-8 mt-4 pt-4 border-t border-litter-border">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 <span className="w-3 h-3 rounded-full bg-litter-primary shrink-0" />
                 <div>
                   <p className="font-display font-bold text-litter-text text-lg leading-none">
@@ -174,7 +174,7 @@ export default function AdminOverviewPage() {
                 </div>
               </div>
               <div className="w-px h-8 bg-litter-border" />
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3">
                 <span className="w-3 h-3 rounded-full bg-litter-accent shrink-0" />
                 <div>
                   <p className="font-display font-bold text-litter-text text-lg leading-none">
@@ -202,7 +202,7 @@ export default function AdminOverviewPage() {
               >
                 <XAxis
                   type="number"
-                  tick={{ fontSize: 11, fill: "var(--color-muted)" }}
+                  tick={{ fontSize: 12, fill: "var(--color-muted)" }}
                   tickLine={false}
                   axisLine={false}
                   allowDecimals={false}
@@ -239,7 +239,7 @@ export default function AdminOverviewPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
             href="/admin/users"
-            className="group bg-litter-card rounded-2xl border border-litter-border shadow-sm p-5 flex items-center gap-4 hover:border-litter-primary/40 hover:shadow-md transition-all duration-200"
+            className="group bg-litter-card rounded-2xl border border-litter-border shadow-sm p-6 flex items-center gap-4 hover:border-litter-primary/40 hover:shadow-md transition-all duration-200"
           >
             <div className="w-11 h-11 rounded-xl bg-litter-primary-light flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <Users className="w-5 h-5 text-litter-primary" />
@@ -255,7 +255,7 @@ export default function AdminOverviewPage() {
           </Link>
           <Link
             href="/admin/requests"
-            className="group bg-litter-card rounded-2xl border border-litter-border shadow-sm p-5 flex items-center gap-4 hover:border-litter-primary/40 hover:shadow-md transition-all duration-200"
+            className="group bg-litter-card rounded-2xl border border-litter-border shadow-sm p-6 flex items-center gap-4 hover:border-litter-primary/40 hover:shadow-md transition-all duration-200"
           >
             <div className="w-11 h-11 rounded-xl bg-status-danger flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <Trash2 className="w-5 h-5 text-status-danger" />
@@ -266,7 +266,7 @@ export default function AdminOverviewPage() {
                   Delete Requests
                 </p>
                 {agg.pendingDeletes > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-litter-danger-bg text-litter-danger-text leading-none">
+                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-litter-danger-bg text-litter-danger-text leading-none">
                     {agg.pendingDeletes}
                   </span>
                 )}

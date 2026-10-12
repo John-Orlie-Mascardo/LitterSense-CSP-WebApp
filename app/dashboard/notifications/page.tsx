@@ -119,7 +119,7 @@ function NotificationRow({
           {notification.message}
         </p>
         {notification.catName && (
-          <span className="mt-2 inline-flex rounded-full bg-theme-overlay px-2 py-0.5 text-xs font-medium text-theme-muted">
+          <span className="mt-2 inline-flex rounded-full bg-theme-overlay px-2 py-1 text-xs font-medium text-theme-muted">
             {notification.catName}
           </span>
         )}
@@ -150,6 +150,7 @@ export default function NotificationsPage() {
   } = useNotifications();
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [showMenu, setShowMenu] = useState(false);
+  const [readError, setReadError] = useState("");
 
   const tabs: { key: NotificationTab; label: string }[] = [
     { key: "all", label: "All" },
@@ -187,8 +188,10 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
-    await markAllAsRead();
     setShowMenu(false);
+    setReadError("");
+    try { await markAllAsRead(); }
+    catch { setReadError("Couldn't save read status. Unconfirmed notifications are unread again. Please try again."); }
   };
 
   const handleClearAll = async () => {
@@ -292,8 +295,9 @@ export default function NotificationsPage() {
           </div>
         </div>
       </header>
+      {readError && <p role="alert" className="mx-auto max-w-[1440px] px-4 pt-4 text-sm text-litter-danger sm:px-6 lg:px-8">{readError}</p>}
 
-      <main className="mx-auto max-w-[1440px] px-4 pt-5 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[1440px] px-4 pt-6 sm:px-6 lg:px-8">
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((item) => (
@@ -308,7 +312,7 @@ export default function NotificationsPage() {
             <EmptyState activeTab={activeTab} />
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-6">
             {groups.map((group) => {
               if (group.notifications.length === 0) return null;
 

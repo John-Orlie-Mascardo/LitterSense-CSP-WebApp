@@ -165,7 +165,7 @@ export default function LoginPage() {
             {features.map((feature, index) => (
               <div
                 key={index}
-                className="flex items-center gap-3 px-5 py-3 bg-litter-card/10 backdrop-blur-sm rounded-full w-fit"
+                className="flex items-center gap-3 px-6 py-3 bg-litter-card/10 backdrop-blur-sm rounded-full w-fit"
               >
                 <feature.icon className="w-5 h-5 text-white/90" />
                 <span className="text-white/90 font-medium">
@@ -194,7 +194,7 @@ export default function LoginPage() {
       {/* Right Panel - Form */}
       <div className="flex-1 flex flex-col lg:items-center lg:justify-center bg-litter-card">
         {/* Mobile Header - Teal branded section with gradient */}
-        <div className="lg:hidden flex flex-col items-center text-center w-full px-6 pt-12 pb-8 bg-gradient-to-b from-[#145C54] to-[#1B7A6E] rounded-b-[2rem] mb-8">
+        <div className="lg:hidden flex flex-col items-center text-center w-full px-6 pt-12 pb-8 bg-linear-to-b from-[#145C54] to-[#1B7A6E] rounded-b-4xl mb-8">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-10 h-10 rounded-xl bg-litter-card/20 flex items-center justify-center">
               <svg
@@ -246,7 +246,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="Enter your email"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-4 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>
@@ -268,7 +268,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
-                  className="w-full pl-12 pr-12 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-12 py-4 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
                 <button
@@ -343,7 +343,7 @@ export default function LoginPage() {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full py-3.5 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+            className="w-full py-4 px-4 bg-litter-card border-2 border-litter-border rounded-xl font-medium text-litter-text hover:border-litter-primary/40 hover:bg-litter-card-hover transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path

@@ -155,7 +155,7 @@ export function OnboardingFlow() {
                 <p className="font-display text-lg font-bold text-litter-primary">
                   LitterSense
                 </p>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-theme-muted">
+                <p className="text-xs font-semibold uppercase tracking-widest text-theme-muted">
                   First Launch
                 </p>
               </div>

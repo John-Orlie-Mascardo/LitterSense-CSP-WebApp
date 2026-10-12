@@ -118,7 +118,7 @@ function ResetPasswordContent() {
                   placeholder="New password"
                   minLength={6}
                   required
-                  className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-3.5 text-litter-text focus:border-litter-primary focus:outline-none"
+                  className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-4 text-litter-text focus:border-litter-primary focus:outline-none"
                 />
                 <input
                   type="password"
@@ -127,7 +127,7 @@ function ResetPasswordContent() {
                   placeholder="Confirm new password"
                   minLength={6}
                   required
-                  className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-3.5 text-litter-text focus:border-litter-primary focus:outline-none"
+                  className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-4 text-litter-text focus:border-litter-primary focus:outline-none"
                 />
                 <button
                   type="submit"

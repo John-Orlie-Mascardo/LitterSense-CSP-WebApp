@@ -37,7 +37,7 @@ export function DeletionQueue({
           <p className="mt-0.5 text-xs text-litter-muted">Pending and retryable requests</p>
         </div>
         {pendingCount > 0 && (
-          <span className="shrink-0 rounded-full bg-status-danger px-2.5 py-1 text-xs font-semibold text-status-danger">
+          <span className="shrink-0 rounded-full bg-status-danger px-3 py-1 text-xs font-semibold text-status-danger">
             {pendingCount} pending
           </span>
         )}
@@ -67,7 +67,7 @@ export function DeletionQueue({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-litter-text">{request.userName}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      className={`rounded-full px-2 py-1 text-xs font-semibold uppercase tracking-wide ${
                         failed
                           ? "bg-litter-danger-bg text-litter-danger-text"
                           : processing
@@ -83,8 +83,8 @@ export function DeletionQueue({
                     Submitted {formatDate(request.requestedDate)}
                   </p>
                   {failed && request.error && (
-                    <p className="mt-2 flex items-start gap-1.5 text-xs text-litter-danger-text">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <p className="mt-2 flex items-start gap-2 text-xs text-litter-danger-text">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                       {request.error}
                     </p>
                   )}
@@ -96,13 +96,13 @@ export function DeletionQueue({
                       type="button"
                       onClick={() => onApprove(request.userId)}
                       disabled={busy}
-                      className="rounded-lg bg-litter-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-litter-primary-hover disabled:opacity-50"
+                      className="rounded-lg bg-litter-primary px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-litter-primary-hover disabled:opacity-50"
                     >Approve</button>
                     <button
                       type="button"
                       onClick={() => onReject(request.userId)}
                       disabled={busy}
-                      className="rounded-lg border border-litter-border bg-litter-card px-3 py-1.5 text-xs font-semibold text-litter-text transition-colors hover:border-litter-danger hover:text-litter-danger disabled:opacity-50"
+                      className="rounded-lg border border-litter-border bg-litter-card px-3 py-2 text-xs font-semibold text-litter-text transition-colors hover:border-litter-danger hover:text-litter-danger disabled:opacity-50"
                     >Reject</button>
                   </div>
                 )}
@@ -111,12 +111,12 @@ export function DeletionQueue({
                     type="button"
                     onClick={() => onApprove(request.userId)}
                     disabled={busy}
-                    className="shrink-0 rounded-lg bg-litter-danger px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                    className="shrink-0 rounded-lg bg-litter-danger px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
                   >Retry deletion</button>
                 )}
                 {processing && (
-                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-litter-muted">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Processing
+                  <span className="flex shrink-0 items-center gap-2 text-xs text-litter-muted">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Processing
                     {!busy && <button type="button" onClick={() => onApprove(request.userId)} title="Retry an interrupted cleanup after 10 minutes" className="cursor-pointer underline">Retry cleanup</button>}
                   </span>
                 )}

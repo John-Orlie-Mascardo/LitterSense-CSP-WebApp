@@ -51,7 +51,7 @@ export function AuditLogList({ entries, isLoading }: AuditLogListProps) {
           {entries.map((entry) => {
             const detail = detailsText(entry.details);
             return (
-              <li key={entry.id} className="px-6 py-3.5">
+              <li key={entry.id} className="px-6 py-4">
                 <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start sm:gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-litter-text">{actionLabel(entry.action)}</p>

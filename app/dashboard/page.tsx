@@ -31,7 +31,6 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SessionTimelineCard } from "@/components/dashboard/SessionTimelineCard";
-import { GasSensorHistory } from "@/components/history/GasSensorHistory";
 import { CatBehaviorTrends } from "@/components/dashboard/CatBehaviorTrends";
 import { CatChip } from "@/components/cats/CatChip";
 import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
@@ -367,12 +366,12 @@ function PopulatedDashboardState({
 
 
         {selectedCat && (
-          <div className="flex items-center justify-between p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
+          <div className="flex items-center justify-between gap-3 p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
             <div className="flex items-center gap-3">
               <CatAvatar
                 cat={selectedCat}
                 size={44}
-                className="w-11 h-11 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden"
+                className="w-11 h-11 shrink-0 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-lg overflow-hidden"
               />
               <div>
                 <p className="font-semibold text-litter-text">
@@ -383,7 +382,10 @@ function PopulatedDashboardState({
                 </p>
               </div>
             </div>
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={selectedDisplayState} />
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-litter-muted">Today</span>
+              <BehaviorStateBadge state={selectedDisplayState} />
+            </div>
           </div>
         )}
 
@@ -469,9 +471,8 @@ function PopulatedDashboardState({
             </Link>
           </div>
 
-          <div className="mb-5"><GasSensorHistory preview /></div>
           {recentVisits.length > 0 ? (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {recentActivityGroups.map((group) => (
                 <div key={group.dateKey} className="space-y-3">
                   <h3 className="text-xs font-semibold text-litter-muted">

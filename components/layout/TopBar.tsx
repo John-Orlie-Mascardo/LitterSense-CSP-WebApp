@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /**
  * TopBar.tsx
@@ -171,7 +171,7 @@ export function TopBar() {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             transition={{ type: "spring", stiffness: 600, damping: 30 }}
-            className="flex items-center gap-2.5 select-none"
+            className="flex items-center gap-3 select-none"
           >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
@@ -192,7 +192,7 @@ export function TopBar() {
                 LitterSense
               </span>
               <span
-                className="font-body text-[10px] font-medium tracking-widest uppercase opacity-60"
+                className="font-body text-xs font-medium tracking-widest uppercase opacity-60"
                 style={{ color: "var(--color-text)" }}
               >
                 Feline Health
@@ -237,7 +237,7 @@ export function TopBar() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="hidden sm:flex lg:hidden items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+            className="hidden sm:flex lg:hidden items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
             style={{
               background: "var(--color-primary)",
               color: "white",
@@ -304,8 +304,8 @@ export function TopBar() {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0 }}
-                    className="absolute -top-0.5 -right-0.5 min-w-4.5 h-[18px] bg-red-500 rounded-full flex items-center justify-center"
-                    style={{ boxShadow: "0 0 0 2px var(--color-card)", fontSize: "10px", color: "white", fontWeight: 700, paddingInline: "3px" }}
+                    className="absolute -top-0.5 -right-0.5 min-w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                    style={{ boxShadow: "0 0 0 2px var(--color-card)", fontSize: "12px", color: "white", fontWeight: 700, paddingInline: "4px" }}
                   >
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </motion.span>
@@ -331,7 +331,7 @@ export function TopBar() {
                   }}
                 >
                   {/* Header */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-6 py-4" style={{ borderBottom: "1px solid var(--color-border)" }}>
                     <span className="font-semibold text-base" style={{ color: "var(--color-text)" }}>
                       Notifications {unreadCount > 0 && <span className="ml-1 text-xs font-normal opacity-60">({unreadCount} unread)</span>}
                     </span>
@@ -351,7 +351,7 @@ export function TopBar() {
                       </button>
                     </div>
                   </div>
-                  {actionError && <p role="alert" className="px-5 py-2 text-sm text-status-abnormal">{actionError}</p>}
+                  {actionError && <p role="alert" className="px-6 py-2 text-sm text-status-abnormal">{actionError}</p>}
 
                   {/* List */}
                   <div className="overflow-y-auto" style={{ minHeight: "260px", maxHeight: "520px" }}>
@@ -383,7 +383,7 @@ export function TopBar() {
                               ? `Open notification: ${n.title}`
                               : `Mark notification as read: ${n.title}`
                           }
-                          className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-theme-hover"
+                          className="flex items-start gap-3 px-6 py-4 transition-colors hover:bg-theme-hover"
                           style={{
                             background: n.isRead ? "transparent" : "rgba(var(--color-primary-rgb, 99,102,241), 0.08)",
                             borderBottom: "1px solid var(--color-border)",
@@ -406,11 +406,11 @@ export function TopBar() {
                           <div className="flex flex-col gap-1 shrink-0">
                             {!n.isRead && (
                               <button disabled={isUpdating} aria-label={`Mark as read: ${n.title}`} onClick={(e) => { e.stopPropagation(); void runAction(() => markAsRead(n.id)); }} className="p-1 rounded-lg opacity-50 hover:opacity-100 transition-opacity" title="Mark as read" style={{ color: "var(--color-primary)" }}>
-                                <Check className="w-3.5 h-3.5" />
+                                <Check className="w-4 h-4" />
                               </button>
                             )}
                             <button disabled={isUpdating} aria-label={`Delete: ${n.title}`} onClick={(e) => { e.stopPropagation(); void runAction(() => deleteNotification(n.id)); }} className="p-1 rounded-lg opacity-30 hover:opacity-80 transition-opacity" title="Delete" style={{ color: "var(--color-text)" }}>
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -419,7 +419,7 @@ export function TopBar() {
                   </div>
 
                   {/* Footer */}
-                  <div className="px-5 py-3.5" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <div className="px-6 py-4" style={{ borderTop: "1px solid var(--color-border)" }}>
                     <Link href="/dashboard/notifications" onClick={() => setDropdownOpen(false)}>
                       <span className="block rounded-lg py-2 text-center text-xs font-semibold text-litter-primary transition-colors hover:bg-theme-hover">
                         Open notifications

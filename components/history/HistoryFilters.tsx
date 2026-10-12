@@ -70,7 +70,7 @@ function FilterFields({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">Date range</p>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

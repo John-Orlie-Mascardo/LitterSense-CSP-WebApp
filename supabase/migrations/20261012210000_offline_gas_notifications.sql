@@ -1,6 +1,10 @@
 -- Historical gas alerts share existing preferences, realtime bell and push delivery.
 -- The history row and alert intent commit together before the board is acknowledged.
 begin;
+set local lock_timeout='5s';
+set local statement_timeout='30s';
+select pg_catalog.pg_advisory_xact_lock(621006,2);
+lock table public.operational_records in access exclusive mode;
 create index if not exists gas_history_capture on public.operational_records
  (owner_id,(data->>'deviceId'),(data->>'capturedAt'))
  where data->>'source'='gas-ultrasonic' and document_path like 'users/%/sensorHistory/%';

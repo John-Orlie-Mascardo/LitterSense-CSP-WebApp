@@ -32,7 +32,7 @@ export function CatChip({ cat, isActive, displayState, onClick }: CatChipProps) 
   return (
     <button
       onClick={onClick}
-      className={`flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-full border-2 transition-all duration-200 shrink-0 ${
+      className={`flex items-center justify-center gap-3 px-4 py-3 rounded-full border-2 transition-all duration-200 shrink-0 ${
         isActive
           ? "bg-litter-primary border-litter-primary text-white shadow-md"
           : "bg-litter-card border-litter-border text-litter-text hover:border-litter-primary/40 hover:shadow-sm"
