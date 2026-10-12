@@ -1,5 +1,5 @@
 import { getAdminAuth } from '@/lib/configs/firebase-admin';
-import { assertOperationalReady, OperationalError, rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { assertOperationalReady, readOperationalRecord, OperationalError, rfidPrimaryEnabled } from '@/lib/server/operationalStore';
 import { deleteOperationalPhoto, uploadOperationalPhoto } from '@/lib/server/operationalMedia';
 const headers = { 'Cache-Control': 'no-store, private' };
 export async function POST(request: Request) {
@@ -17,7 +17,18 @@ export async function POST(request: Request) {
     if (!reader) throw new OperationalError('Missing photo', 400);
     const chunks: Uint8Array[] = []; let size = 0;
     for (;;) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 2097152) { await reader.cancel(); throw new OperationalError('Photo too large', 413); } chunks.push(value); }
+    const activeProfile = async () => {
+      const profile = await readOperationalRecord(uid, `users/${uid}`);
+      return Boolean(profile && !['processing', 'failed'].includes(String(profile.data.deletionStatus)));
+    };
+    if (!await activeProfile()) throw new OperationalError('Account deletion in progress', 409);
     const url = await uploadOperationalPhoto(uid, path, Buffer.concat(chunks), request.headers.get('content-type') ?? '');
+    try {
+      if (!await activeProfile()) throw new OperationalError('Account deletion in progress', 409);
+    } catch (error) {
+      await deleteOperationalPhoto(uid, path);
+      throw error;
+    }
     return Response.json({ url }, { headers });
   } catch (error) { return Response.json({ error: error instanceof OperationalError ? error.message : 'Photo unavailable' }, { status: error instanceof OperationalError ? error.status : 503, headers }); }
 }
