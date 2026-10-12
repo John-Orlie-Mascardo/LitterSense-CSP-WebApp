@@ -33,6 +33,7 @@ import {
   getEmailLoginErrorMessage,
   getGoogleLoginErrorMessage,
 } from "@/lib/presentation/loginFeedback";
+import { recordAdminLogin } from "@/lib/utils/adminLoginAudit";
 
 const features = [
   { icon: Activity, text: "Real-time litter monitoring" },
@@ -91,7 +92,8 @@ export default function LoginPage() {
     setIsLoading(true);
     setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      await recordAdminLogin(userCredential.user, "password");
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {
@@ -118,6 +120,7 @@ export default function LoginPage() {
         createdAt: serverTimestamp(),
       }, { merge: true });
 
+      await recordAdminLogin(user, "google");
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {

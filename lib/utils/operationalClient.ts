@@ -70,7 +70,7 @@ export const getDocs: typeof fs.getDocs = (async (ref: fs.Query) => {
   let docs = (await request({ action: 'list', path: spec.path })).rows.map((row: Row) => snapshot(fs.doc(ref.firestore, row.path), row)) as fs.QueryDocumentSnapshot[];
   for (const c of spec.constraints.filter(c => c.kind === 'where')) docs = docs.filter(d => {
     const a = comparable(d.get(c.field!)), b = comparable(c.value);
-    switch (c.op) { case '==': return a === b; case '>=': return a >= b; case '<=': return a <= b; case '>': return a > b; case '<': return a < b; default: throw new Error('Unsupported primary filter'); }
+    switch (c.op) { case '==': return a === b; case 'in': return Array.isArray(c.value) && c.value.some(value => comparable(value) === a); case '>=': return a >= b; case '<=': return a <= b; case '>': return a > b; case '<': return a < b; default: throw new Error('Unsupported primary filter'); }
   });
   const orders = spec.constraints.filter(c => c.kind === 'order');
   if (orders.length) docs.sort((a, b) => { for (const c of orders) { const av = comparable(c.field === '__name__' ? a.id : a.get(c.field!)), bv = comparable(c.field === '__name__' ? b.id : b.get(c.field!)); if (av !== bv) return (av < bv ? -1 : 1) * (c.value === 'desc' ? -1 : 1); } return a.id.localeCompare(b.id); });

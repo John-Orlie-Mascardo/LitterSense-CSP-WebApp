@@ -3,13 +3,6 @@ import { assertOperationalReady, assertOperationalFoundation, commitOperational,
 import { readOperationalCatalog } from './operationalCats';
 import { refreshPhotos, storePhotoPointers } from './operationalMedia';
 
-export const MASTER_ADMIN_EMAIL = 'maclaurenz.cultura@gmail.com';
-export async function readAdminRecord(email: string) {
-  const response = await smsStoreRequest(`operational_records?owner_id=eq.%40system&document_path=eq.${encodeURIComponent(`admins/${email}`)}&select=document_path,owner_id,data,revision&limit=1`);
-  if (!response.ok) throw new OperationalError('Admin records unavailable');
-  return (await response.json() as OperationalRecord[])[0] ?? null;
-}
-export async function isOperationalAdmin(email: string) { return email === MASTER_ADMIN_EMAIL || !!(email && await readAdminRecord(email)); }
 export async function projectOperationalAccount(uid: string) {
   const timingStartedAt = Date.now();
   await assertOperationalReady(uid);
@@ -25,28 +18,30 @@ export async function projectOperationalAccount(uid: string) {
   console.info('[alert timing] Canonical recipient refresh', { elapsedMs: Date.now() - timingStartedAt });
 }
 const allowed = new Set(['cats', 'catDetails', 'sessions', 'healthLogs', 'notifications', 'reports', 'settings', 'deviceConfig', 'deviceState', 'catStats', 'dailyCatStats', 'catSessionLog']);
-type Identity = { uid: string; email?: string };
+type Identity = { uid: string; email?: string; admin?: unknown };
 export type RecordWrite = { path: string; action: 'set' | 'update' | 'delete'; data?: Record<string, unknown>; merge?: boolean; revision?: number };
 export async function accessRecord(identity: Identity, path: string, write = false): Promise<string> {
   if (typeof path !== 'string' || path.length > 1024 || /[\u0000-\u001f*%]/.test(path) || path.split('/').some(s => !s || s === '.' || s === '..')) throw new OperationalError('Invalid record path', 400);
   const parts = path.split('/');
   if (parts[0] === 'users') {
-    if (parts.length === 1) { if (write || !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403); return '@all'; }
-    if (parts[1] !== identity.uid && !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403);
+    if (parts.length === 1) { if (write || identity.admin !== true) throw new OperationalError('Forbidden', 403); return '@all'; }
+    if (parts[1] !== identity.uid && identity.admin !== true) throw new OperationalError('Forbidden', 403);
     if (parts.length > 2 && !allowed.has(parts[2])) throw new OperationalError('Forbidden', 403);
     if (write && (parts[1] !== identity.uid || ['cats', 'catDetails', 'deviceConfig', 'deviceState'].includes(parts[2]))) throw new OperationalError('Use the dedicated mutation endpoint', 403);
     return parts[1];
   }
-  if (parts[0] === 'admins') {
-    const ownRoleRead = !write && parts.length === 2 && parts[1] === identity.email;
-    if (!ownRoleRead && !await isOperationalAdmin(identity.email ?? '')) throw new OperationalError('Forbidden', 403);
+  if (parts[0] === 'admins' || parts[0] === 'auditLogs') {
+    if (write || identity.admin !== true) throw new OperationalError('Forbidden', 403);
     return '@system';
   }
-  if (parts[0] === 'deleteRequests') return await isOperationalAdmin(identity.email ?? '') ? '@all' : identity.uid;
+  if (parts[0] === 'deleteRequests') { if (write) throw new OperationalError('Use the dedicated deletion endpoint', 403); return identity.admin === true ? '@all' : identity.uid; }
   throw new OperationalError('Forbidden', 403);
 }
 async function fetchSpecial(owner: string, path: string, list = false) {
-  const response = await smsStoreRequest(`operational_records?${owner === '@all' ? '' : `owner_id=eq.${encodeURIComponent(owner)}&`}document_path=${list ? 'like' : 'eq'}.${encodeURIComponent(list ? `${path}/*` : path)}&select=document_path,owner_id,data,revision&order=document_path.asc&limit=5001`);
+  const latestAudit = path === 'auditLogs' && list;
+  const order = latestAudit ? 'data->createdAt->>value.desc,document_path.desc' : 'document_path.asc';
+  const cap = latestAudit ? 50 : 5001;
+  const response = await smsStoreRequest(`operational_records?${owner === '@all' ? '' : `owner_id=eq.${encodeURIComponent(owner)}&`}document_path=${list ? 'like' : 'eq'}.${encodeURIComponent(list ? `${path}/*` : path)}&select=document_path,owner_id,data,revision&order=${order}&limit=${cap}`);
   if (!response.ok) throw new OperationalError('Records unavailable');
   const rows = await response.json() as OperationalRecord[];
   if (rows.length > 5000) throw new OperationalError('Collection limit exceeded');
@@ -99,13 +94,18 @@ export async function writeClientRecords(identity: Identity, writes: RecordWrite
       if (write.revision !== undefined && write.revision !== (row?.revision ?? 0)) throw new OperationalError('Transaction changed. Retry.', 409, 'CLIENT_CONFLICT');
       if (write.action === 'update' && !row) throw new OperationalError('Record not found', 404);
       if (write.path.startsWith('deleteRequests/')) {
-        if (write.action === 'delete' || !await isOperationalAdmin(identity.email ?? '') && (row || write.data?.userId !== identity.uid || write.data.status !== 'pending')) throw new OperationalError('Forbidden', 403);
+        if (write.action === 'delete' || identity.admin !== true && (row || write.data?.userId !== identity.uid || write.data.status !== 'pending')) throw new OperationalError('Forbidden', 403);
       }
-      if (write.path === `users/${identity.uid}` && write.data && ('fcmTokens' in write.data || 'role' in write.data)) throw new OperationalError('Use the dedicated token endpoint', 403);
+      if (write.path === `users/${identity.uid}` && write.data && Object.keys(write.data).some(key => ['fcmTokens', 'role', 'admin', 'deletionStatus', 'deletionRequestedAt', 'deletionStartedAt', 'deletionError'].includes(key.split('.')[0]))) throw new OperationalError('Use the dedicated token endpoint', 403);
       if (write.action === 'delete') changes.push({ action: 'delete', document_path: write.path, expected_revision: row?.revision ?? 0 });
       else {
         const data = storePhotoPointers(materialize(write.data, row?.rawData ?? row?.data, new Date().toISOString()) as Record<string, unknown>, owner);
         const next = write.merge || write.action === 'update' ? mergeData(row?.rawData ?? row?.data ?? {}, data) : data;
+        if (write.path === `users/${identity.uid}`) {
+          for (const field of ['fcmTokens', 'role', 'admin', 'deletionStatus', 'deletionRequestedAt', 'deletionStartedAt', 'deletionError']) {
+            if (row?.data && field in row.data) next[field] = row.rawData?.[field] ?? row.data[field];
+          }
+        }
         changes.push(setOperational(write.path, row, next));
       }
     }

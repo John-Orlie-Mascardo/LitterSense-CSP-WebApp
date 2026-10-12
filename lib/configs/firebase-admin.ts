@@ -5,10 +5,13 @@
  * Never expose this to the client — no NEXT_PUBLIC_ prefix.
  */
 
+import "server-only";
+
 import { cert, getApps, initializeApp, App } from "firebase-admin/app";
 import { getAuth, Auth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
+import { getStorage } from "firebase-admin/storage";
 
 let adminApp: App;
 let adminAuth: Auth;
@@ -47,4 +50,12 @@ export function getAdminFirestore() {
 
 export function getAdminMessaging() {
   return getMessaging(getAdminApp());
+}
+
+export function getAdminStorageBucket() {
+  const bucketName = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  if (!bucketName) {
+    throw new Error("Missing NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET environment variable.");
+  }
+  return getStorage(getAdminApp()).bucket(bucketName);
 }

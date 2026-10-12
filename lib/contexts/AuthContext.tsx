@@ -4,9 +4,9 @@
  * Synchronizes Firebase authentication, owner profiles, onboarding, and admin access.
  *
  * DONE: auth/profile synchronization and role-aware consumers
- * PLACEHOLDER: admin authorization still uses an email allowlist
+ * PLACEHOLDER: none
  *
- * NEXT: backend owners must replace the allowlist with verified custom claims.
+ * Admin authorization uses refreshed Firebase custom claims.
  */
 
 "use client";
@@ -15,21 +15,8 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "@/lib/utils/operationalClient";
 import { auth, db } from "@/lib/configs/firebase";
+import { resolveAdminClaim } from "@/lib/utils/adminClaims";
 import { resolveOnboardingComplete } from "@/lib/utils/onboardingState";
-
-// TEMP (DEV ONLY): The override remains off; the branch is retained only for
-// local UI review and must not be enabled in the defense or production build.
-//
-// FIXME(defense): Replace the email allowlist with Firebase custom claims before
-// the Aug 26-28 defense; the steps below document the pending backend work.
-//   1. Use a Firebase Admin SDK Cloud Function to set a custom claim on the
-//      user's token: admin.auth().setCustomUserClaims(uid, { role: "admin" })
-//   2. The user must sign out and back in (or call getIdToken(true)) to refresh
-//      their token so the new claim is picked up.
-//   3. Delete the override and email allowlist so the verified claim is the
-//      only role source.
-const DEV_ADMIN_OVERRIDE = false;
-const ADMIN_EMAILS = ["maclaurenz.cultura@gmail.com"];
 
 interface AuthContextType {
   user: User | null;
@@ -63,6 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authGeneration = useRef(0);
   const profileGeneration = useRef(0);
   const refreshGeneration = useRef(0);
+  const claimGeneration = useRef(0);
 
   const loadUserProfile = useCallback(async (currentUser: User) => {
     let profileOnboardingComplete = true;
@@ -77,16 +65,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return profileOnboardingComplete;
   }, []);
 
-  const loadAdminStatus = useCallback(async (currentUser: User) => {
-    if (DEV_ADMIN_OVERRIDE || (currentUser.email && ADMIN_EMAILS.includes(currentUser.email))) {
-      return true;
-    }
-    if (!currentUser.email) return false;
+  const loadAdminStatus = useCallback(async (currentUser: User, forceRefresh = false) => {
     try {
-      const adminDocSnap = await getDoc(doc(db, "admins", currentUser.email));
-      return adminDocSnap.exists();
+      return forceRefresh ? await resolveAdminClaim(currentUser, true) : await resolveAdminClaim(currentUser);
     } catch (error) {
-      console.error("Error checking admin status:", error);
+      console.error("Error checking admin claim:", error);
       return false;
     }
   }, []);
@@ -103,6 +86,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       const generation = ++authGeneration.current;
       const profileRequest = ++profileGeneration.current;
+      const claimRequest = ++claimGeneration.current;
       ownerUid.current = currentUser?.uid ?? null;
       setUser(currentUser);
       setLoading(Boolean(currentUser));
@@ -116,7 +100,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           loadAdminStatus(currentUser),
         ]);
         if (!isCurrentOwner(currentUser.uid, generation)) return;
-        setIsAdmin(admin);
+        if (claimGeneration.current === claimRequest) setIsAdmin(admin);
         // A successful refresh can replace the initial profile while its role
         // lookup is still pending. Only the latest profile read may publish it.
         if (profileGeneration.current === profileRequest) {
@@ -148,12 +132,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(currentUser);
     forceUserRefresh((revision) => revision + 1);
     const profileRequest = ++profileGeneration.current;
-    const profileComplete = await loadUserProfile(currentUser);
+    const claimRequest = ++claimGeneration.current;
+    const [profileComplete, adminClaim] = await Promise.all([loadUserProfile(currentUser), loadAdminStatus(currentUser, true)]);
     if (!isCurrentOwner(currentUser.uid, generation)
       || profileGeneration.current !== profileRequest) return;
+    if (claimGeneration.current === claimRequest) setIsAdmin(adminClaim);
     setOnboardingComplete(profileComplete);
     setProfileLoading(false);
-  }, [isCurrentOwner, loadUserProfile]);
+  }, [isCurrentOwner, loadAdminStatus, loadUserProfile]);
 
   return (
     <AuthContext.Provider
