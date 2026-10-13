@@ -65,21 +65,28 @@ const isInProgress = (session: Session) =>
   session.sessionStatus === "IN_PROGRESS" || !session.endedAt;
 
 function Avatar({ cat }: { readonly cat: Cat | null }) {
+  let content;
+  if (cat?.avatar) {
+    content = (
+      <Image
+        src={cat.avatar}
+        alt={cat.name}
+        width={40}
+        height={40}
+        unoptimized
+        className="h-full w-full object-cover"
+        style={{ width: "100%", height: "100%" }}
+      />
+    );
+  } else if (cat) {
+    content = cat.name.charAt(0).toUpperCase();
+  } else {
+    content = <CatIcon className="h-5 w-5" />;
+  }
+
   return (
     <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-litter-primary-light flex items-center justify-center text-sm font-semibold text-litter-primary">
-      {cat?.avatar ? (
-        <Image
-          src={cat.avatar}
-          alt={cat.name}
-          width={40}
-          height={40}
-          unoptimized
-          className="h-full w-full object-cover"
-          style={{ width: "100%", height: "100%" }}
-        />
-      ) : (
-        cat ? cat.name.charAt(0).toUpperCase() : <CatIcon className="h-5 w-5" />
-      )}
+      {content}
     </div>
   );
 }
@@ -124,7 +131,6 @@ export function SessionTimelineCard({
               Recorded {activityDate}
             </span>
           </div>
-          <>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-litter-bg px-3 py-2">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">
@@ -158,7 +164,6 @@ export function SessionTimelineCard({
             <Clock3 className="h-4 w-4" />
             <span>{interrupted ? "Duration unknown - device restarted" : formatDuration(session.durationSecs)}</span>
           </div>
-          </>
         </div>
       </div>
     </div>
