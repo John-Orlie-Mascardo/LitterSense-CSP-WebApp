@@ -161,7 +161,13 @@ test('WebSocket auth, viewer demand and latest-frame delivery stay bounded and p
 
 test('sensor presence is authenticated, separated by board, and broadcast without persistence', async t => {
   let now = Date.now();
-  const server = createRelay({ secret, origins: ['https://app.example.com'], now: () => now });
+  const server = createRelay({
+    secret,
+    origins: ['https://app.example.com'],
+    now: () => now,
+    presenceStaleMs: 50,
+    presenceSweepMs: 10,
+  });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const connections = [];
   t.after(() => { for (const ws of connections) ws.terminate(); server.closeAllConnections(); server.close(); });
@@ -176,10 +182,13 @@ test('sensor presence is authenticated, separated by board, and broadcast withou
 
   const publisherRfid = await connectSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-publish', sensorRfid)}` } });
   connections.push(publisherRfid.ws);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(viewerRfid.messages.length, 0, 'opening a socket alone must not prove the physical board is alive');
+  publisherRfid.ws.send('{"type":"heartbeat"}');
   assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: true, updatedAt: new Date(now).toISOString() });
   assert.equal(viewerRfid.messages.length, 0, 'gas board status must not leak into the RFID view');
 
-  publisherRfid.ws.close();
+  now += 51;
   assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: false, updatedAt: null });
 
   const expired = ticket('presence-view', sensorRfid, now - 3601000);

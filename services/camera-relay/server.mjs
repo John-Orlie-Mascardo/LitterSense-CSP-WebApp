@@ -28,7 +28,7 @@ export function verifyTicket(token, secret, scope, now = Date.now()) {
   } catch { return null; }
 }
 
-export function createRelay({ secret, origins = [], now = Date.now, maxDevices = 100 } = {}) {
+export function createRelay({ secret, origins = [], now = Date.now, maxDevices = 100, presenceStaleMs = 4000, presenceSweepMs = 250 } = {}) {
   if (typeof secret !== 'string' || secret.length < 32) throw new Error('CAMERA_RELAY_SECRET must contain at least 32 characters');
   const devices = new Map();
   const allowedOrigins = new Set(origins);
@@ -36,7 +36,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
   function stateFor(id) {
     let state = devices.get(id);
     if (!state && devices.size < maxDevices) {
-      state = { demandUntil: 0, frame: null, frameAt: 0, touched: now(), uploading: false, viewers: new Set(), publisher: null, presenceViewers: new Set(), presencePublisher: null, presenceAt: 0 };
+      state = { demandUntil: 0, frame: null, frameAt: 0, touched: now(), uploading: false, viewers: new Set(), publisher: null, presenceViewers: new Set(), presencePublisher: null, presenceAt: 0, presenceConnectedAt: 0, presenceReportedOnline: false };
       devices.set(id, state);
     }
     return state;
@@ -44,6 +44,10 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
   function demandFor(state) { return state.viewers.size > 0 || state.demandUntil > now(); }
   function signalDemand(state) {
     if (state.publisher?.readyState === WebSocket.OPEN) state.publisher.send(demandFor(state) ? '1' : '0');
+  }
+  function isPresenceOnline(state) {
+    return state.presenceReportedOnline && state.presencePublisher?.readyState === WebSocket.OPEN &&
+      state.presenceAt > 0 && now() - state.presenceAt <= presenceStaleMs;
   }
   function deliver(viewer, state) {
     if (!viewer.ready || !state.frame || now() - state.frameAt > 2000 || viewer.lastFrame === state.frameAt) return;
@@ -61,7 +65,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     for (const viewer of state.viewers) deliver(viewer, state);
   }
   function sendPresence(state, role) {
-    const online = state.presencePublisher?.readyState === WebSocket.OPEN;
+    const online = isPresenceOnline(state);
     const message = JSON.stringify({ type: 'presence', role, online, updatedAt: online && state.presenceAt ? new Date(state.presenceAt).toISOString() : null });
     for (const viewer of state.presenceViewers) {
       if (viewer.readyState === WebSocket.OPEN) viewer.send(message);
@@ -174,21 +178,32 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
         deliver(ws, state);
       } else if (scope === 'presence-publish') {
         ws.isPresence = true;
+        ws.presenceRole = claim.role;
         ws.missedPongs = 0;
         state.presencePublisher = ws;
-        state.presenceAt = now();
-        sendPresence(state, claim.role);
+        state.presenceAt = 0;
+        state.presenceConnectedAt = now();
+        state.presenceReportedOnline = false;
       } else {
         ws.isPresence = true;
         ws.presenceRole = claim.role;
         state.presenceViewers.add(ws);
-        const online = state.presencePublisher?.readyState === WebSocket.OPEN;
+        const online = isPresenceOnline(state);
         ws.send(JSON.stringify({ type: 'presence', role: claim.role, online, updatedAt: online && state.presenceAt ? new Date(state.presenceAt).toISOString() : null }));
       }
       ws.on('message', (data, binary) => {
         if (!verifyTicket(token, secret, scope, now())) { ws.close(1008, 'Session expired'); return; }
         state.touched = now();
-        if (scope === 'presence-publish' || scope === 'presence-view') { ws.close(1008, 'Presence channel is read-only'); return; }
+        if (scope === 'presence-publish') {
+          if (binary || data.length > 64 || data.toString() !== '{"type":"heartbeat"}') { ws.close(1008, 'Invalid presence heartbeat'); return; }
+          state.presenceAt = now();
+          if (!state.presenceReportedOnline) {
+            state.presenceReportedOnline = true;
+            sendPresence(state, claim.role);
+          }
+          return;
+        }
+        if (scope === 'presence-view') { ws.close(1008, 'Presence channel is read-only'); return; }
         if (scope === 'view') {
           if (binary || data.toString() !== 'ready') { ws.close(1008, 'Invalid control'); return; }
           ws.ready = true;
@@ -207,9 +222,12 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
         if (scope === 'publish' && state.publisher === ws) state.publisher = null;
         state.viewers.delete(ws);
         if (scope === 'presence-publish' && state.presencePublisher === ws) {
+          const wasOnline = state.presenceReportedOnline;
           state.presencePublisher = null;
           state.presenceAt = 0;
-          sendPresence(state, claim.role);
+          state.presenceConnectedAt = 0;
+          state.presenceReportedOnline = false;
+          if (wasOnline) sendPresence(state, claim.role);
         }
         state.presenceViewers.delete(ws);
         if (!demandFor(state)) state.frame = null;
@@ -242,13 +260,29 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     }
   }, PRESENCE_HEARTBEAT_MS);
   presenceHeartbeat.unref();
+  const presenceExpiry = setInterval(() => {
+    const time = now();
+    for (const state of devices.values()) {
+      const publisher = state.presencePublisher;
+      if (!publisher || publisher.readyState !== WebSocket.OPEN) continue;
+      const lastSeen = state.presenceAt || state.presenceConnectedAt;
+      if (!lastSeen || time - lastSeen <= presenceStaleMs) continue;
+      const wasOnline = state.presenceReportedOnline;
+      state.presenceAt = 0;
+      state.presenceConnectedAt = 0;
+      state.presenceReportedOnline = false;
+      if (wasOnline) sendPresence(state, publisher.presenceRole);
+      publisher.terminate();
+    }
+  }, presenceSweepMs);
+  presenceExpiry.unref();
   server.requestTimeout = 10000;
   server.headersTimeout = 10000;
   server.setTimeout(10000, socket => socket.destroy());
   server.maxRequestsPerSocket = 1000;
   const cleanup = setInterval(prune, 10000);
   cleanup.unref();
-  server.on('close', () => { clearInterval(cleanup); clearInterval(heartbeat); clearInterval(presenceHeartbeat); for (const ws of sockets.clients) ws.terminate(); sockets.close(); });
+  server.on('close', () => { clearInterval(cleanup); clearInterval(heartbeat); clearInterval(presenceHeartbeat); clearInterval(presenceExpiry); for (const ws of sockets.clients) ws.terminate(); sockets.close(); });
   return server;
 }
 
