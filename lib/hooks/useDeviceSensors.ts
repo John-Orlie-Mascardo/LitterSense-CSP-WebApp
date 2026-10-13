@@ -4,6 +4,7 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { subscribeSensorChanges } from "@/lib/utils/notificationLive";
 import { applySensorPresence } from "@/lib/utils/sensorPresence";
+import { subscribeDevicePresence, type SensorPresenceEvent, type SensorPresenceRole } from "@/lib/utils/devicePresenceClient";
 
 export type DeviceSensors = {
   serverTime?: string;
@@ -113,7 +114,52 @@ function useSensorPolling() {
     let refreshPending = false;
     let rawSnapshot: DeviceSensors | null = null;
     let fetchedAt = 0, serverAt = 0;
+    const livePresence: Partial<Record<SensorPresenceRole, SensorPresenceEvent>> = {};
     const controller = new AbortController();
+
+    const withLivePresence = (data: DeviceSensors, observedAt: number) => {
+      const result = applySensorPresence(data, observedAt);
+      const rfid = livePresence.rfid;
+      const gas = livePresence['gas-ultrasonic'];
+      if (rfid) {
+        result.online = rfid.online;
+        result.rfidState = rfid.online ? 'online' : 'stale';
+        if (rfid.updatedAt) result.rfidUpdatedAt = rfid.updatedAt;
+      }
+      if (gas) {
+        result.gasUltrasonicOnline = gas.online;
+        result.gasUltrasonicState = gas.online ? 'online' : 'stale';
+        if (gas.updatedAt) result.gasUltrasonicUpdatedAt = gas.updatedAt;
+      }
+      return result;
+    };
+    const refreshFromSnapshot = () => {
+      if (!isMounted) return;
+      const data = rawSnapshot
+        ? withLivePresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt))
+        : null;
+      setState(previous => {
+        if (previous.ownerId !== user.uid || !previous.data) return previous;
+        const next = data ? { ...previous, data } : { ...previous, data: { ...previous.data } };
+        if (!data) {
+          const rfid = livePresence.rfid;
+          const gas = livePresence['gas-ultrasonic'];
+          if (rfid) {
+            next.data.online = rfid.online;
+            next.data.rfidState = rfid.online ? 'online' : 'stale';
+            if (rfid.updatedAt) next.data.rfidUpdatedAt = rfid.updatedAt;
+          }
+          if (gas) {
+            next.data.gasUltrasonicOnline = gas.online;
+            next.data.gasUltrasonicState = gas.online ? 'online' : 'stale';
+            if (gas.updatedAt) next.data.gasUltrasonicUpdatedAt = gas.updatedAt;
+          }
+        }
+        return (previous.data.online === next.data.online && previous.data.gasUltrasonicOnline === next.data.gasUltrasonicOnline &&
+          previous.data.rfidState === next.data.rfidState && previous.data.gasUltrasonicState === next.data.gasUltrasonicState)
+          ? previous : next;
+      });
+    };
 
     const pollSensors = async () => {
       if (!isMounted || inFlight) return;
@@ -127,7 +173,7 @@ function useSensorPolling() {
         fetchedAt = Date.now();
         const serverTime = Date.parse(data.serverTime ?? '');
         serverAt = Number.isFinite(serverTime) ? serverTime : fetchedAt;
-        setState({ data: applySensorPresence(data, serverAt), isLoading: false, error: null, ownerId: user.uid });
+        setState({ data: withLivePresence(data, serverAt), isLoading: false, error: null, ownerId: user.uid });
       } catch (error) {
         if (!isMounted || controller.signal.aborted) return;
         ++failures;
@@ -135,8 +181,10 @@ function useSensorPolling() {
         setState((previous) => ({
           data: previous.ownerId === user.uid && previous.data ? {
             ...previous.data,
-            online: false,
-            gasUltrasonicOnline: false,
+            online: livePresence.rfid?.online ?? false,
+            rfidState: livePresence.rfid ? (livePresence.rfid.online ? 'online' : 'stale') : 'stale',
+            gasUltrasonicOnline: livePresence['gas-ultrasonic']?.online ?? false,
+            gasUltrasonicState: livePresence['gas-ultrasonic'] ? (livePresence['gas-ultrasonic'].online ? 'online' : 'stale') : 'stale',
             // A cloud read failure cannot undo the last confirmed RFID entry.
           } : null,
           ownerId: user.uid,
@@ -171,10 +219,21 @@ function useSensorPolling() {
       else void pollSensors();
     };
     const stopRealtime = subscribeSensorChanges(requestRefresh);
+    const stopPresence = subscribeDevicePresence(
+      () => user.getIdToken(),
+      event => {
+        livePresence[event.role] = event;
+        refreshFromSnapshot();
+      },
+      role => {
+        delete livePresence[role];
+        refreshFromSnapshot();
+      },
+    );
     window.addEventListener('online', requestRefresh);
     const presenceTimer = window.setInterval(() => {
       if (!rawSnapshot || !isMounted) return;
-      const data = applySensorPresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt));
+      const data = withLivePresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt));
       setState(previous => previous.ownerId !== user.uid || !previous.data ||
         (previous.data.online === data.online && previous.data.gasUltrasonicOnline === data.gasUltrasonicOnline)
         ? previous : { ...previous, data });
@@ -187,6 +246,7 @@ function useSensorPolling() {
       isMounted = false;
       controller.abort();
       stopRealtime();
+      stopPresence();
       window.clearInterval(presenceTimer);
       window.removeEventListener('online', requestRefresh);
       window.clearTimeout(timeoutId);

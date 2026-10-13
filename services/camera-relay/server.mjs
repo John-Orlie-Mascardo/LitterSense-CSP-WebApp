@@ -4,7 +4,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 const MAX_FRAME = 256 * 1024;
-const ID = /^cam_[a-f0-9]{32}$/;
+const PRESENCE_HEARTBEAT_MS = 1500;
+const CAMERA_ID = /^cam_[a-f0-9]{32}$/;
+const SENSOR_ID = /^sen_[a-f0-9]{32}$/;
+const PRESENCE_ROLES = new Set(['rfid', 'gas-ultrasonic']);
 
 export function verifyTicket(token, secret, scope, now = Date.now()) {
   if (typeof token !== 'string' || token.length > 1024) return null;
@@ -16,8 +19,11 @@ export function verifyTicket(token, secret, scope, now = Date.now()) {
   try {
     const value = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
     const seconds = Math.floor(now / 1000);
-    if (value.v !== 1 || !ID.test(value.deviceId) || value.scope !== scope ||
-        !Number.isInteger(value.exp) || value.exp <= seconds || value.exp > seconds + 600) return null;
+    const cameraScope = (scope === 'publish' || scope === 'view') && CAMERA_ID.test(value.deviceId);
+    const presenceScope = (scope === 'presence-publish' || scope === 'presence-view') && SENSOR_ID.test(value.deviceId) && PRESENCE_ROLES.has(value.role);
+    const maxLifetimeSeconds = presenceScope ? 3600 : 600;
+    if (value.v !== 1 || !(cameraScope || presenceScope) || value.scope !== scope ||
+        !Number.isInteger(value.exp) || value.exp <= seconds || value.exp > seconds + maxLifetimeSeconds) return null;
     return value;
   } catch { return null; }
 }
@@ -30,7 +36,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
   function stateFor(id) {
     let state = devices.get(id);
     if (!state && devices.size < maxDevices) {
-      state = { demandUntil: 0, frame: null, frameAt: 0, touched: now(), uploading: false, viewers: new Set(), publisher: null };
+      state = { demandUntil: 0, frame: null, frameAt: 0, touched: now(), uploading: false, viewers: new Set(), publisher: null, presenceViewers: new Set(), presencePublisher: null, presenceAt: 0 };
       devices.set(id, state);
     }
     return state;
@@ -54,10 +60,17 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     state.frameAt = now();
     for (const viewer of state.viewers) deliver(viewer, state);
   }
+  function sendPresence(state, role) {
+    const online = state.presencePublisher?.readyState === WebSocket.OPEN;
+    const message = JSON.stringify({ type: 'presence', role, online, updatedAt: online && state.presenceAt ? new Date(state.presenceAt).toISOString() : null });
+    for (const viewer of state.presenceViewers) {
+      if (viewer.readyState === WebSocket.OPEN) viewer.send(message);
+    }
+  }
   function prune() {
     const time = now();
     for (const [id, state] of devices) {
-      if (!state.publisher && !state.viewers.size && time - state.touched > 60000) devices.delete(id);
+      if (!state.publisher && !state.viewers.size && !state.presencePublisher && !state.presenceViewers.size && time - state.touched > 60000) devices.delete(id);
       else if (time - state.frameAt > 2000) state.frame = null;
     }
   }
@@ -129,11 +142,12 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.has(origin)) { reject(403); return; }
     const url = new URL(req.url, 'http://relay.invalid');
-    const scope = url.pathname === '/v1/publish' ? 'publish' : url.pathname === '/v1/live' ? 'view' : null;
+    const scope = url.pathname === '/v1/publish' ? 'publish' : url.pathname === '/v1/live' ? 'view' :
+      url.pathname === '/v1/presence/publish' ? 'presence-publish' : url.pathname === '/v1/presence/live' ? 'presence-view' : null;
     if (!scope) { reject(404); return; }
     // Browser viewing requires an allowed Origin; device publishers use a bearer ticket.
-    if (scope === 'view' && (!origin || !allowedOrigins.has(origin))) { reject(403); return; }
-    const token = scope === 'view' ? url.searchParams.get('ticket') : req.headers.authorization?.replace(/^Bearer /, '');
+    if ((scope === 'view' || scope === 'presence-view') && (!origin || !allowedOrigins.has(origin))) { reject(403); return; }
+    const token = (scope === 'view' || scope === 'presence-view') ? url.searchParams.get('ticket') : req.headers.authorization?.replace(/^Bearer /, '');
     const claim = verifyTicket(token, secret, scope, now());
     if (!claim) { reject(401); return; }
     prune();
@@ -141,6 +155,8 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     if (!state) { reject(503); return; }
     if (scope === 'publish' && state.publisher) { reject(409); return; }
     if (scope === 'view' && state.viewers.size >= 8) { reject(429); return; }
+    if (scope === 'presence-publish' && state.presencePublisher) { reject(409); return; }
+    if (scope === 'presence-view' && state.presenceViewers.size >= 8) { reject(429); return; }
     sockets.handleUpgrade(req, socket, head, ws => {
       ws.alive = true;
       ws.on('pong', () => { ws.alive = true; });
@@ -150,16 +166,29 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
       if (scope === 'publish') {
         state.publisher = ws;
         signalDemand(state);
-      } else {
+      } else if (scope === 'view') {
         ws.ready = true;
         ws.lastFrame = 0;
         state.viewers.add(ws);
         signalDemand(state);
         deliver(ws, state);
+      } else if (scope === 'presence-publish') {
+        ws.isPresence = true;
+        ws.missedPongs = 0;
+        state.presencePublisher = ws;
+        state.presenceAt = now();
+        sendPresence(state, claim.role);
+      } else {
+        ws.isPresence = true;
+        ws.presenceRole = claim.role;
+        state.presenceViewers.add(ws);
+        const online = state.presencePublisher?.readyState === WebSocket.OPEN;
+        ws.send(JSON.stringify({ type: 'presence', role: claim.role, online, updatedAt: online && state.presenceAt ? new Date(state.presenceAt).toISOString() : null }));
       }
       ws.on('message', (data, binary) => {
         if (!verifyTicket(token, secret, scope, now())) { ws.close(1008, 'Session expired'); return; }
         state.touched = now();
+        if (scope === 'presence-publish' || scope === 'presence-view') { ws.close(1008, 'Presence channel is read-only'); return; }
         if (scope === 'view') {
           if (binary || data.toString() !== 'ready') { ws.close(1008, 'Invalid control'); return; }
           ws.ready = true;
@@ -177,6 +206,12 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
         clearTimeout(expiry);
         if (scope === 'publish' && state.publisher === ws) state.publisher = null;
         state.viewers.delete(ws);
+        if (scope === 'presence-publish' && state.presencePublisher === ws) {
+          state.presencePublisher = null;
+          state.presenceAt = 0;
+          sendPresence(state, claim.role);
+        }
+        state.presenceViewers.delete(ws);
         if (!demandFor(state)) state.frame = null;
         signalDemand(state);
       });
@@ -185,6 +220,7 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
   });
   const heartbeat = setInterval(() => {
     for (const ws of sockets.clients) {
+      if (ws.isPresence) continue;
       if (!ws.alive) { ws.terminate(); continue; }
       ws.alive = false;
       ws.ping();
@@ -192,13 +228,27 @@ export function createRelay({ secret, origins = [], now = Date.now, maxDevices =
     for (const state of devices.values()) signalDemand(state);
   }, 5000);
   heartbeat.unref();
+  const presenceHeartbeat = setInterval(() => {
+    for (const ws of sockets.clients) {
+      if (!ws.isPresence) continue;
+      if (!ws.alive) {
+        ws.missedPongs = (ws.missedPongs ?? 0) + 1;
+        if (ws.missedPongs >= 2) { ws.terminate(); continue; }
+      } else {
+        ws.missedPongs = 0;
+      }
+      ws.alive = false;
+      ws.ping();
+    }
+  }, PRESENCE_HEARTBEAT_MS);
+  presenceHeartbeat.unref();
   server.requestTimeout = 10000;
   server.headersTimeout = 10000;
   server.setTimeout(10000, socket => socket.destroy());
   server.maxRequestsPerSocket = 1000;
   const cleanup = setInterval(prune, 10000);
   cleanup.unref();
-  server.on('close', () => { clearInterval(cleanup); clearInterval(heartbeat); for (const ws of sockets.clients) ws.terminate(); sockets.close(); });
+  server.on('close', () => { clearInterval(cleanup); clearInterval(heartbeat); clearInterval(presenceHeartbeat); for (const ws of sockets.clients) ws.terminate(); sockets.close(); });
   return server;
 }
 
