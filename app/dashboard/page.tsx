@@ -442,7 +442,7 @@ function PopulatedDashboardState({
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <StatCard
               icon={Droplets}
-              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
+              value={airQualityStatus.value === "Stale" ? "—" : ["Unavailable", "Status unavailable"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
               subtitle={sensorSubtitle("Urine", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.ammonia, airQualityStatus)}
@@ -450,7 +450,7 @@ function PopulatedDashboardState({
             />
             <StatCard
               icon={CloudFog}
-              value={["Unavailable", "Status unavailable", "Stale"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
+              value={airQualityStatus.value === "Stale" ? "—" : ["Unavailable", "Status unavailable"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
               label="Stool Odor"
               subtitle={sensorSubtitle("Stool", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}

@@ -45,7 +45,7 @@ test("session cards preserve health-state badges and Unattributed presentation",
   assert.equal(source.match(/<BehaviorStateBadge/g)?.length, 1);
 });
 
-test('session cards hide data-quality badges and retain health badges, times and duration', () => {
+test('incomplete session cards hide the state badge but retain enter, out, and duration details', () => {
   const loaded = { exports: {} }, jsx = (type, props) => ({ type, props });
   const imports = {
     'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': { default: 'img' },
@@ -57,18 +57,39 @@ test('session cards hide data-quality badges and retain health badges, times and
   };
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, { exports: loaded.exports, require: name => imports[name], Date });
   const nodes = tree => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children)] : [];
-  for (const state of ['insufficient', 'incomplete', 'unattributed', 'normal', 'watch', 'abnormal']) {
-    const tree = loaded.exports.SessionTimelineCard({ cat: { id: 'cat', name: 'Mochi' }, displayState: state, session: { durationSecs: 44, startedAt: '2026-10-12T13:28:00Z', endedAt: '2026-10-12T13:28:44Z' } });
-    const all = nodes(tree);
-    assert.equal(all.some(n => n.type === 'badge'), ['normal', 'watch', 'abnormal'].includes(state));
-    assert.ok(all.some(n => n.props?.children === 'Litter Box Session'));
-    assert.ok(all.some(n => n.props?.children === '44s'));
-    assert.ok(all.some(n => typeof n.props?.children === 'string' && /\d+:\d+\s[AP]M/.test(n.props.children)));
-  }
+  const text = tree => typeof tree === 'string' ? tree : Array.isArray(tree) ? tree.map(text).join(' ') : tree && typeof tree === 'object' ? text(tree.props?.children) : '';
+  const tree = loaded.exports.SessionTimelineCard({ cat: { id: 'cat', name: 'Mochi' }, displayState: 'incomplete', session: { sessionStatus: 'NO_EXIT_TIMEOUT', durationSecs: 44, startedAt: '2026-10-12T13:28:00Z', endedAt: '2026-10-12T13:28:44Z' } });
+  const all = nodes(tree);
+  const renderedText = text(tree);
+  assert.equal(all.some(n => n.type === 'badge'), false);
+  assert.match(renderedText, /Mochi/);
+  assert.match(renderedText, /Litter Box Session/);
+  assert.match(renderedText, /Recorded\s+Oct 12, 2026/);
+  assert.match(renderedText, /Enter/);
+  assert.match(renderedText, /Out/);
+  assert.match(renderedText, /44s/);
+  assert.match(renderedText, /Not confirmed/);
+});
+
+test('other session cards retain their time and duration details', () => {
+  const loaded = { exports: {} }, jsx = (type, props) => ({ type, props });
+  const imports = {
+    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': { default: 'img' },
+    'lucide-react': { Cat: 'cat', Clock3: 'clock', LogIn: 'in', LogOut: 'out' },
+    '@/lib/utils/formatters': { formatDuration: n => `${n}s` },
+    '@/components/behavior/BehaviorStateBadge': { BehaviorStateBadge: 'badge' },
+    '@/lib/presentation/behaviorStates': { getSessionDisplayState: () => 'normal', hasEstablishedBaseline: () => false },
+    '@/lib/contexts/CatContext': { useCats: () => ({ getDetailsByCatId: () => ({}) }) },
+  };
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, { exports: loaded.exports, require: name => imports[name], Date });
+  const all = tree => Array.isArray(tree) ? tree.flatMap(all) : tree && typeof tree === 'object' ? [tree, ...all(tree.props?.children)] : [];
+  const rendered = all(loaded.exports.SessionTimelineCard({ cat: { id: 'cat', name: 'Mochi' }, displayState: 'normal', session: { durationSecs: 44, startedAt: '2026-10-12T13:28:00Z', endedAt: '2026-10-12T13:28:44Z' } }));
+  assert.ok(rendered.some(node => node.props?.children === '44s'));
+  assert.ok(rendered.some(node => node.type === 'badge'));
 });
 
 
-test("timeouts and reboots never display an invented physical exit", () => {
+test("timed-out and rebooted sessions retain details without an incomplete badge", () => {
   const loaded = { exports: {} };
   const jsx = (type, props) => ({ type, props });
   const imports = {
@@ -83,9 +104,14 @@ test("timeouts and reboots never display an invented physical exit", () => {
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports:loaded.exports,require:name=>imports[name],Date});
   const text = tree => typeof tree === 'string' ? tree : Array.isArray(tree) ? tree.map(text).join(' ') : text(tree?.props?.children ?? '');
   for (const status of ['NO_EXIT_TIMEOUT','SESSION_INTERRUPTED']) {
-    const result = text(loaded.exports.SessionTimelineCard({cat:{id:'cat',name:'Zeno'},session:{sessionStatus:status,durationSecs:900,startedAt:'2026-10-06T01:00:00Z',endedAt:'2026-10-06T01:15:00Z'}}));
-    assert.match(result, /Not confirmed/);
-    if (status === 'SESSION_INTERRUPTED') { assert.match(result,/Duration unknown/); assert.match(result,/Time uncertain/); }
+    const tree = loaded.exports.SessionTimelineCard({cat:{id:'cat',name:'Zeno'},session:{sessionStatus:status,durationSecs:900,startedAt:'2026-10-06T01:00:00Z',endedAt:'2026-10-06T01:15:00Z'}});
+    const result = text(tree);
+    assert.match(result, /Zeno Litter Box Session/);
+    assert.match(result, /Enter/);
+    assert.match(result, /Out/);
+    assert.equal(JSON.stringify(tree).includes('badge'), false);
+    if (status === 'NO_EXIT_TIMEOUT') assert.match(result, /Not confirmed/);
+    if (status === 'SESSION_INTERRUPTED') assert.match(result, /Duration unknown|Time uncertain/);
   }
 });
 

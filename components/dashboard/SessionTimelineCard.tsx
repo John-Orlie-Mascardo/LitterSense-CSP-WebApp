@@ -119,11 +119,12 @@ export function SessionTimelineCard({
             <span className="rounded-full bg-litter-primary-light px-2 py-1 text-xs font-semibold uppercase tracking-wide text-litter-primary">
               {cat ? "Litter Box Session" : "Detected Session"}
             </span>
-            {!['insufficient', 'incomplete', 'unattributed'].includes(state) && <BehaviorStateBadge state={state} compact />}
+            {!['incomplete', 'insufficient', 'unattributed'].includes(state) && <BehaviorStateBadge state={state} compact />}
             <span className="text-xs font-medium text-litter-muted">
               Recorded {activityDate}
             </span>
           </div>
+          <>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-litter-bg px-3 py-2">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">
@@ -157,6 +158,7 @@ export function SessionTimelineCard({
             <Clock3 className="h-4 w-4" />
             <span>{interrupted ? "Duration unknown - device restarted" : formatDuration(session.durationSecs)}</span>
           </div>
+          </>
         </div>
       </div>
     </div>

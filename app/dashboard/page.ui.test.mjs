@@ -155,6 +155,12 @@ test("home derives presentation states and distinguishes missing metrics from re
   assert.match(source, /displayState=/);
 });
 
+test('offline environment cards do not repeat the stale value label', () => {
+  const environmentCards = sourceBetween('Litter Box Environment', 'Recent Activity');
+  assert.match(environmentCards, /airQualityStatus\.value\s*===\s*"Stale"\s*\?\s*"—"/);
+  assert.match(environmentCards, /statusLabel=\{getReadingStatusLabel\(/);
+});
+
 test('background history loading keeps live RFID cards and gas readings available without showing empty-history claims', () => {
   const populated = sourceBetween('function PopulatedDashboardState({', 'export default function DashboardPage()');
   assert.match(populated, /historyLoading \? "Loading" : formatMetricValue/);
