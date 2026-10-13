@@ -321,9 +321,9 @@ export function TopBar() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  className="absolute right-0 mt-2 overflow-hidden rounded-2xl"
+                  // Phones: pin to the screen edges so the panel is centred; the bell sits inside the bar's padding.
+                  className="fixed inset-x-2 top-[4.5rem] overflow-hidden rounded-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[480px]"
                   style={{
-                    width: "min(480px, calc(100vw - 1rem))",
                     background: "var(--color-card)",
                     border: "1px solid var(--color-border)",
                     boxShadow: "0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10)",
