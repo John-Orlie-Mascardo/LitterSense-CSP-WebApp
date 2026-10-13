@@ -75,6 +75,9 @@ export const setOperational = (path: string, previous: OperationalRecord | null,
 export async function retryOperational<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try { return await operation(); }
-    catch (error) { if (!(error instanceof OperationalError) || error.code !== '40001' || attempt >= 2) throw error; }
+    catch (error) {
+      if (!(error instanceof OperationalError) || error.code !== '40001' || attempt >= 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+    }
   }
 }

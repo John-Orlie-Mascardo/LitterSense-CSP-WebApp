@@ -44,6 +44,7 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
   const needsTags = normalized.events.length > 0 || Boolean(payload.enrollmentScan);
   const registered = needsTags ? await readOperationalCatalog(uid) : { profiles: [] };
   const tags = registered.profiles.map(profile => [profile.catId, { rfidTag: profile.details.rfidTag }] as [string, { rfidTag?: unknown }]);
+  const hasMatchedEvent = normalized.events.some(event => tags.some(tag => findCatIdByRfid([tag], event.rfidCard, event.rfidHex)));
   const recorded: Array<{ sessionId: string; catId: string }> = [], duplicates: typeof recorded = [], unmatched: Array<{ eventId: string; rfidCard: string; rfidHex: string }> = [];
   let enrollmentId = '', enrollmentAck = -1;
   await retryOperational(async () => {
@@ -61,9 +62,9 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
       }
     }
     const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [], ignoredEvents: normalized.ignored, previous: current?.data, liveSensors: payload, now });
-    const changes = [setOperational(snapshotPath, current, { ...snapshot })];
+    const changes = hasMatchedEvent ? [] : [setOperational(snapshotPath, current, { ...snapshot })];
     if (enrollment && enrollment !== scan?.data) changes.push(setOperational(enrollmentPath, scan, { ...enrollment }));
-    await commitOperational(uid, changes);
+    if (changes.length > 0) await commitOperational(uid, changes);
   });
   for (const event of normalized.events) {
     const matches = tags.filter(tag => findCatIdByRfid([tag], event.rfidCard, event.rfidHex));
@@ -81,7 +82,7 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
       }
       const current = await readOperationalRecord(uid, snapshotPath);
       const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [event], ignoredEvents: [], previous: current?.data, liveSensors: payload, now });
-      const changes = [setOperational(plan.sessionPath, null, plan.sessionData), setOperational(cat.document_path, cat, cat.data), setOperational(details.document_path, details, details.data), setOperational(snapshotPath, current, { ...snapshot })];
+      const changes = [setOperational(plan.sessionPath, null, plan.sessionData), setOperational(snapshotPath, current, { ...snapshot })];
       if (event.status !== 'SESSION_INTERRUPTED') for (const path of plan.summaryPaths) {
         const previous = await readOperationalRecord(uid, path), sameDay = previous?.data.date === plan.summaryData.date;
         changes.push(setOperational(path, previous, { ...plan.summaryData, visits: (sameDay ? Number(previous?.data.visits ?? 0) : 0) + 1, totalDurationSecs: (sameDay ? Number(previous?.data.totalDurationSecs ?? 0) : 0) + event.durationSecs }));
