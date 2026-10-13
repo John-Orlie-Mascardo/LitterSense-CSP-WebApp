@@ -382,8 +382,8 @@ function PopulatedDashboardState({
                 </p>
               </div>
             </div>
-            {/* Phones: stack "Today" over the badge so the badge stays on one line inside the card */}
-            <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+            {/* Stack "Today" over the badge: the card sits in a narrow column on desktop too */}
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="text-xs text-litter-muted">Today</span>
               <BehaviorStateBadge state={selectedDisplayState} className="whitespace-nowrap" />
             </div>
