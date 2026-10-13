@@ -84,7 +84,7 @@ export function StatCard({
         )}
       </div>
       {/* Value */}
-      <p className="text-2xl sm:text-3xl font-bold text-litter-text font-display tracking-tight leading-none">
+      <p className="text-xl font-semibold text-litter-text font-display tracking-tight leading-none">
         {value}
       </p>
       {/* Label */}

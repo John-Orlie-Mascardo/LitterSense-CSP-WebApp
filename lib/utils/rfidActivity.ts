@@ -14,6 +14,7 @@ const epochMs = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) && value >= Date.UTC(2000, 0, 1) && value <= 8.64e15;
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const completedStatuses = new Set(['NORMAL', 'ABNORMAL', 'SHORT_SESSION', 'NO_EXIT_TIMEOUT', 'SESSION_INTERRUPTED']);
+const DEFAULT_NO_EXIT_TIMEOUT_MS = 15 * 60_000;
 
 function findCat(cats: Cat[], getDetails: (id: string) => CatDetails | undefined, card: string, hex: string) {
   if (!card && !hex) return undefined;
@@ -38,7 +39,7 @@ function session(catId: string, identity: string | number, start: number, durati
 }
 
 /** Project reported entry/exit evidence independently from device connection freshness. */
-export function buildRfidActivityVisits(sensor: DeviceSensors | null, cats: Cat[], getDetails: (id: string) => CatDetails | undefined): RfidActivityVisit[] {
+export function buildRfidActivityVisits(sensor: DeviceSensors | null, cats: Cat[], getDetails: (id: string) => CatDetails | undefined, now = Date.now()): RfidActivityVisit[] {
   if (!sensor) return [];
   const visits: RfidActivityVisit[] = [];
   if (sensor.sessionActive) {
@@ -47,8 +48,16 @@ export function buildRfidActivityVisits(sensor: DeviceSensors | null, cats: Cat[
     const duration = Math.max(0, sensor.activeSessionDurationMs ?? 0);
     // Older readers expose uptime here; infer its calendar time from the accepted receipt.
     const start = epochMs(sensor.activeSessionStartMs) ? sensor.activeSessionStartMs! : receipt - duration;
+    const configuredTimeout = sensor.noExitTimeoutMs;
+    const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout! > 0
+      ? configuredTimeout!
+      : DEFAULT_NO_EXIT_TIMEOUT_MS;
+    const elapsedMs = Math.max(duration, now - start);
+    const timedOut = elapsedMs >= timeoutMs;
     if (cat && Number.isFinite(start)) visits.push({
-      cat, session: session(cat.id, sensor.activeSessionStartMs ?? start, start, duration, 'IN_PROGRESS'),
+      cat, session: session(cat.id, sensor.activeSessionStartMs ?? start, start,
+        timedOut ? timeoutMs : duration, timedOut ? 'NO_EXIT_TIMEOUT' : 'IN_PROGRESS',
+        timedOut ? start + timeoutMs : undefined),
       liveUpdatePending: !sensor.online,
     });
   }
@@ -74,6 +83,9 @@ export function isSameRfidVisit(recorded: Session, projected: Session): boolean 
   const recordedStart = parsedTime(recorded.startedAt);
   if (!Number.isFinite(start) || !Number.isFinite(recordedStart) || Math.abs(recordedStart - start) > 1000) return false;
   const end = parsedTime(projected.endedAt);
+  // A website-only timeout is a provisional display state. A later confirmed
+  // exit for the same entry supersedes it even though its end time is later.
+  if (projected.sessionStatus === 'NO_EXIT_TIMEOUT' && Number.isFinite(recordedEnd)) return true;
   if (Number.isFinite(end)) return Number.isFinite(recordedEnd) && Math.abs(recordedEnd - end) <= 1000;
   // A previous visit ending before this entry is always a separate visit.
   return Number.isFinite(recordedEnd) ? recordedEnd > start : recorded.sessionStatus === 'IN_PROGRESS';
