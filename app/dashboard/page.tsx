@@ -367,7 +367,7 @@ function PopulatedDashboardState({
 
         {selectedCat && (
           <div className="flex items-center justify-between gap-3 p-4 bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-6">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <CatAvatar
                 cat={selectedCat}
                 size={44}
@@ -382,9 +382,10 @@ function PopulatedDashboardState({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Phones: stack "Today" over the badge so the badge stays on one line inside the card */}
+            <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-xs text-litter-muted">Today</span>
-              <BehaviorStateBadge state={selectedDisplayState} />
+              <BehaviorStateBadge state={selectedDisplayState} className="whitespace-nowrap" />
             </div>
           </div>
         )}
