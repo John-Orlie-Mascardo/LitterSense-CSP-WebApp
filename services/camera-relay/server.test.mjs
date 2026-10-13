@@ -7,8 +7,9 @@ import { createRelay, verifyTicket } from './server.mjs';
 const secret = 'test-only-secret-with-at-least-32-characters';
 const camera = `cam_${'a'.repeat(32)}`;
 const other = `cam_${'b'.repeat(32)}`;
-function ticket(scope, deviceId = camera, now = Date.now()) {
-  const encoded = Buffer.from(JSON.stringify({ v: 1, deviceId, scope, exp: Math.floor(now / 1000) + 300 })).toString('base64url');
+function ticket(scope, deviceId = camera, now = Date.now(), role = deviceId.startsWith('sen_') ? 'rfid' : undefined) {
+  const lifetime = scope.startsWith('presence-') ? 3600 : 300;
+  const encoded = Buffer.from(JSON.stringify({ v: 1, deviceId, scope, ...(role ? { role } : {}), exp: Math.floor(now / 1000) + lifetime })).toString('base64url');
   return `${encoded}.${createHmac('sha256', secret).update(encoded).digest('base64url')}`;
 }
 test('tickets reject tampering, wrong role, invalid IDs and expiry', () => {
@@ -19,6 +20,25 @@ test('tickets reject tampering, wrong role, invalid IDs and expiry', () => {
   assert.equal(verifyTicket(valid + 'x', secret, 'view', now), null);
   assert.equal(verifyTicket(valid, secret, 'view', now + 301000), null);
   assert.equal(verifyTicket(ticket('view', '../users/other'), secret, 'view'), null);
+});
+
+test('presence tickets may last one hour while camera ticket lifetimes stay bounded', () => {
+  const now = Date.now();
+  const deviceId = `sen_${'a'.repeat(32)}`;
+  const presence = ticket('presence-publish', deviceId, now, 'rfid');
+  assert.equal(verifyTicket(presence, secret, 'presence-publish', now).role, 'rfid');
+  const payload = Buffer.from(presence.split('.')[0], 'base64url').toString();
+  const claims = JSON.parse(payload);
+  claims.exp += 1;
+  const encoded = Buffer.from(JSON.stringify(claims)).toString('base64url');
+  const tooLong = `${encoded}.${createHmac('sha256', secret).update(encoded).digest('base64url')}`;
+  assert.equal(verifyTicket(tooLong, secret, 'presence-publish', now), null);
+  const longCamera = ticket('view', camera, now).split('.')[0];
+  const cameraClaims = JSON.parse(Buffer.from(longCamera, 'base64url').toString());
+  cameraClaims.exp = Math.floor(now / 1000) + 601;
+  const cameraEncoded = Buffer.from(JSON.stringify(cameraClaims)).toString('base64url');
+  const cameraTooLong = `${cameraEncoded}.${createHmac('sha256', secret).update(cameraEncoded).digest('base64url')}`;
+  assert.equal(verifyTicket(cameraTooLong, secret, 'view', now), null);
 });
 
 test('authenticated camera frames travel only to their owner; stale frames are cleared', async t => {
@@ -137,4 +157,33 @@ test('WebSocket auth, viewer demand and latest-frame delivery stay bounded and p
   now += 301000;
   publisher.ws.send(jpeg(4));
   assert.equal(await closed, 1008, 'expired publisher must stop transmitting');
+});
+
+test('sensor presence is authenticated, separated by board, and broadcast without persistence', async t => {
+  let now = Date.now();
+  const server = createRelay({ secret, origins: ['https://app.example.com'], now: () => now });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const connections = [];
+  t.after(() => { for (const ws of connections) ws.terminate(); server.closeAllConnections(); server.close(); });
+  const base = `ws://127.0.0.1:${server.address().port}`;
+  const sensorRfid = `sen_${'c'.repeat(32)}`;
+  const sensorGas = `sen_${'d'.repeat(32)}`;
+  const viewerRfid = await connectSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid)}`, { origin: 'https://app.example.com' });
+  connections.push(viewerRfid.ws);
+  assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: false, updatedAt: null });
+  await rejectedSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid)}`, { origin: 'https://evil.example.com' }, 403);
+  await rejectedSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-view', sensorRfid)}` } }, 401);
+
+  const publisherRfid = await connectSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-publish', sensorRfid)}` } });
+  connections.push(publisherRfid.ws);
+  assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: true, updatedAt: new Date(now).toISOString() });
+  assert.equal(viewerRfid.messages.length, 0, 'gas board status must not leak into the RFID view');
+
+  publisherRfid.ws.close();
+  assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: false, updatedAt: null });
+
+  const expired = ticket('presence-view', sensorRfid, now - 3601000);
+  await rejectedSocket(`${base}/v1/presence/live?ticket=${expired}`, { origin: 'https://app.example.com' }, 401);
+  assert.equal(verifyTicket(ticket('presence-view', camera), secret, 'presence-view'), null, 'camera IDs cannot be used for sensor presence');
+  assert.equal(verifyTicket(ticket('presence-view', sensorGas, now, 'camera'), secret, 'presence-view'), null, 'sensor tickets must carry a recognized board role');
 });

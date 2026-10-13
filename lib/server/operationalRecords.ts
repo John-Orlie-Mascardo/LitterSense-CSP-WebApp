@@ -21,8 +21,15 @@ const allowed = new Set(['cats', 'catDetails', 'sessions', 'healthLogs', 'notifi
 type Identity = { uid: string; email?: string; admin?: unknown };
 export type RecordWrite = { path: string; action: 'set' | 'update' | 'delete'; data?: Record<string, unknown>; merge?: boolean; revision?: number };
 export async function accessRecord(identity: Identity, path: string, write = false): Promise<string> {
-  if (typeof path !== 'string' || path.length > 1024 || /[\u0000-\u001f*%]/.test(path) || path.split('/').some(s => !s || s === '.' || s === '..')) throw new OperationalError('Invalid record path', 400);
+  if (typeof path !== 'string' || path.length > 1024 || /[\u0000-\u001f*]/.test(path) || path.split('/').some(s => !s || s === '.' || s === '..')) throw new OperationalError('Invalid record path', 400);
   const parts = path.split('/');
+  if (path.includes('%')) {
+    // Existing notification IDs are URI-encoded. Allow them only as literal IDs in exact document paths.
+    let canonicalNotificationId = false;
+    try { canonicalNotificationId = parts.length === 4 && parts[0] === 'users' && parts[2] === 'notifications' && !parts[1].includes('%') && encodeURIComponent(decodeURIComponent(parts[3])) === parts[3]; }
+    catch { /* Malformed escapes are invalid paths. */ }
+    if (!canonicalNotificationId) throw new OperationalError('Invalid record path', 400);
+  }
   if (parts[0] === 'users') {
     if (parts.length === 1) { if (write || identity.admin !== true) throw new OperationalError('Forbidden', 403); return '@all'; }
     if (parts[1] !== identity.uid && identity.admin !== true) throw new OperationalError('Forbidden', 403);
