@@ -57,7 +57,7 @@
 - Modify the gas and RFID PlatformIO configuration and start the presence worker from each firmware project.
 
 - [x] Keep a persistent TLS WebSocket to the relay, renew one-hour signed tickets, and reconnect after Wi-Fi loss.
-- [x] Use transport ping/pong only; presence creates no sensor payloads or database writes.
+- [x] Send one small application heartbeat per second over the existing presence socket; presence creates no sensor payloads or database writes.
 - [x] Build both firmware environments; run existing host-side firmware tests.
 
 ### Task 4: Consume relay status in the website with safe fallback
@@ -78,4 +78,4 @@
 
 ## Acceptance boundary
 
-The relay closes a board's presence connection after two missed heartbeat checks at 1.5-second intervals (about 3–4.5 seconds after the last successful response, plus network delivery time). This bound is from source configuration, not a physical outage test. Live verification still requires an authorized relay/site deployment and uploading the matching firmware to both boards.
+The relay reports a board offline after four seconds without its application heartbeat, plus at most one 250 ms sweep interval and network delivery time. This bound is from source configuration, not a physical outage test. Live verification still requires relay deployment and uploading the matching firmware to both boards.
