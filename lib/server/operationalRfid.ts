@@ -80,14 +80,28 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
         if (preserveFirmwareVisitTime(candidate, previous).digest !== previous.digest) throw new OperationalError('Visit identity conflicts with saved history', 409);
         return 'duplicate';
       }
-      const current = await readOperationalRecord(uid, snapshotPath);
-      const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [event], ignoredEvents: [], previous: current?.data, liveSensors: payload, now });
-      const changes = [setOperational(plan.sessionPath, null, plan.sessionData), setOperational(snapshotPath, current, { ...snapshot })];
+      // A completed visit is durable evidence.  Do not make its acknowledgement
+      // depend on the frequently-updated device heartbeat: under load, that
+      // unrelated document is the common source of revision conflicts.
+      const changes = [setOperational(plan.sessionPath, null, plan.sessionData)];
       if (event.status !== 'SESSION_INTERRUPTED') for (const path of plan.summaryPaths) {
         const previous = await readOperationalRecord(uid, path), sameDay = previous?.data.date === plan.summaryData.date;
         changes.push(setOperational(path, previous, { ...plan.summaryData, visits: (sameDay ? Number(previous?.data.visits ?? 0) : 0) + 1, totalDurationSecs: (sameDay ? Number(previous?.data.totalDurationSecs ?? 0) : 0) + event.durationSecs }));
       }
       await commitOperational(uid, changes);
+
+      // The next regular reader heartbeat will also refresh this snapshot.  A
+      // failed catch-up must never cause the firmware to retain and replay an
+      // already saved visit.
+      try {
+        await retryOperational(async () => {
+          const current = await readOperationalRecord(uid, snapshotPath);
+          const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [event], ignoredEvents: [], previous: current?.data, liveSensors: payload, now });
+          await commitOperational(uid, [setOperational(snapshotPath, current, { ...snapshot })]);
+        });
+      } catch (error) {
+        console.warn('[rfid timing] Visit saved; live snapshot will catch up on the next heartbeat.', { error: error instanceof Error ? error.message : 'unknown' });
+      }
       return 'recorded';
     });
     (outcome === 'duplicate' ? duplicates : recorded).push({ sessionId, catId });
