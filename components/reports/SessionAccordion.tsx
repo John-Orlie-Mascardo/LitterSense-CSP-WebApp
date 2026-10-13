@@ -105,7 +105,7 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
               }`}
             >
               {group.sessions.length === 0 ? (
-                <p className="px-4 py-5 text-sm text-theme-muted">
+                <p className="px-4 py-6 text-sm text-theme-muted">
                   No sessions recorded in this period.
                 </p>
               ) : (

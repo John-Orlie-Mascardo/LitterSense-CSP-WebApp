@@ -31,7 +31,7 @@ test("session presentation uses the shared resolver", () => {
   assert.doesNotMatch(source, /durationSecs\s*<\s*30/);
 });
 
-test("history can add a shared six-state badge and Unattributed presentation", () => {
+test("session cards preserve health-state badges and Unattributed presentation", () => {
   assert.match(source, /readonly displayState\?: BehaviorStateId/);
   assert.match(source, /<BehaviorStateBadge state=\{state\} compact/);
   assert.match(source, /Unattributed/);
@@ -43,6 +43,28 @@ test("history can add a shared six-state badge and Unattributed presentation", (
   assert.ok(sessionTypeIndex >= 0);
   assert.ok(behaviorBadgeIndex > sessionTypeIndex);
   assert.equal(source.match(/<BehaviorStateBadge/g)?.length, 1);
+});
+
+test('session cards hide data-quality badges and retain health badges, times and duration', () => {
+  const loaded = { exports: {} }, jsx = (type, props) => ({ type, props });
+  const imports = {
+    'react/jsx-runtime': { jsx, jsxs: jsx }, 'next/image': { default: 'img' },
+    'lucide-react': { Cat: 'cat', Clock3: 'clock', LogIn: 'in', LogOut: 'out' },
+    '@/lib/utils/formatters': { formatDuration: n => `${n}s` },
+    '@/components/behavior/BehaviorStateBadge': { BehaviorStateBadge: 'badge' },
+    '@/lib/presentation/behaviorStates': { getSessionDisplayState: () => 'incomplete', hasEstablishedBaseline: () => false },
+    '@/lib/contexts/CatContext': { useCats: () => ({ getDetailsByCatId: () => ({}) }) },
+  };
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, { exports: loaded.exports, require: name => imports[name], Date });
+  const nodes = tree => Array.isArray(tree) ? tree.flatMap(nodes) : tree && typeof tree === 'object' ? [tree, ...nodes(tree.props?.children)] : [];
+  for (const state of ['insufficient', 'incomplete', 'unattributed', 'normal', 'watch', 'abnormal']) {
+    const tree = loaded.exports.SessionTimelineCard({ cat: { id: 'cat', name: 'Mochi' }, displayState: state, session: { durationSecs: 44, startedAt: '2026-10-12T13:28:00Z', endedAt: '2026-10-12T13:28:44Z' } });
+    const all = nodes(tree);
+    assert.equal(all.some(n => n.type === 'badge'), ['normal', 'watch', 'abnormal'].includes(state));
+    assert.ok(all.some(n => n.props?.children === 'Litter Box Session'));
+    assert.ok(all.some(n => n.props?.children === '44s'));
+    assert.ok(all.some(n => typeof n.props?.children === 'string' && /\d+:\d+\s[AP]M/.test(n.props.children)));
+  }
 });
 
 

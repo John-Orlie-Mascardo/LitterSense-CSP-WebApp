@@ -149,7 +149,7 @@ export function MetricTrendChart({
 
   if (!hasData) {
     return (
-      <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-litter-border px-5 text-center">
+      <div className="flex min-h-40 items-center justify-center rounded-xl border border-dashed border-litter-border px-6 text-center">
         <p className="text-sm text-litter-muted">{emptyMessage}</p>
       </div>
     );
@@ -191,8 +191,8 @@ export function MetricTrendChart({
               dataKey="label"
               tickLine={false}
               axisLine={{ stroke: "var(--color-litter-border)" }}
-              tick={{ fontSize: 11, fill: "var(--color-litter-muted)" }}
-              label={{ value: "Day", position: "insideBottom", offset: -16, fill: "var(--color-litter-muted)", fontSize: 11 }}
+              tick={{ fontSize: 12, fill: "var(--color-litter-muted)" }}
+              label={{ value: "Day", position: "insideBottom", offset: -16, fill: "var(--color-litter-muted)", fontSize: 12 }}
             />
             <YAxis
               yAxisId={metric}
@@ -201,9 +201,9 @@ export function MetricTrendChart({
               tickFormatter={(value) => formatTrendTick(metric, Number(value))}
               tickLine={false}
               axisLine={{ stroke: "var(--color-litter-border)" }}
-              tick={{ fontSize: 11, fill: axisColor(metric) }}
+              tick={{ fontSize: 12, fill: axisColor(metric) }}
               width={68}
-              label={{ value: config.yAxisTitle, angle: -90, position: "insideLeft", offset: -12, fill: axisColor(metric), fontSize: 10 }}
+              label={{ value: config.yAxisTitle, angle: -90, position: "insideLeft", textAnchor: "middle", offset: -12, fill: axisColor(metric), fontSize: 12 }}
             />
             {secondary && secondaryConfig && (
               <YAxis
@@ -214,9 +214,9 @@ export function MetricTrendChart({
                 tickFormatter={(value) => formatTrendTick(secondary.metric, Number(value))}
                 tickLine={false}
                 axisLine={{ stroke: "var(--color-litter-border)" }}
-                tick={{ fontSize: 11, fill: axisColor(secondary.metric) }}
+                tick={{ fontSize: 12, fill: axisColor(secondary.metric) }}
                 width={58}
-                label={{ value: secondaryConfig.yAxisTitle, angle: 90, position: "insideRight", offset: -10, fill: axisColor(secondary.metric), fontSize: 10 }}
+                label={{ value: secondaryConfig.yAxisTitle, angle: 90, position: "insideRight", textAnchor: "middle", offset: -10, fill: axisColor(secondary.metric), fontSize: 12 }}
               />
             )}
             {normalRange && (
@@ -227,7 +227,7 @@ export function MetricTrendChart({
                 fill="#1E6B5E"
                 fillOpacity={0.1}
                 strokeOpacity={0}
-                label={{ value: "Normal range", position: "insideTopLeft", fill: "var(--color-litter-muted)", fontSize: 10 }}
+                label={{ value: "Normal range", position: "insideTopLeft", fill: "var(--color-litter-muted)", fontSize: 12 }}
               />
             )}
             <Tooltip content={<MetricTooltip primaryMetric={metric} secondaryMetric={secondary?.metric} primaryMaximum={primaryDomain[1]} secondaryMaximum={secondaryDomain?.[1]} />} />
@@ -264,13 +264,13 @@ export function MetricTrendChart({
                 stroke="#9CA3AF"
                 strokeDasharray="6 4"
                 strokeWidth={1.5}
-                label={{ value: "Baseline", position: "insideTopRight", fill: "var(--color-litter-muted)", fontSize: 10 }}
+                label={{ value: "Baseline", position: "insideTopRight", fill: "var(--color-litter-muted)", fontSize: 12 }}
               />
             )}
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <ul aria-label="Chart legend" className="flex gap-4 overflow-x-auto pb-1 text-xs text-litter-text">
+      <ul aria-label="Chart legend" className="flex flex-wrap gap-x-4 gap-y-2 pb-1 text-xs text-litter-text">
         {[metric, ...(secondary ? [secondary.metric] : [])].sort((a, b) => Number(b === "visits") - Number(a === "visits")).map((id) => (
           <li key={id} className="flex shrink-0 items-center gap-2">
             <span aria-hidden="true" className="h-1 w-4 rounded" style={{ backgroundColor: getTrendMetricConfig(id).color }} />

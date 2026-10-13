@@ -86,7 +86,7 @@ export function CatGridSkeleton() {
         <div
           key={index}
           data-skeleton="cat-card"
-          className="h-48 animate-pulse rounded-2xl border border-litter-border bg-litter-card p-5"
+          className="h-48 animate-pulse rounded-2xl border border-litter-border bg-litter-card p-6"
         >
           <div className="flex items-center gap-4">
             <Pulse className="h-14 w-14 rounded-full" />
@@ -102,7 +102,7 @@ export function CatGridSkeleton() {
 export function ReportsContentSkeleton() {
   return (
     <div aria-label="Loading content" className="space-y-6">
-      <div className="h-72 animate-pulse rounded-2xl border border-litter-border bg-litter-card p-5">
+      <div className="h-72 animate-pulse rounded-2xl border border-litter-border bg-litter-card p-6">
         <Pulse className="h-5 w-48" /><Pulse className="mt-5 h-12 w-full" /><Pulse className="mt-4 h-12 w-full" /><Pulse className="mt-5 h-12 w-full" />
       </div>
       <RowList count={4} />
@@ -113,7 +113,7 @@ export function ReportsContentSkeleton() {
 
 export function LiveContentSkeleton() {
   return (
-    <div aria-label="Loading content" className="space-y-5">
+    <div aria-label="Loading content" className="space-y-6">
       <Pulse marker="video-block" className="aspect-video w-full border border-litter-border bg-litter-card" />
       <StatGrid />
     </div>
@@ -122,7 +122,7 @@ export function LiveContentSkeleton() {
 
 export function SettingsContentSkeleton() {
   return (
-    <div aria-label="Loading content" className="space-y-5">
+    <div aria-label="Loading content" className="space-y-6">
       <Pulse className="h-7 w-40" />
       <RowList marker="settings-row" count={6} />
       <RowList marker="settings-row" count={4} />
@@ -141,7 +141,7 @@ export function NotificationsContentSkeleton() {
 
 export function SessionHistorySkeleton() {
   return (
-    <div aria-label="Loading session history" className="space-y-5">
+    <div aria-label="Loading session history" className="space-y-6">
       <div className="rounded-2xl border border-litter-border bg-litter-card p-4">
         <Pulse className="h-5 w-44" />
         <Pulse className="mt-3 h-11 w-full" />

@@ -46,26 +46,26 @@ function formatDate(iso: string) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-litter-border">
-      <td className="px-6 py-3.5">
+      <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-litter-border animate-pulse shrink-0" />
-          <div className="h-3.5 w-28 bg-litter-border rounded animate-pulse" />
+          <div className="h-4 w-28 bg-litter-border rounded animate-pulse" />
         </div>
       </td>
-      <td className="px-4 py-3.5">
-        <div className="h-3.5 w-36 bg-litter-border rounded animate-pulse" />
+      <td className="px-4 py-4">
+        <div className="h-4 w-36 bg-litter-border rounded animate-pulse" />
       </td>
-      <td className="px-4 py-3.5">
-        <div className="h-3.5 w-20 bg-litter-border rounded animate-pulse" />
+      <td className="px-4 py-4">
+        <div className="h-4 w-20 bg-litter-border rounded animate-pulse" />
       </td>
-      <td className="px-4 py-3.5">
-        <div className="h-3.5 w-6 bg-litter-border rounded animate-pulse" />
+      <td className="px-4 py-4">
+        <div className="h-4 w-6 bg-litter-border rounded animate-pulse" />
       </td>
-      <td className="px-4 py-3.5">
+      <td className="px-4 py-4">
         <div className="h-5 w-14 bg-litter-border rounded-full animate-pulse" />
       </td>
-      <td className="px-6 py-3.5">
-        <div className="flex justify-end gap-1.5">
+      <td className="px-6 py-4">
+        <div className="flex justify-end gap-2">
           <div className="w-7 h-7 bg-litter-border rounded-lg animate-pulse" />
           <div className="w-7 h-7 bg-litter-border rounded-lg animate-pulse" />
         </div>
@@ -131,12 +131,12 @@ export default function AdminUsersPage() {
   const renderSortIcon = (field: SortKey) => {
     if (sortKey !== field)
       return (
-        <ChevronsUpDown className="w-3.5 h-3.5 ml-1 opacity-30 shrink-0" />
+        <ChevronsUpDown className="w-4 h-4 ml-1 opacity-30 shrink-0" />
       );
     return sortDir === "asc" ? (
-      <ChevronUp className="w-3.5 h-3.5 ml-1 text-litter-primary shrink-0" />
+      <ChevronUp className="w-4 h-4 ml-1 text-litter-primary shrink-0" />
     ) : (
-      <ChevronDown className="w-3.5 h-3.5 ml-1 text-litter-primary shrink-0" />
+      <ChevronDown className="w-4 h-4 ml-1 text-litter-primary shrink-0" />
     );
   };
 
@@ -261,7 +261,7 @@ export default function AdminUsersPage() {
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="theme-row-hover">
-                    <td className="px-6 py-3.5">
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-semibold text-sm shrink-0">
                           {u.name[0]}
@@ -271,16 +271,16 @@ export default function AdminUsersPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 text-litter-muted">{u.email}</td>
-                    <td className="px-4 py-3.5 text-litter-text-secondary">
+                    <td className="px-4 py-4 text-litter-muted">{u.email}</td>
+                    <td className="px-4 py-4 text-litter-text-secondary">
                       {formatDate(u.registeredDate)}
                     </td>
-                    <td className="px-4 py-3.5 font-medium text-litter-text">
+                    <td className="px-4 py-4 font-medium text-litter-text">
                       {u.cats.length}
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-4 py-4">
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide ${
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${
                           u.status === "active"
                             ? "bg-status-normal text-status-normal"
                             : "bg-litter-bg text-litter-muted border border-litter-border"
@@ -289,7 +289,7 @@ export default function AdminUsersPage() {
                         {u.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5">
+                    <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           title="View user"
@@ -359,7 +359,7 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
                   <span
-                    className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
+                    className={`shrink-0 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${
                       u.status === "active"
                         ? "bg-status-normal text-status-normal"
                         : "bg-litter-bg text-litter-muted border border-litter-border"
@@ -373,7 +373,7 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-4 text-litter-text-secondary">
                     <div>
                       <span className="font-semibold text-litter-text">{u.cats.length}</span>{" "}
-                      <span className="text-[10px] uppercase tracking-wider text-litter-muted">Cats</span>
+                      <span className="text-xs uppercase tracking-wider text-litter-muted">Cats</span>
                     </div>
                     <div className="w-px h-3 bg-litter-border"></div>
                     <div className="text-litter-muted">
@@ -381,17 +381,17 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
                       title="View user"
-                      className="p-1.5 text-litter-muted hover:text-litter-primary transition-colors rounded-lg bg-litter-bg border border-litter-border"
+                      className="p-2 text-litter-muted hover:text-litter-primary transition-colors rounded-lg bg-litter-bg border border-litter-border"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
                       title={u.status === "active" ? "Suspend user" : "Restore user"}
                       onClick={() => onSuspend(u.id, u.name, u.status === "active")}
-                      className={`p-1.5 rounded-lg border transition-colors ${
+                      className={`p-2 rounded-lg border transition-colors ${
                         u.status === "active"
                           ? "bg-status-danger/10 text-status-danger border-status-danger/20"
                           : "bg-litter-primary-light text-litter-primary border-litter-primary/20"

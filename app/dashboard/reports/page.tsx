@@ -26,7 +26,6 @@ import {
   Timer,
   Clock,
   PlusCircle,
-  MoreVertical,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -236,13 +235,10 @@ export default function ReportsPage() {
               Generate and export behavior reports
             </p>
           </div>
-          <button className="p-2 theme-icon-btn">
-            <MoreVertical className="w-5 h-5 text-theme-muted" />
-          </button>
         </div>
 
         {/* ── Generate New Report Card ── */}
-        <div className="reports-screen-only bg-litter-card rounded-2xl p-5 shadow-sm border border-litter-border mb-6">
+        <div className="reports-screen-only bg-litter-card rounded-2xl p-6 shadow-sm border border-litter-border mb-6">
           {/* Card title */}
           <div className="flex items-center gap-2 mb-4">
             <PlusCircle className="w-5 h-5 text-litter-text" strokeWidth={2} />
@@ -305,7 +301,7 @@ export default function ReportsPage() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating || catsLoading || historyLoading || !hasCats}
-            className="w-full py-3.5 rounded-xl bg-litter-primary text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-xl bg-litter-primary text-white font-semibold text-sm hover:bg-[#165a4e] active:bg-[#124d42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isGenerating ? (
               <>
@@ -341,14 +337,14 @@ export default function ReportsPage() {
             <div className="reports-screen-only bg-litter-card rounded-xl p-4 shadow-sm border border-litter-border mt-3 flex flex-wrap gap-3 justify-center">
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-lg font-medium text-sm hover:bg-[#165a4e] transition-colors"
+                className="flex items-center gap-2 px-4 py-3 bg-litter-primary text-white rounded-lg font-medium text-sm hover:bg-[#165a4e] transition-colors"
               >
                 <Download className="w-4 h-4" />
                 Export as PDF
               </button>
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2.5 border border-litter-border text-theme-secondary rounded-lg font-medium text-sm theme-row-hover"
+                className="flex items-center gap-2 px-4 py-3 border border-litter-border text-theme-secondary rounded-lg font-medium text-sm theme-row-hover"
               >
                 <Table className="w-4 h-4" />
                 Export as CSV
@@ -443,7 +439,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
     <div className="reports-print-document bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
 
       {/* Report header */}
-      <div className="reports-print-section p-5 border-b border-litter-border">
+      <div className="reports-print-section p-6 border-b border-litter-border">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-litter-primary flex items-center justify-center shrink-0">
             <svg viewBox="0 0 24 24" className="w-6 h-6 text-white" fill="currentColor">
@@ -476,7 +472,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
       </div>
 
       {/* Summary */}
-      <div className="reports-print-section p-5 border-b border-litter-border">
+      <div className="reports-print-section p-6 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Summary</p>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="bg-theme-overlay rounded-xl p-3">
@@ -511,7 +507,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
       </div>
 
       {/* Session Log */}
-      <div className="reports-print-section reports-print-section--table p-5 border-b border-litter-border">
+      <div className="reports-print-section reports-print-section--table p-6 border-b border-litter-border">
         <p className="font-semibold text-litter-text text-sm mb-3">Session Log</p>
         <BehaviorStateLegend compact className="mb-3" />
         <SessionAccordion key={report.id} sessions={report.sessions} cats={reportCats} />
@@ -519,7 +515,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
 
       {/* Trend Charts */}
       {trendData && (
-        <div className="reports-print-section p-5 border-b border-litter-border">
+        <div className="reports-print-section p-6 border-b border-litter-border">
           <p className="font-semibold text-litter-text text-sm mb-3">Trends</p>
           <div className="grid grid-cols-1 gap-3">
             <div className="bg-theme-overlay rounded-xl p-4">
@@ -573,14 +569,12 @@ interface PastReportCardProps {
 function PastReportCard({ report, isLast, onDelete, onDownload, onView }: PastReportCardProps) {
   return (
     <div
-      role="button"
-      tabIndex={0}
       className={`w-full flex items-center gap-3 px-4 py-4 theme-row-hover text-left ${
         isLast ? "" : "border-b border-litter-border"
       }`}
-      onClick={onView}
-      onKeyDown={(e) => e.key === 'Enter' && onView()}
     >
+      {/* Real button for the view action; download/delete can't nest inside a button */}
+      <button type="button" onClick={onView} className="flex flex-1 min-w-0 items-center gap-3 text-left">
       {/* Teal file icon */}
       <div className="w-10 h-10 rounded-xl bg-litter-primary-light flex items-center justify-center shrink-0">
         <FileText className="w-5 h-5 text-litter-primary" />
@@ -593,18 +587,19 @@ function PastReportCard({ report, isLast, onDelete, onDownload, onView }: PastRe
           {report.range} · Generated {formatDate(report.generatedOn)}
         </p>
       </div>
+      </button>
 
       {/* Download + Delete */}
       <div className="flex items-center gap-1 shrink-0">
         <button
-          onClick={(e) => { e.stopPropagation(); onDownload(); }}
+          onClick={onDownload}
           className="p-2 theme-icon-btn text-theme-muted hover:text-litter-primary"
           aria-label="Download"
         >
           <Download className="w-4 h-4" />
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          onClick={onDelete}
           className="p-2 theme-danger-btn text-theme-muted"
           aria-label="Delete"
         >

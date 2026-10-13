@@ -104,7 +104,7 @@ export function ConfirmDialog({
             <div className="flex gap-3 p-4 pt-0">
               <button
                 onClick={onClose}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-theme text-theme-secondary font-medium hover:bg-theme-hover transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl border border-theme text-theme-secondary font-medium hover:bg-theme-hover transition-colors"
               >
                 {cancelText}
               </button>
@@ -113,7 +113,7 @@ export function ConfirmDialog({
                   onConfirm();
                   onClose();
                 }}
-                className={`flex-1 px-4 py-2.5 rounded-xl font-medium transition-colors ${variantStyles[variant].confirm}`}
+                className={`flex-1 px-4 py-3 rounded-xl font-medium transition-colors ${variantStyles[variant].confirm}`}
               >
                 {confirmText}
               </button>

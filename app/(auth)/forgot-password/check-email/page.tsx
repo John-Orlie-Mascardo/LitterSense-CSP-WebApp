@@ -79,7 +79,7 @@ function CheckEmailContent() {
 
   return (
     <div className="dark min-h-screen bg-litter-bg flex flex-col px-6 py-8 relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-litter-primary/20 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-56 bg-linear-to-b from-litter-primary/20 to-transparent" />
       {/* Back arrow */}
       <Link
         href="/forgot-password"
@@ -96,7 +96,7 @@ function CheckEmailContent() {
         </div>
 
         {/* Decorative teal security banner */}
-        <div className="w-full h-24 bg-gradient-to-r from-[#145C54] to-[#1B7A6E] rounded-2xl mb-8 relative overflow-hidden flex items-center justify-center">
+        <div className="w-full h-24 bg-linear-to-r from-[#145C54] to-[#1B7A6E] rounded-2xl mb-8 relative overflow-hidden flex items-center justify-center">
           {/* Centering the lock makes the banner read as one balanced security illustration. */}
           <div className="opacity-35" aria-hidden="true">
             <svg
@@ -160,9 +160,9 @@ function CheckEmailContent() {
         <div className="text-center mt-4">
           <Link
             href="/login"
-            className="text-sm text-litter-muted hover:text-litter-primary transition-colors inline-flex items-center gap-1.5"
+            className="text-sm text-litter-muted hover:text-litter-primary transition-colors inline-flex items-center gap-2"
           >
-            <LogIn className="w-3.5 h-3.5" />
+            <LogIn className="w-4 h-4" />
             Back to Sign In
           </Link>
         </div>

@@ -421,7 +421,7 @@ export default function CatsPage() {
           </div>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-litter-primary text-white rounded-full font-semibold hover:bg-[#165a4e] active:bg-[#124a40] transition-colors shadow-sm text-sm"
+            className="flex items-center gap-2 px-6 py-3 bg-litter-primary text-white rounded-full font-semibold hover:bg-[#165a4e] active:bg-[#124a40] transition-colors shadow-sm text-sm"
           >
             + Add Cat
           </button>
@@ -440,7 +440,7 @@ export default function CatsPage() {
                 action={
                   <button
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-litter-primary text-white rounded-xl font-medium hover:bg-[#165a4e] transition-colors"
+                    className="flex items-center gap-2 px-4 py-3 bg-litter-primary text-white rounded-xl font-medium hover:bg-[#165a4e] transition-colors"
                   >
                     <Plus className="w-5 h-5" />
                     Add Your First Cat
@@ -516,8 +516,9 @@ export default function CatsPage() {
                   </label>
                 </div>
                 <div className="w-full max-w-xs">
-                  <label className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
+                  <label htmlFor="add-cat-photo-zoom" className="block text-xs font-medium text-litter-muted mb-1.5">Zoom photo</label>
                   <input
+                    id="add-cat-photo-zoom"
                     type="range"
                     min="1"
                     max="2.5"
@@ -532,12 +533,13 @@ export default function CatsPage() {
                     }}
                     className="w-full accent-litter-primary"
                   />
-                  <p className="text-[11px] text-litter-muted mt-1">Drag the photo to reposition.</p>
+                  <p className="text-xs text-litter-muted mt-1">Drag the photo to reposition.</p>
                 </div>
               </>
             ) : (
               <label
                 htmlFor="add-cat-photo-input"
+                aria-label="Upload photo"
                 className="group relative flex w-full h-36 rounded-2xl overflow-hidden border-2 border-dashed border-litter-border hover:border-litter-primary transition-colors bg-litter-primary-light/30 cursor-pointer"
               >
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
@@ -571,21 +573,22 @@ export default function CatsPage() {
 
           {/* ── Basic Info ───────────────────────────────── */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Basic Info</p>
 
             {/* Cat Name */}
             <div>
-              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+              <label htmlFor="add-cat-name" className="block text-sm font-medium text-theme-secondary mb-1.5">
                 Cat Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <PawPrint className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-litter-muted pointer-events-none" />
                 <input
+                  id="add-cat-name"
                   type="text"
                   value={formData.name}
                   onChange={(event) => setFormData((prev) => ({ ...prev, name: event.target.value }))}
                   placeholder="e.g. Whiskers"
-                  className={`w-full pl-10 pr-4 py-3 rounded-xl border ${errors.name ? "border-red-500 bg-red-50/5" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border ${errors.name ? "border-red-500 bg-red-50/5" : "border-litter-border"} bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />
               </div>
               {errors.name && <p className="text-red-500 text-xs mt-1 flex items-center gap-1">{errors.name}</p>}
@@ -593,10 +596,11 @@ export default function CatsPage() {
 
             {/* Breed */}
             <div>
-              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+              <label htmlFor="add-cat-breed" className="block text-sm font-medium text-theme-secondary mb-1.5">
                 Breed <span className="text-red-500">*</span>
               </label>
               <BreedPicker
+                id="add-cat-breed"
                 value={formData.breed}
                 onChange={(v) => { setFormData((prev) => ({ ...prev, breed: v })); setErrors((prev) => ({ ...prev, breed: undefined })); }}
                 hasError={!!errors.breed}
@@ -606,10 +610,11 @@ export default function CatsPage() {
 
             {/* Gender */}
             <div>
-              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
+              <label htmlFor="add-cat-gender" className="block text-sm font-medium text-theme-secondary mb-1.5">
                 Gender <span className="text-red-500">*</span>
               </label>
               <select
+                id="add-cat-gender"
                 value={formData.gender}
                 onChange={(event) => {
                   setFormData((prev) => ({
@@ -618,7 +623,7 @@ export default function CatsPage() {
                   }));
                   setErrors((prev) => ({ ...prev, gender: undefined }));
                 }}
-                className={`w-full px-3.5 py-3 rounded-xl border ${errors.gender ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${formData.gender ? "text-litter-text" : "text-[var(--color-placeholder)]"}`}
+                className={`w-full px-4 py-3 rounded-xl border ${errors.gender ? "border-red-500" : "border-litter-border"} bg-litter-input text-sm focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all appearance-none cursor-pointer ${formData.gender ? "text-litter-text" : "text-litter-placeholder"}`}
               >
                 <option value="" disabled>Select gender</option>
                 <option value="male">Male</option>
@@ -630,16 +635,16 @@ export default function CatsPage() {
 
           {/* ── Health Details ───────────────────────────── */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Health Details</p>
 
             {/* Date of Birth — full width with month/year selects */}
             <div>
-              <label className="block text-sm font-medium text-theme-secondary mb-1.5">
-                <span className="flex items-center gap-1.5">
+              <p className="block text-sm font-medium text-theme-secondary mb-1.5">
+                <span className="flex items-center gap-2">
                   <CalendarDays className="w-4 h-4 text-litter-muted" />
                   Date of Birth <span className="text-red-500">*</span>
                 </span>
-              </label>
+              </p>
               <MonthYearPicker
                 value={formData.dob}
                 onChange={(v) => { setFormData((prev) => ({ ...prev, dob: v })); setErrors((prev) => ({ ...prev, dob: undefined })); }}
@@ -653,7 +658,7 @@ export default function CatsPage() {
 
           {/* ── Device ───────────────────────────────────── */}
           <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-litter-muted">Device</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-litter-muted">Device</p>
 
             <div className="rounded-2xl border border-litter-border bg-litter-primary-light/20 p-4 space-y-3">
               <div className="flex items-center gap-2">
@@ -674,7 +679,7 @@ export default function CatsPage() {
                   aria-required="true"
                   aria-invalid={Boolean(errors.rfidTag)}
                   placeholder="No tag scanned yet"
-                  className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-[var(--color-input)] text-litter-text placeholder:text-[var(--color-placeholder)] focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
+                  className={`w-full px-4 py-3 pr-12 rounded-xl border ${errors.rfidTag ? "border-red-500" : "border-litter-border"} bg-litter-input text-litter-text placeholder:text-litter-placeholder focus:outline-none focus:ring-2 focus:ring-litter-primary focus:border-transparent transition-all`}
                 />
                 <button
                   type="button"
@@ -727,13 +732,13 @@ export default function CatsPage() {
         </div>
       </BottomSheet>
       <BottomSheet isOpen={enrollmentOpen} onClose={closeEnrollment} title="Scan RFID Tag">
-        <div className="space-y-5 text-litter-text">
+        <div className="space-y-6 text-litter-text">
           <p className="text-sm text-litter-muted">Hold the tag on the reader continuously for 5 seconds.</p>
           <p className="text-xs text-litter-muted">After verification, press Save Cat to register the tag with this cat.</p>
           <div className="flex justify-center">
             <RfidHoldProgress status={enrollment.status} holdMs={enrollment.holdMs} tag={enrollment.tag} sample={enrollment.lastScanId} paused={Boolean(enrollment.error)} />
           </div>
-          <div className="rounded-xl border border-litter-border bg-[var(--color-input)] p-4 text-center" aria-live="polite">
+          <div className="rounded-xl border border-litter-border bg-litter-input p-4 text-center" aria-live="polite">
             {enrollment.status === "starting" || enrollment.status === "waiting" ? <p className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Connecting to RFID reader… An idle reader may take up to 60 seconds. Wait for “Reader ready” before scanning.</p> : null}
             {enrollment.status === "ready" ? <p>{"Reader ready. Hold the tag on the reader for 5 seconds."}</p> : null}
             {enrollment.status === "holding" ? <p>Keep holding the tag on the reader…</p> : null}
@@ -777,7 +782,7 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
       <Link href={`/dashboard/cats/${cat.id}`}>
         <div className="bg-litter-card rounded-2xl shadow-sm border border-litter-border hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all cursor-pointer overflow-hidden">
           {/* Card top */}
-          <div className="p-5 flex items-center gap-4">
+          <div className="p-6 flex items-center gap-4">
             {/* Avatar */}
             <div className="w-14 h-14 rounded-full bg-litter-primary-light flex items-center justify-center text-litter-primary font-bold text-xl shrink-0">
               {cat.avatar ? (
@@ -811,21 +816,21 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
           <div className="border-t border-litter-border mx-5" />
 
           {/* Stats row */}
-          <div className="grid grid-cols-3 divide-x divide-litter-border px-5 py-4">
+          <div className="grid grid-cols-3 divide-x divide-litter-border px-6 py-4">
             <div className="pr-4">
-              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
+              <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
               <p className="font-bold text-litter-text text-lg">
                 {formatMetricValue(stats?.visits ?? 0, hasData)}
               </p>
             </div>
             <div className="px-4">
-              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
+              <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
               <p className="font-bold text-litter-text text-lg">
                 {formatMetricValue(stats?.avgDuration, hasData)}
               </p>
             </div>
             <div className="pl-4">
-              <p className="text-[10px] font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
+              <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
               <p className="font-bold text-litter-text text-lg">
                 {formatLastVisit(stats?.lastVisit, hasData)}
               </p>

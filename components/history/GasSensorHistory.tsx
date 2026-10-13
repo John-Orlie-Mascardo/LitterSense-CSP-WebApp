@@ -45,7 +45,7 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
     }
     loadRef.current = more => { void load(more); };
     void load();
-    const refresh = () => { if (!document.hidden) void load(); };
+    const refresh = () => { void load(); };
     const disconnect = subscribeSensorChanges(refresh);
     const timer = setInterval(refresh, 5000);
     document.addEventListener('visibilitychange', refresh);
@@ -53,7 +53,7 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
   }, [user]);
   const current = state?.uid === user?.uid ? state : null;
   const events = preview ? current?.events.slice(0, 3) : current?.events;
-  return <section className="rounded-xl border border-litter-border bg-litter-card p-4 sm:p-5">
+  return <section className="rounded-2xl border border-litter-border bg-litter-card p-4 sm:p-6">
     <div className="flex items-center justify-between gap-3">
       <h2 className="font-display font-semibold text-litter-text">Gas Sensor History</h2>
       {preview && <Link href="/dashboard/history" className="text-xs font-semibold text-litter-primary hover:underline">VIEW ALL</Link>}
@@ -64,7 +64,7 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
     {current && !current.loading && !current.error && !events?.length && <p className="mt-3 text-sm text-litter-muted">No recorded gas readings yet.</p>}
     <ul className="mt-3 divide-y divide-litter-border">
       {events?.map(event => <li key={event.id} className="py-3 text-sm">
-        <div className="flex flex-wrap gap-x-5 gap-y-1 font-medium">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 font-medium">
           <span className={event.mq135Raw === 0 ? 'text-red-400' : 'text-litter-primary'}>Urine odor: {event.mq135Raw === 0 ? 'Detected' : 'Clear'}</span>
           <span className={event.mq136Raw === 0 ? 'text-red-400' : 'text-litter-primary'}>Stool odor: {event.mq136Raw === 0 ? 'Detected' : 'Clear'}</span>
         </div>

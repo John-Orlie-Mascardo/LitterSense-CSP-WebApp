@@ -30,10 +30,10 @@ function SummaryCard({
   readonly value: string | number;
 }) {
   return (
-    <div className="rounded-xl border border-litter-border bg-litter-card p-3 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-litter-border bg-litter-card p-3 shadow-sm">
       <Icon className="h-4 w-4 text-litter-primary" />
       <p className="mt-2 text-xs font-medium text-litter-muted">{label}</p>
-      <p className="mt-1 text-lg font-bold leading-none text-litter-text">{value}</p>
+      <p className="mt-1 break-words text-base font-bold leading-tight text-litter-text sm:text-lg">{value}</p>
     </div>
   );
 }

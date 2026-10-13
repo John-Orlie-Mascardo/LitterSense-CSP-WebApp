@@ -63,7 +63,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="dark min-h-screen bg-litter-bg flex items-center justify-center px-6 py-12 relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-litter-primary/20 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-56 bg-linear-to-b from-litter-primary/20 to-transparent" />
       <div className="w-full max-w-md">
         {/* Card */}
         <div className="relative bg-litter-card rounded-2xl shadow-2xl shadow-black/30 border border-litter-border px-6 py-8">
@@ -99,7 +99,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
               <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-xl">
                 {error}
@@ -122,7 +122,7 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="example@email.com"
-                  className="w-full pl-12 pr-4 py-3.5 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
+                  className="w-full pl-12 pr-4 py-4 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
               </div>

@@ -30,7 +30,6 @@ import {
   Download,
   Check,
   AlertTriangle,
-  Wifi,
   Copy,
   RefreshCw,
   Eye,
@@ -38,12 +37,14 @@ import {
   CloudFog,
   Droplets,
   Radio,
+  Wifi,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { PushNotificationSettings } from '@/components/dashboard/PushNotifications';
 import { unregisterFirebaseMessagingToken } from '@/lib/utils/firebaseMessaging';
 import { SettingsRow } from "@/components/settings/SettingsRow";
+import { SettingsIcon } from '@/components/settings/SettingsIcon';
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -54,8 +55,6 @@ import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceProvisioning } from "@/lib/hooks/useDeviceProvisioning";
-import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
-import { getDeviceNetworkSummary } from "@/lib/utils/deviceNetworkStatus";
 import { generateId } from "@/lib/utils/formatters";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { auth, db } from "@/lib/configs/firebase";
@@ -267,13 +266,7 @@ export default function SettingsPage() {
     isLoading: isDeviceProvisioningLoading,
     isSaving: isDeviceProvisioningSaving,
   } = useDeviceProvisioning();
-  const { data: deviceSensors } = useDeviceSensors();
   const { theme, setTheme } = useTheme();
-  const deviceNetworkSummary = getDeviceNetworkSummary({
-    isLoading: isDeviceProvisioningLoading,
-    configuredSsid: deviceConfig.wifiSsid,
-    connectedSsid: deviceSensors?.connectedSsid,
-  });
 
   const [toasts, setToasts] = useState<Omit<ToastParams, "onClose">[]>([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -715,37 +708,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Device Network Section */}
-        <div>
-          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
-            DEVICE NETWORK
-          </h3>
-          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2">
-            <button
-              onClick={() => setShowWifiProvisioning(true)}
-              className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left rounded-2xl"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-theme-overlay flex items-center justify-center shrink-0">
-                  <Wifi className="w-5 h-5 text-theme-muted" />
-                </div>
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-litter-text">ESP32 Wi-Fi Provisioning</span>
-                  <p className="truncate text-xs text-theme-muted">
-                    {deviceNetworkSummary}
-                  </p>
-                </div>
-              </div>
-              <div className="ml-3 flex shrink-0 items-center gap-2">
-                {isDeviceProvisioningSaving && (
-                  <Loader2 className="h-4 w-4 animate-spin text-theme-muted" />
-                )}
-                <ChevronRight className="w-5 h-5 text-theme-muted" />
-              </div>
-            </button>
-          </div>
-        </div>
-
         {/* Notifications Section */}
         <div>
           <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
@@ -821,9 +783,7 @@ export default function SettingsPage() {
                 className="w-full flex items-center justify-between p-4 hover:bg-theme-hover transition-colors text-left rounded-t-2xl"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-theme-overlay flex items-center justify-center shrink-0">
-                    <Database className="w-5 h-5 text-theme-muted" />
-                  </div>
+                  <SettingsIcon icon={Database} />
                   <span className="text-sm font-medium text-litter-text">Data Retention</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -867,7 +827,7 @@ export default function SettingsPage() {
                 className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <Download className="w-5 h-5 text-theme-muted" />
+                  <SettingsIcon icon={Download} />
                   <span className="text-sm font-medium text-litter-text">Export All Data</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-theme-muted" />
@@ -879,7 +839,7 @@ export default function SettingsPage() {
                 className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <Shield className="w-5 h-5 text-theme-muted" />
+                  <SettingsIcon icon={Shield} />
                   <span className="text-sm font-medium text-litter-text">Privacy Policy</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-theme-muted" />
@@ -920,7 +880,7 @@ export default function SettingsPage() {
                 control={
                   <button
                     onClick={() => void triggerInstall()}
-                    className="bg-litter-primary text-white rounded-xl px-4 py-1.5 text-sm font-medium active:opacity-80 transition-opacity"
+                    className="bg-litter-primary text-white rounded-xl px-4 py-2 text-sm font-medium active:opacity-80 transition-opacity"
                   >
                     Install
                   </button>
@@ -941,7 +901,7 @@ export default function SettingsPage() {
               className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
             >
               <div className="flex items-center gap-3">
-                <Lock className="w-5 h-5 text-theme-muted" />
+                <SettingsIcon icon={Lock} />
                 <span className="text-sm font-medium text-litter-text">Change Password</span>
               </div>
               <ChevronRight className="w-5 h-5 text-theme-muted" />
@@ -1048,7 +1008,7 @@ export default function SettingsPage() {
         }}
         title="Edit Profile"
       >
-        <form onSubmit={handleSaveProfile} className="space-y-5">
+        <form onSubmit={handleSaveProfile} className="space-y-6">
           <div className="flex flex-col items-center">
             <div className="relative">
               <div className="w-24 h-24 rounded-full bg-litter-primary-light flex items-center justify-center overflow-hidden">
@@ -1130,7 +1090,7 @@ export default function SettingsPage() {
         onClose={() => { setShowChangePassword(false); setPasswordForm({ current: "", new: "", confirm: "" }); }}
         title="Change Password"
       >
-        <div className="space-y-5">
+        <div className="space-y-6">
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Current Password</label>
             <input id="currentPassword" type="password" value={passwordForm.current}
@@ -1202,7 +1162,7 @@ export default function SettingsPage() {
 
           <div className="rounded-xl border border-litter-border bg-litter-bg p-3">
             <p className="text-sm font-medium text-litter-text">Set up Wi-Fi at a new location</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs leading-relaxed text-theme-muted">
+            <ol className="mt-2 list-decimal space-y-1 pl-6 text-xs leading-relaxed text-theme-muted">
               <li>Power the litterbox. If its saved Wi-Fi is unavailable, setup opens after about 30 seconds.</li>
               <li>Connect this phone or laptop to the LitterSense-Setup Wi-Fi. Password: littersense.</li>
               <li>No Internet on that setup Wi-Fi is normal.</li>
@@ -1398,7 +1358,7 @@ export default function SettingsPage() {
         onClose={() => { setShowDeleteRequestSheet(false); setDeleteReason(""); }}
         title="Request Account Deletion"
       >
-        <div className="space-y-5">
+        <div className="space-y-6">
           {/* Warning */}
           <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />

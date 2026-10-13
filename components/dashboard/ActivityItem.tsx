@@ -54,7 +54,7 @@ export function ActivityItem({
       {/* Right side: time + duration badge */}
       <div className="flex items-center gap-2 shrink-0">
         {anomaly && (
-          <span className="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-wide">
+          <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-semibold uppercase tracking-wide">
             {duration || anomalyNote || "Duration unavailable"}
           </span>
         )}

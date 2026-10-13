@@ -1,6 +1,7 @@
 "use client";
 
 import { LucideIcon } from "lucide-react";
+import { SettingsIcon } from './SettingsIcon';
 
 interface SettingsRowProps {
   icon: LucideIcon;
@@ -20,17 +21,15 @@ export function SettingsRow({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-4 py-3 px-4 ${
+      className={`flex items-center gap-3 p-4 ${
         onClick ? "cursor-pointer active:bg-theme-hover" : ""
       }`}
     >
-      <div className="w-10 h-10 rounded-xl bg-litter-primary-light flex items-center justify-center shrink-0">
-        <Icon className="w-5 h-5 text-litter-primary" />
-      </div>
+      <SettingsIcon icon={Icon} className="bg-litter-primary-light text-litter-primary" />
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-litter-text">{label}</p>
+        <p className="text-sm font-medium text-litter-text">{label}</p>
         {description && (
-          <p className="text-sm text-theme-muted truncate">{description}</p>
+          <p className="text-sm text-theme-muted">{description}</p>
         )}
       </div>
       <div className="shrink-0">{control}</div>

@@ -164,8 +164,7 @@ function useSensorPolling() {
     const onVisibilityChange = () => {
       if (inFlight) return;
       window.clearTimeout(timeoutId);
-      if (!document.hidden) void pollSensors();
-      else timeoutId = window.setTimeout(pollSensors, 2000);
+      void pollSensors();
     };
     const requestRefresh = () => {
       if (inFlight) refreshPending = true;
