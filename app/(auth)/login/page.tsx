@@ -22,9 +22,9 @@ import {
   FileText,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { auth, db } from "@/lib/configs/firebase";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "@/lib/utils/operationalClient";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -34,6 +34,7 @@ import {
   getGoogleLoginErrorMessage,
 } from "@/lib/presentation/loginFeedback";
 import { recordAdminLogin } from "@/lib/utils/adminLoginAudit";
+import { ADMIN_LOGIN_PATH, requireAdminLogin } from "@/lib/utils/adminLoginAccess";
 
 const features = [
   { icon: Activity, text: "Real-time litter monitoring" },
@@ -42,6 +43,7 @@ const features = [
 ];
 
 export default function LoginPage() {
+  const adminOnly = usePathname() === ADMIN_LOGIN_PATH;
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -93,12 +95,13 @@ export default function LoginPage() {
     setError("");
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      if (adminOnly) await requireAdminLogin(userCredential.user, () => signOut(auth));
       await recordAdminLogin(userCredential.user, "password");
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {
       const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
-      setError(getEmailLoginErrorMessage(code));
+      setError(code === "auth/admin-required" ? "Administrator access required. Use an authorized admin account." : getEmailLoginErrorMessage(code));
       setIsLoading(false);
     }
   };
@@ -111,21 +114,24 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
+      if (adminOnly) await requireAdminLogin(user, () => signOut(auth));
 
-      // Ensure a document exists in Firestore for this Google user, even if they started on Login instead of Signup
+      // Only the owner login flow creates or updates an owner profile.
+      if (!adminOnly) {
       await setDoc(doc(db, "users", user.uid), {
         email: user.email,
         fullName: user.displayName || "Google User",
         authProvider: "google",
         createdAt: serverTimestamp(),
       }, { merge: true });
+      }
 
       await recordAdminLogin(user, "google");
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {
       const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
-      setError(getGoogleLoginErrorMessage(code));
+      setError(code === "auth/admin-required" ? "Administrator access required. Use an authorized admin account." : getGoogleLoginErrorMessage(code));
       setIsLoading(false);
     }
   };
@@ -216,10 +222,10 @@ export default function LoginPage() {
           {/* Welcome Text */}
           <div className="mb-8">
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-litter-text mb-2">
-              Welcome back
+              {adminOnly ? "Administrator sign in" : "Welcome back"}
             </h1>
             <p className="text-litter-muted">
-              Monitor litter box activity from anywhere.
+              {adminOnly ? "Sign in with your authorized LitterSense administrator account." : "Monitor litter box activity from anywhere."}
             </p>
           </div>
 
@@ -367,6 +373,7 @@ export default function LoginPage() {
           </button>
 
           {/* Sign Up Link */}
+          {adminOnly ? <p className="text-center text-sm text-litter-muted mt-6">Administrator access is managed by the system owner.</p> : (
           <p className="text-center text-sm text-litter-muted mt-6">
             Don&apos;t have an account?{" "}
             <Link
@@ -376,6 +383,7 @@ export default function LoginPage() {
               Sign up
             </Link>
           </p>
+          )}
         </div>
       </div>
     </div>
