@@ -2,6 +2,7 @@
 import * as fs from 'firebase/firestore';
 import { auth } from '@/lib/configs/firebase';
 import { operationalPrimary } from './operationalMode';
+import type { NotificationCursor, NotificationFilter, NotificationPage } from '@/lib/interfaces/NotificationPage';
 export * from 'firebase/firestore';
 type Constraint = { kind: string; field?: string; op?: string; value?: unknown };
 type Spec = { path: string; constraints: Constraint[] };
@@ -53,11 +54,25 @@ async function request(body: unknown) {
   if (auth.currentUser?.uid !== user.uid) throw new Error('Account changed');
   if (!response.ok) throw Object.assign(new Error(data.error), { code: data.code, status: response.status });
   const writeRequest = body as { action?: string; writes?: Write[] };
-  if (writeRequest.action === 'write') {
-    const paths = (writeRequest.writes ?? []).map(write => write.path);
+  if (writeRequest.action === 'write' || writeRequest.action === 'notificationBulk') {
+    const paths = writeRequest.action === 'write' ? (writeRequest.writes ?? []).map(write => write.path) : [`users/${user.uid}/notifications`];
     recordRefreshListeners.forEach(refresh => refresh(paths));
   }
   return data;
+}
+export async function getNotificationPage(category: NotificationFilter = 'all', cursor: NotificationCursor | null = null): Promise<NotificationPage> {
+  return request({ action: 'notificationPage', category, cursor });
+}
+export async function mutateNotificationHistory(operation: 'markRead' | 'clear'): Promise<void> {
+  await request({ action: 'notificationBulk', operation });
+}
+export function subscribeNotificationRefresh(uid: string, refresh: () => void) {
+  const path = `users/${uid}/notifications`;
+  const onWrite = (paths: readonly string[]) => { if (paths.some(value => value === path || value.startsWith(path + '/'))) refresh(); };
+  const onVisible = refresh;
+  notificationRefreshListeners.add(refresh); recordRefreshListeners.add(onWrite);
+  document.addEventListener('visibilitychange', onVisible);
+  return () => { notificationRefreshListeners.delete(refresh); recordRefreshListeners.delete(onWrite); document.removeEventListener('visibilitychange', onVisible); };
 }
 function snapshot(ref: fs.DocumentReference, row?: Row) {
   const data = row ? decode(row.data) as fs.DocumentData : undefined;

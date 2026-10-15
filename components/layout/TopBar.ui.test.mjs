@@ -51,12 +51,29 @@ test("clearing is confirmed and account-scoped while the empty panel keeps its h
   assert.doesNotMatch(clear, /deleteNotification|clearAll|markAsRead/);
   assert.match(source, /littersense-dismissed-notifications:\$\{user.uid\}/);
   assert.match(source, /useSyncExternalStore/);
-  assert.match(source, /panelNotifications.filter\(\(notification\) => !notification.isRead\)/);
   const footer = source.slice(source.indexOf("{/* Footer */}"));
   assert.match(footer, /href="\/dashboard\/notifications"/);
   assert.doesNotMatch(footer, /notifications.length/);
   assert.match(source, /Mark all as read/);
   assert.match(source, /aria-label=\{`Mark as read:/);
+});
+
+test('notification badge includes unread records outside the loaded panel page', () => {
+  const loaded = {}, jsx = (type, props) => ({ type, props });
+  const dependencies = name => {
+    if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx };
+    if (name === 'react') return { useRef: () => ({current:null}), useState: value => [value, () => {}], useEffect() {}, useSyncExternalStore: (_subscribe, snapshot) => snapshot() };
+    if (name === 'framer-motion') return {motion:new Proxy({}, {get: (_target,key) => key}), AnimatePresence:'animation'};
+    if (name === 'next/navigation') return {usePathname:()=>'/dashboard',useRouter:()=>({push(){}})};
+    if (name.endsWith('/NotificationContext')) return {useNotifications:()=>({notifications:[{id:'loaded',isRead:false}],unreadCount:80,syncError:''})};
+    if (name.endsWith('/usePWAInstall')) return {usePWAInstall:()=>({isInstallable:false})};
+    if (name.endsWith('/AuthContext')) return {useAuth:()=>({user:{uid:'owner'}})};
+    return {};
+  };
+  new Function('exports','require','localStorage',compiled)(loaded,dependencies,{getItem:()=>null});
+  const nodes=[];const walk=node=>{if(!node||typeof node!=='object')return;if(Array.isArray(node)){node.forEach(walk);return;}nodes.push(node);walk(node.props?.children);};
+  walk(loaded.TopBar());
+  assert.ok(nodes.some(node=>node.props?.['aria-label']==='Notifications (80 unread)'));
 });
 
 test("the LitterSense logo is a keyboard-accessible dashboard link", () => {

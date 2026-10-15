@@ -65,7 +65,7 @@ const navItems = [
 
 export function TopBar() {
   const { isInstallable, triggerInstall } = usePWAInstall();
-  const { notifications, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, syncError, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const { user } = useAuth();
   const dismissalKey = user ? `littersense-dismissed-notifications:${user.uid}` : "";
   const dismissed = useSyncExternalStore(subscribeToDismissals, () => {
@@ -73,7 +73,6 @@ export function TopBar() {
     catch { return ""; }
   }, () => "");
   const panelNotifications = getPanelNotifications(notifications, dismissed);
-  const unreadCount = panelNotifications.filter((notification) => !notification.isRead).length;
   const [actionError, setActionError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const pathname = usePathname();
@@ -351,7 +350,7 @@ export function TopBar() {
                       </button>
                     </div>
                   </div>
-                  {actionError && <p role="alert" className="px-6 py-2 text-sm text-status-abnormal">{actionError}</p>}
+                  {(actionError || syncError) && <p role="alert" className="px-6 py-2 text-sm text-status-abnormal">{actionError || syncError}</p>}
 
                   {/* List */}
                   <div className="overflow-y-auto" style={{ minHeight: "260px", maxHeight: "520px" }}>
