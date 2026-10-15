@@ -162,7 +162,7 @@ function useSensorPolling() {
     };
 
     const pollSensors = async () => {
-      if (!isMounted || inFlight) return;
+      if (!isMounted || inFlight || document.hidden) return;
       window.clearTimeout(timeoutId);
       inFlight = true;
       try {
@@ -196,7 +196,7 @@ function useSensorPolling() {
         }));
       } finally {
         inFlight = false;
-        if (isMounted) {
+        if (isMounted && !document.hidden) {
           if (refreshPending) {
             refreshPending = false;
             void pollSensors();
@@ -212,11 +212,16 @@ function useSensorPolling() {
     };
 
     const onVisibilityChange = () => {
-      if (inFlight) return;
       window.clearTimeout(timeoutId);
+      if (document.hidden) {
+        refreshPending = false;
+        return;
+      }
+      if (inFlight) return;
       void pollSensors();
     };
     const requestRefresh = () => {
+      if (document.hidden) return;
       if (inFlight) refreshPending = true;
       else void pollSensors();
     };
