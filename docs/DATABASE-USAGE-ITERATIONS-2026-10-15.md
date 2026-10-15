@@ -6,7 +6,7 @@ Reduce avoidable website database reads while retaining prompt visible sensor up
 
 ## Iteration 1: hidden dashboard sensor reads
 
-Status: source implemented; local verification recorded below. Production deployment and device/browser acceptance remain pending.
+Status: committed as `7600e6b`. The user reports the deployed browser hide/return test works. Physical closed-app push acceptance remains pending because hardware testing is unavailable.
 
 Baseline: clean branch `orlie-branch`, commit `ea71464`.
 
@@ -47,6 +47,31 @@ Production/browser acceptance after deployment:
 2. Measure redundant operational reads: identical listeners, visibility refresh, and broad write invalidations in `operationalClient.ts`. Establish a request-count regression before selecting an improvement.
 3. Measure Realtime connections across tab navigation, reconnects, and multiple tabs; investigate repeated subscription reconciliation before implementing connection sharing.
 4. Inspect the highest-frequency/slowest database queries using read-only runtime metrics, then choose query, index, or read-batching changes based on evidence. Obtain before/after metrics before claiming CPU improvement.
+
+## Iteration 2: scope write-triggered record refreshes
+
+Baseline: commit `7600e6b`; no unrelated changes were present before this iteration. Status: implemented locally; deployment and real-browser acceptance pending.
+
+Story: As an owner marking a notification read or saving a record, I want only related record listeners to reload so each action avoids unnecessary database traffic.
+
+Reproduced behavior: `operationalClient.ts` notified every operational listener after any successful write. A runtime test mounted seven representative dashboard collection listeners, then marked one notification read. The baseline made seven follow-up list requests; the patched adapter makes one. That is six fewer requests (about 86% reduction) for this reproduced action, not a claim about total production traffic or CPU.
+
+Change: successful writes pass their document paths to registered listeners. A listener refreshes only if its path equals, contains, or is contained by a written path, using slash boundaries. Each listener refreshes once for a batch, even if several writes match it. An overlapping in-flight read still queues its follow-up instead of racing. Rejected writes do not invalidate records, and unsubscribed listeners are removed. Query filters and snapshot formatting are unchanged.
+
+Server push generation/delivery, the service worker, sensor polling, the 30-second operational fallback, camera behavior, and Realtime connections are unchanged. A database-side indirect change outside the listed write paths can still arrive through its existing live invalidation or fallback; the confirmed local write fast path refreshes its related records only.
+
+Proof: two new request-count/path-boundary regressions failed against the baseline, then passed after the patch. Additional coverage checks rejected writes, deletes, and cleanup. Existing tests cover account isolation, transaction retries, notification live invalidations and background push.
+
+Final verification: `npm run check` completed successfully: ESLint, all 574 app tests, all six relay tests, and the production build including TypeScript. This confirms local behavior; production request reduction, CPU impact, and physical push delivery have not been measured for this iteration.
+
+Hardware-free browser acceptance after deployment:
+
+1. In Network, filter `/api/operational/records`, clear the log after startup settles, and inspect each request payload's `action` and `path`.
+2. Mark one existing unread notification read. Expect the write plus a read of `users/<owner>/notifications`; the action should not immediately reload cats, sessions, details, or health logs. Periodic 30-second reads and independent live invalidations may still appear; distinguish those by timing and payload.
+3. Verify the unread count updates, the item stays read after reload, and a second signed-in browser tab eventually reflects the change through existing live/fallback updates.
+4. If existing data allows, save one ordinary record and verify its related UI updates. Check navigation and history still load. No board, synthetic alert, or new firmware is required.
+
+Rollback: iteration 2 changes only `lib/utils/operationalClient.ts`, `lib/utils/operationalClient.test.cjs`, and this document. Restore just the adapter and its test from `7600e6b`, or revert the isolated iteration 2 commit, then redeploy the website if needed. Preserve later/unrelated edits. Keep the accepted iteration 1 sensor optimization. No SQL, Render, or firmware rollback is needed.
 
 ## Rollback
 
