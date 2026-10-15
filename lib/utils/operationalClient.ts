@@ -36,7 +36,7 @@ function decode(value: unknown): unknown {
   }
   return value;
 }
-const recordRefreshListeners = new Set<() => void>();
+const recordRefreshListeners = new Set<(paths: readonly string[]) => void>();
 const notificationRefreshListeners = new Set<() => void>();
 export function refreshNotificationRecords() { notificationRefreshListeners.forEach(refresh => refresh()); }
 // Live invalidations refresh changed records immediately. Polling remains as a
@@ -52,7 +52,11 @@ async function request(body: unknown) {
   const data = await response.json();
   if (auth.currentUser?.uid !== user.uid) throw new Error('Account changed');
   if (!response.ok) throw Object.assign(new Error(data.error), { code: data.code, status: response.status });
-  if ((body as { action?: string }).action === 'write') recordRefreshListeners.forEach(refresh => refresh());
+  const writeRequest = body as { action?: string; writes?: Write[] };
+  if (writeRequest.action === 'write') {
+    const paths = (writeRequest.writes ?? []).map(write => write.path);
+    recordRefreshListeners.forEach(refresh => refresh(paths));
+  }
   return data;
 }
 function snapshot(ref: fs.DocumentReference, row?: Row) {
@@ -96,8 +100,12 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
   };
   const onVisibility = refresh;
   document.addEventListener('visibilitychange', onVisibility);
-  recordRefreshListeners.add(refresh);
   const listenerPath = specs.get(ref)?.path ?? (ref as fs.CollectionReference).path;
+  const onWrite = (paths: readonly string[]) => {
+    // A confirmed write only invalidates overlapping document/collection paths.
+    if (paths.some(path => path === listenerPath || path.startsWith(listenerPath + '/') || listenerPath.startsWith(path + '/'))) refresh();
+  };
+  recordRefreshListeners.add(onWrite);
   if (listenerPath?.includes('/notifications')) notificationRefreshListeners.add(refresh);
   async function poll() {
     if (stopped || inFlight || auth.currentUser?.uid !== user) return;
@@ -121,7 +129,7 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
     }
   }
   void poll();
-  return () => { stopped = true; clearTimeout(timer); legacy?.(); recordRefreshListeners.delete(refresh); notificationRefreshListeners.delete(refresh); document.removeEventListener('visibilitychange', onVisibility); };
+  return () => { stopped = true; clearTimeout(timer); legacy?.(); recordRefreshListeners.delete(onWrite); notificationRefreshListeners.delete(refresh); document.removeEventListener('visibilitychange', onVisibility); };
 }) as typeof fs.onSnapshot;
 export const setDoc: typeof fs.setDoc = (async (ref: fs.DocumentReference, data: fs.DocumentData, options?: fs.SetOptions) => {
   if (!await operationalPrimary()) return options ? fs.setDoc(ref, data, options) : fs.setDoc(ref, data);
