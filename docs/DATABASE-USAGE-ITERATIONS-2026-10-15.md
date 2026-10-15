@@ -216,6 +216,18 @@ The database dependency is prepared; commit and deploy the website next. After V
 
 Rollback: restore only this iteration's `lib/server/operationalRecords.ts`, its changed tests and this documentation from `993503b`, or revert the isolated commit after preserving later/unrelated changes. Redeploy. Keep iterations 1-5 and the additive unused RPC during website rollback. Optional SQL cleanup after website rollback removes only `public.operational_read_records(text,text,boolean,integer,boolean)` through a reviewed migration. No record deletion or firmware rollback is needed.
 
+## Vercel build memory follow-up
+
+The preview deployment of `bb8b40c` failed during `npm test`, before the relay tests or Next build. Vercel reported at least one Out of Memory event and a whole-file failure for `lib/server/operationalRfid.test.mjs`; its summary was 597 passed and one failed. Other highlighted rows containing words such as "failed" or "failures" had passing checkmarks and were not failed assertions.
+
+The test script previously left file concurrency at Node's automatic default. Seven application test files use PGlite, so separate PostgreSQL/WASM test processes could overlap and exhaust the build container. `npm test` now passes `--test-concurrency=1`, keeping process isolation and every existing glob/test while executing one test file at a time. The `check` chain still runs lint, all application tests, relay tests and the production build. No dependency, test assertion, database, runtime application, firmware, sensor interval or push-delivery code changes for this follow-up.
+
+References: [Node test process concurrency](https://nodejs.org/api/test.html#test-runner-execution-model), [Vercel build memory troubleshooting](https://vercel.com/docs/deployments/troubleshoot-a-build#build-container-resources). This trades longer test execution for lower overlapping test-process memory; it is not a measured whole-project runtime memory reduction.
+
+Full local `npm run check` passed with exit 0: lint, all 598 application tests, six relay tests and the production build including TypeScript. Application tests took 106.08 seconds. Point observations confirmed one test-file child, with runner-tree working sets of 517.2 MB early and 4437.5 MB during the large integration file; these are Windows point samples, not peak measurements or a guarantee of Linux usage. Independent review found no actionable issues. The existing MODULE_TYPELESS_PACKAGE_JSON diagnostic remains non-failing.
+
+A successful new Vercel preview build remains required before calling the cloud build fixed. No paid build-machine upgrade or Supabase plan change was made. Commit/push `package.json` and this document to trigger that verification. Rollback: restore only the `scripts.test` line in `package.json` from `bb8b40c`, preserving unrelated changes; this restores automatic parallelism and can restore the memory risk. No SQL or firmware rollback is needed.
+
 ## Rollback
 
 Only three files belong to iteration 1: `lib/hooks/useDeviceSensors.ts`, `lib/hooks/useDeviceSensors.test.mjs`, and this document. Preserve any later edits before restoring files.
