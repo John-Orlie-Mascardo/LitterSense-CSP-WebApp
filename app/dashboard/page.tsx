@@ -202,10 +202,6 @@ const getReadingStatusLabel = (
   return "Normal";
 };
 
-const sensorSubtitle = (name: string, status: SensorDisplayStatus) => status.lastUpdatedAt
-  ? `${name ? `${name} · ` : ""}Last received: ${new Date(status.lastUpdatedAt).toLocaleString()}`
-  : name;
-
 function CatAvatar({
   cat,
   size,
@@ -444,7 +440,6 @@ function PopulatedDashboardState({
               icon={Droplets}
               value={airQualityStatus.value === "Stale" ? "—" : ["Unavailable", "Status unavailable"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.ammonia.displayValue}
               label="Urine Odor"
-              subtitle={sensorSubtitle("Urine", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.ammonia, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.ammonia, airQualityStatus)}
             />
@@ -452,7 +447,6 @@ function PopulatedDashboardState({
               icon={CloudFog}
               value={airQualityStatus.value === "Stale" ? "—" : ["Unavailable", "Status unavailable"].includes(airQualityStatus.value) ? airQualityStatus.value : airQualityReadings.h2s.displayValue}
               label="Stool Odor"
-              subtitle={sensorSubtitle("Stool", airQualityStatus)}
               status={getReadingStatus(airQualityReadings.h2s, airQualityStatus)}
               statusLabel={getReadingStatusLabel(airQualityReadings.h2s, airQualityStatus)}
             />
