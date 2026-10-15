@@ -1,5 +1,5 @@
 import { smsStoreRequest, buildSmsAccountBackup, saveSmsAccountBackup } from '@/lib/utils/smsAccountSync';
-import { assertOperationalReady, assertOperationalFoundation, commitOperational, listOperationalRecords, readOperationalRecord, readOperationalCredential, retryOperational, setOperational, OperationalError, type OperationalChange, type OperationalRecord } from './operationalStore';
+import { assertOperationalReady, assertOperationalFoundation, commitOperational, readOperationalRecord, readOperationalCredential, retryOperational, setOperational, OperationalError, type OperationalChange, type OperationalRecord } from './operationalStore';
 import { readOperationalCatalog } from './operationalCats';
 import { refreshPhotos, storePhotoPointers } from './operationalMedia';
 
@@ -54,12 +54,30 @@ async function fetchSpecial(owner: string, path: string, list = false) {
   if (rows.length > 5000) throw new OperationalError('Collection limit exceeded');
   return rows;
 }
+async function readGuardedRecords(owner: string, path: string, list: boolean, requireProfile: boolean) {
+  const records: OperationalRecord[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const response = await smsStoreRequest('rpc/operational_read_records', { method: 'POST', body: JSON.stringify({ p_owner_id: owner, p_path: path, p_list: list, p_offset: offset, p_require_profile: requireProfile }) });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new OperationalError(error.code === '55000' ? 'Migration data is not ready. Keep the current database mode until import and cutover are verified.' : 'Records unavailable', error.code === '22023' ? 400 : error.code === '42501' ? 403 : 503);
+    }
+    const rows = await response.json() as OperationalRecord[];
+    records.push(...rows);
+    if (!list || rows.length < 500) return records;
+    if (records.length > 5000) throw new OperationalError('Record page limit exceeded');
+  }
+}
 export async function readClientRecords(identity: Identity, path: string, list: boolean) {
   if (typeof path !== 'string' || path.split('/').length % 2 !== (list ? 1 : 0)) throw new OperationalError('Invalid record path', 400);
   const owner = await accessRecord(identity, path);
-  if (path === `users/${identity.uid}` || ['@system', '@all'].includes(owner)) await assertOperationalFoundation();
-  else await assertOperationalReady(owner);
-  const rows = owner.startsWith('@') || path.split('/')[0] === 'deleteRequests' ? await fetchSpecial(owner, path, list) : list ? await listOperationalRecords(owner, `${path}/`) : [await readOperationalRecord(owner, path)].filter(Boolean) as OperationalRecord[];
+  const special = owner.startsWith('@') || path.split('/')[0] === 'deleteRequests';
+  let rows: OperationalRecord[];
+  if (special) {
+    if (['@system', '@all'].includes(owner)) await assertOperationalFoundation();
+    else await assertOperationalReady(owner);
+    rows = await fetchSpecial(owner, path, list);
+  } else rows = await readGuardedRecords(owner, path, list, path !== `users/${identity.uid}`);
   return Promise.all(rows.filter(row => !list || !row.document_path.slice(path.length + 1).includes('/')).map(async row => ({ path: row.document_path, revision: row.revision, data: await refreshPhotos(row.rawData ?? row.data, row.owner_id) })));
 }
 function plain(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
