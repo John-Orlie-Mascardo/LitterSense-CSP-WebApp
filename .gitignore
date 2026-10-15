@@ -61,3 +61,6 @@ next-env.d.ts
 
 # Private migration exports (include Wi-Fi configuration and account records).
 /migration-private/
+
+# Claude Code personal notes
+CLAUDE.local.md
