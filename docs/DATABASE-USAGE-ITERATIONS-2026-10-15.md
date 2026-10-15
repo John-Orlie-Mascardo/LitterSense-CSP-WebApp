@@ -50,7 +50,7 @@ Production/browser acceptance after deployment:
 
 ## Iteration 2: scope write-triggered record refreshes
 
-Baseline: commit `7600e6b`; no unrelated changes were present before this iteration. Status: implemented locally; deployment and real-browser acceptance pending.
+Baseline: commit `7600e6b`; no unrelated changes were present before this iteration. Status: committed on the work branch as `ca9a0cd`; production Vercel deployment `6f3659a` was confirmed Ready in the browser. Dashboard and notification history loaded without captured warnings/errors. The production write/read-count test remains pending because all existing notifications were already read.
 
 Story: As an owner marking a notification read or saving a record, I want only related record listeners to reload so each action avoids unnecessary database traffic.
 
@@ -72,6 +72,41 @@ Hardware-free browser acceptance after deployment:
 4. If existing data allows, save one ordinary record and verify its related UI updates. Check navigation and history still load. No board, synthetic alert, or new firmware is required.
 
 Rollback: iteration 2 changes only `lib/utils/operationalClient.ts`, `lib/utils/operationalClient.test.cjs`, and this document. Restore just the adapter and its test from `7600e6b`, or revert the isolated iteration 2 commit, then redeploy the website if needed. Preserve later/unrelated edits. Keep the accepted iteration 1 sensor optimization. No SQL, Render, or firmware rollback is needed.
+
+## Iteration 3: overlapping Realtime streams
+
+Baseline: clean work branch at `ca9a0cd`. Status: implemented locally; production deployment and acceptance pending.
+
+Story: As an owner using more than one LitterSense tab, I want overlapping live streams to reuse their database subscription where the server runtime permits, while continuing to receive notification, cat, visit, and sensor invalidations independently.
+
+Findings:
+
+- One root `NotificationProvider` starts the notification SSE connection; normal client navigation does not add a second provider.
+- Each browser tab still needs its own authenticated SSE stream. Previously, each server stream independently opened a Supabase socket and heartbeat, including overlapping streams for the same owner and paired device.
+- The SSE route expires its stream at 45 seconds and removes it on abort/cancel. The client renews healthy streams and backs off empty/failed streams.
+- One socket subscribes to two table change sources when a sensor token is available. Each successful system confirmation previously reconciled notifications, cats, visits, and sensors, producing two rounds of refreshes when both confirmations arrived.
+
+Change: the server module shares one active watcher for an exact owner/device-token-hash pair inside that running instance. Each authenticated SSE subscriber receives invalidations only. A late subscriber receives its own initial reconciliation; existing subscribers do not repeat theirs. Releasing one stream leaves other subscribers connected. Releasing the last stream closes its socket and clears its heartbeat immediately. An outage removes the failed watcher, closes all its streams once, and permits a fresh connection. Old cleanup/events cannot affect the replacement. Different owners, rotated hashes, and missing hashes remain separate.
+
+The socket reconciles once at its first successful system confirmation; additional confirmation messages do not repeat the initial refresh. Actual later database change events continue to refresh normally. Existing periodic reads still cover unavailable live updates.
+
+Measured in runtime tests: two overlapping same-owner streams formerly created two sockets; now they create one socket, one channel join, and one heartbeat in the shared instance. Two table confirmations previously produced eight invalidation callbacks per subscriber; now they produce four. Tests exercise renewal while another stream is open, late subscribers, last-release cleanup, owner/token isolation, socket failure, replacement, and late frames.
+
+Final verification: `npm run check` passed with ESLint, 578 app tests, six relay tests, and the production build including TypeScript. The original sharing/failure regressions failed before implementation. This is local verification, not evidence of production connection counts or phone delivery.
+
+Limits: this is per running server instance. Vercel may route tabs to separate instances or cold starts, so it is not a guarantee of one project-wide socket per owner. Streams in different instances remain independent and correct. No cross-tab browser leader, token transfer, shared worker, persistent idle watcher, or long-lived connection beyond the existing stream lifecycle is introduced. Production CPU and connection reduction remain unmeasured.
+
+Server alert queuing, FCM delivery, service-worker display with the app closed, firmware, and camera/presence transport are unchanged. Background push remains an independent acceptance requirement, with physical testing postponed until hardware is available.
+
+Hardware-free acceptance after website deployment:
+
+1. Open two signed-in tabs for the same owner. Navigate between Home, My Cats, and Notifications in one tab; check both remain loaded and do not show live stream errors.
+2. Expect a separate `/api/notifications/live` SSE request in each tab. Those are browser-to-server streams, not proof of duplicate Supabase sockets. Healthy requests renew around the existing 45-second limit.
+3. Close one tab. The remaining tab must continue loading and renewing its stream. Reload it and verify notification/history data remains available.
+4. When an existing unread notification is available, mark it read in one tab and verify the other catches up through its existing live/fallback path. Do not create a fake sensor event just for this check.
+5. Compare Supabase connection/request metrics over equivalent tab counts and intervals. Routing across separate Vercel instances can limit sharing; do not infer a project-wide reduction from the local test count.
+
+Rollback: restore only `lib/server/notificationRealtime.ts` and its test from `ca9a0cd`, or revert the isolated iteration 3 commit, then redeploy the website. Retain the previous sensor-polling and record-refresh optimizations. No firmware, SQL, or relay deployment is required.
 
 ## Rollback
 
