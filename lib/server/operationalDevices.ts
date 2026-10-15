@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { resolveOperationalDevice } from './operationalCats';
-import { assertOperationalReady, commitOperational, OperationalError, readOperationalCredential, readOperationalRecord, retryOperational, setOperational } from './operationalStore';
+import { assertOperationalFoundation, assertOperationalReady, commitOperational, OperationalError, readOperationalCredential, readOperationalRecord, readOperationalRecords, retryOperational, setOperational } from './operationalStore';
 import { rememberSensorDevice } from '@/lib/utils/sensorSnapshotStore';
 import { smsStoreRequest } from '@/lib/utils/smsAccountSync';
 
@@ -10,8 +10,11 @@ const publicFields = (data: Record<string, unknown>, configToken: string) => ({
   updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : '',
 });
 export async function readOperationalDeviceConfig(uid: string) {
-  await assertOperationalReady(uid);
-  const pointer = await readOperationalRecord(uid, `users/${uid}/deviceConfig/default`);
+  await assertOperationalFoundation();
+  const profilePath = `users/${uid}`, pointerPath = `${profilePath}/deviceConfig/default`;
+  const records = await readOperationalRecords(uid, [profilePath, pointerPath]);
+  if (!records.some(row => row.document_path === profilePath)) throw new OperationalError('Migration data is not ready. Keep the current database mode until import is verified.');
+  const pointer = records.find(row => row.document_path === pointerPath);
   const token = pointer?.data.configToken;
   if (typeof token !== 'string' || !token) return null;
   const owned = await readOperationalRecord(uid, `deviceConfigs/${token}`);

@@ -75,7 +75,7 @@ Rollback: iteration 2 changes only `lib/utils/operationalClient.ts`, `lib/utils/
 
 ## Iteration 3: overlapping Realtime streams
 
-Baseline: clean work branch at `ca9a0cd`. Status: implemented locally; production deployment and acceptance pending.
+Baseline: clean work branch at `ca9a0cd`. Status: production commit `febbabf78dcb5dad29c339a4b6b3432d8382d663` was confirmed Ready. Two signed-in tabs loaded, navigated, and reloaded without captured warnings/errors; closing one left the other usable. The smoke test covered more than the existing 45-second stream lifetime. It did not measure database socket reuse, new-alert delivery, or physical push.
 
 Story: As an owner using more than one LitterSense tab, I want overlapping live streams to reuse their database subscription where the server runtime permits, while continuing to receive notification, cat, visit, and sensor invalidations independently.
 
@@ -107,6 +107,52 @@ Hardware-free acceptance after website deployment:
 5. Compare Supabase connection/request metrics over equivalent tab counts and intervals. Routing across separate Vercel instances can limit sharing; do not infer a project-wide reduction from the local test count.
 
 Rollback: restore only `lib/server/notificationRealtime.ts` and its test from `ca9a0cd`, or revert the isolated iteration 3 commit, then redeploy the website. Retain the previous sensor-polling and record-refresh optimizations. No firmware, SQL, or relay deployment is required.
+
+## Iteration 4: measure query load and batch configuration reads
+
+Baseline: clean `orlie-branch` at `be826c7c85117f89dc548c006b8a8830eac506f2`. Status: source change prepared; website deployment and post-deployment load comparison pending. No production records, schema, schedules, firmware, or relay settings were changed.
+
+Story: As an owner keeping the dashboard visible, I want each sensor refresh to use fewer database requests while retaining fresh authorization and the current update cadence.
+
+### Production evidence, October 15
+
+Read-only SQL inspected `pg_stat_statements`, activity, subscriptions, and performance advisories. Statistics were not reset. The statistics reset time was October 1, 2026, 13:39:09 UTC; cumulative totals therefore include older code and cannot attribute current load to this patch. Query execution time measures database time, not end-to-end response latency or CPU utilization.
+
+The database report for the displayed last-hour interval (7:49-8:49 PM, UTC+8) showed CPU usage of 16.64%. The infrastructure node also showed a 4% point reading during inspection. The historical October 8-15 chart showed 98%; that older range is not the current point reading. Hardware was unavailable during this investigation, so these observations are not comparable with a fully powered litterbox test.
+
+Fresh production query-count samples:
+
+| Condition | UTC interval | Exact owner/path reads | Owner collection reads | PostgREST setup calls | Realtime subscription rows |
+| --- | --- | ---: | ---: | ---: | ---: |
+| No test dashboard open | 12:53:35.222643-12:54:06.650275 (31.43 s) | 0 | 0 | 3 | 0 at end |
+| One signed-in dashboard open, after startup | 12:54:43.552722-12:55:44.376980 (60.82 s) | 107 | 38 | 209 | 2 at both endpoints |
+
+The second sample is a production baseline using deployed code, not a result of the local patch. It contains polling, startup reconciliation near the boundary, stream renewal, and any concurrent project activity; it does not isolate sensor requests alone. Subscription rows represent table subscriptions, not socket counts. The test tab was closed after measurement, and a subsequent sample showed zero subscription rows. No browser warnings/errors were captured.
+
+Cumulative statistics identified `realtime.list_changes` and PostgREST request setup as the largest database-time totals. Owner collection reads averaged about 1.515 ms and exact owner/path reads about 0.057 ms across the historical window. These measurements support reducing request fan-out; they do not establish a missing index as the cause of the earlier CPU spike. The sampled 12:40-12:55 UTC logs returned INFO/LOG severities only. The performance advisor reported informational missing foreign-key indexes on tag claims, device owners, and outbox token hashes, plus an Auth connection-allocation notice. None was proven responsible for the measured read path, so no index/configuration migration was made. Reference: [Supabase foreign-key index guidance](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys).
+
+### Smallest selected change
+
+`readOperationalDeviceConfig` previously made four requests: migration readiness, owner account, owner device pointer, and owned credential. The sensor route then read mirrors and RFID state, totaling six database requests per normal paired refresh.
+
+The account and pointer now use one exact-path, owner-filtered batch. Migration readiness is still checked first. A missing account still fails closed, a missing pointer still returns no configuration, and a missing/foreign credential still returns 403. The credential is read fresh on each call; there is no authorization cache. The helper quotes and escapes each exact path and limits its result to the requested path count. Existing single-record reads remain unchanged.
+
+Measured in the real route/PGlite test harness: configuration lookup falls from four requests to three; a full paired sensor refresh falls from six to five (one fewer, approximately 16.7%). This is per-request database fan-out, not a 16.7% CPU or total-traffic claim. The same lookup is used by stream setup and presence-session configuration. Visible five-second polling, slower operational polling, live invalidations, alert deduplication, server FCM delivery, the service worker, and hardware ingestion are unchanged.
+
+### Verification and acceptance
+
+- The request-count regression failed before implementation (`4 !== 3`) and passed after implementation. Additional cases cover missing pointers/accounts, foreign credentials, changed pointers, unready storage, owner isolation, timestamp decoding, and quoted paths.
+- A read-only production REST check returned the same two account/pointer records for a batched query as for separate reads. The exact quoted filter with comma, quote, and backslash characters was accepted. No keys, owner IDs, or record contents were printed or saved.
+- Independent review found no actionable issues in the store helper, config lookup, or test diff.
+- `npm run check` exited successfully: ESLint, all 580 app tests, all six relay tests, and the production build including TypeScript. The suite also emitted its existing `MODULE_TYPELESS_PACKAGE_JSON` warning for `sensorEndpointDiagnostics.ts` and expected failure-path diagnostics; neither failed a gate. Post-deployment request-rate/CPU comparison and physical closed-app push delivery remain pending.
+
+Deployment: commit the three code/test files plus this document and deploy the website to Vercel. No firmware upload, Supabase migration, or Render deployment is required.
+
+After Vercel is Ready, verify Home, Settings/device configuration, Notifications, and a two-tab open/close cycle. Compare query-count deltas over matched intervals with the same tab/device state. The new batch has a different SQL query ID, so include exact-path batch queries in the comparison rather than tracking only the old equality query. Real gas events and closed-app phone pushes need a separate hardware test when available. Do not create synthetic production alerts for this check.
+
+Rollback: restore only `lib/server/operationalDevices.ts`, `lib/server/operationalStore.ts`, and `lib/server/operationalRfid.test.mjs` from `be826c7`, or revert the isolated iteration 4 commit after preserving later/unrelated changes. Redeploy the website. Retain iterations 1-3. No database or firmware rollback is needed.
+
+Further finding: collection queries still fetch full owner collections before client-side filtering/order/limit. They are bounded by the existing page guard but can become expensive as history grows. Proper server pagination must preserve filter/cursor ordering; it was not added to this small iteration.
 
 ## Rollback
 

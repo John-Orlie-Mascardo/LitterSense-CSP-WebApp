@@ -32,6 +32,13 @@ export async function readOperationalRecord(uid: string, path: string): Promise<
   const rows = await result<OperationalRecord[]>(await smsStoreRequest(`operational_records?owner_id=eq.${encodeURIComponent(owner(uid))}&document_path=eq.${encodeURIComponent(path)}&select=document_path,owner_id,data,revision&limit=1`));
   return rows[0] ? { ...rows[0], rawData: rows[0].data, data: decodeOperational(rows[0].data) as Record<string, unknown> } : null;
 }
+export async function readOperationalRecords(uid: string, paths: string[]): Promise<OperationalRecord[]> {
+  const ownerId = owner(uid);
+  if (!paths.length) return [];
+  const filter = `(${paths.map(path => JSON.stringify(path)).join(',')})`;
+  const rows = await result<OperationalRecord[]>(await smsStoreRequest(`operational_records?owner_id=eq.${encodeURIComponent(ownerId)}&document_path=in.${encodeURIComponent(filter)}&select=document_path,owner_id,data,revision&limit=${paths.length}`));
+  return rows.map(row => ({ ...row, rawData: row.data, data: decodeOperational(row.data) as Record<string, unknown> }));
+}
 // Server-only credential lookup before the owner is known. Never accepts user-document paths.
 export async function readOperationalCredential(path: string): Promise<OperationalRecord | null> {
   if (!/^(deviceConfigs\/[A-Za-z0-9_-]{16,256}|cameraDevices\/cam_[a-f0-9]{32})$/.test(path)) throw new OperationalError('Invalid device credential', 403);
