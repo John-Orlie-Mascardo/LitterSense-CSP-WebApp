@@ -182,11 +182,39 @@ Database migration applied successfully as `20261015134510_notification_paginati
 
 Read-only production REST verification passed: 25 newest records, 25 older records with no repeated IDs, total count 447, and correct System filtering. A production EXPLAIN of the bounded page read used `operational_notifications_time` and returned 26 rows (25 plus the has-more probe); the sample's execution time was 3.038 ms including its owner-selection subquery. This is one query-plan observation, not a CPU or end-to-end latency improvement claim.
 
-Deployment order: database migration `supabase/migrations/20261015134510_notification_pagination.sql` is already applied and read-only REST RPC access is verified; commit and deploy the website next. No firmware upload or Render deployment is needed. No production bulk action is part of acceptance. Website deployment and live browser acceptance of the new Load older control remain pending.
+Production acceptance completed on `10443ef`: initial history showed 25 records, Load older increased it to 50, All/Alerts/System and navigation passed, and test-tab cleanup returned Realtime subscription rows to zero. No browser warnings/errors or scoped deployment warnings/errors were found. This verifies bounded history; total request-rate/CPU improvement was not demonstrated. No production bulk action or physical push test was performed.
 
 After Vercel is Ready: open the panel and Notifications; confirm only the newest page appears, use Load older notifications, switch All/Alerts/System, navigate away/back, and compare the unread badge with the account-wide count. If suitable unread test records exist, test mark-read and a second-tab refresh. Destructive Clear all is covered by isolated tests and must not be run on real history just to verify deployment. Physical closed-app push and hardware timing remain separate acceptance checks.
 
 Rollback: restore this iteration's website files from `48bde78` (preserving unrelated/later changes) or revert its isolated commit, then redeploy. Keep the additive database objects in place during website rollback; they do not alter the earlier website paths. Optional database cleanup after the website rollback: remove `operational_notifications_time` and `operational_notifications_unread`, then the `operational_notification_page(text,text,integer,jsonb)`, `operational_notification_bulk(text,text)` and `operational_notification_time(jsonb)` functions through a reviewed migration. This cleanup removes no notification rows. Do not roll back iterations 1-4 or alter firmware.
+
+## Iteration 6: combine ordinary record reads with readiness checks
+
+Baseline: clean work branch `993503b`; production `10443ef`. Scope: reduce repeated ordinary record-read requests while keeping sensor timing, notification delivery, database authorization, and account creation intact.
+
+### Evidence and change
+
+The production log window 14:10-14:20 UTC contained 609 operational-record GETs and 214 migration-state GETs. Privacy-preserving categorization counted 247 profile/other reads, 109 device-configuration reads, and 54/56 cat/catalog-detail reads. These are project-wide counts, not one endpoint's exclusive traffic. Source tracing confirmed that every ordinary collection request called migration readiness, owner-profile readiness, then the requested collection.
+
+Separate one-visible-tab baseline samples on production `10443ef` were collected without hardware: Home 14:25:55.096098-14:27:05.604123 UTC (70.508 seconds), 224 PostgREST setups, about 190.62/minute; Notifications 14:27:38.686159-14:29:15.213547 UTC (96.527 seconds), 334 setups, about 207.61/minute. Both endpoints had two Realtime table subscription rows. The browser was visible and its error/warning logs were empty. Different sample durations/phases prevent attributing the difference solely to the page. Baseline JSON is saved in the task workspace outputs.
+
+The additive `guarded_record_reads` migration defines a service-role-only, SECURITY INVOKER read RPC. It checks current migration/cutover state, owner profile, path shape and page offset inside the same database snapshot as the requested data. PUBLIC/anon/authenticated cannot execute it. No records, existing functions, schedules, table grants or RLS are changed. Implementation follows [Supabase database function guidance](https://supabase.com/docs/guides/database/functions).
+
+Only ordinary owner-scoped reads in `readClientRecords` use this RPC. Firebase identity verification and `accessRecord` remain before it. Own missing-profile lookup still supports new-account creation; cross-owner reads still require an admin claim. Admin/system/deletion-request queries retain their existing paths. Raw imported timestamps and revisions remain intact, photo refresh still happens after reading, and existing 500-record transport batches, scan guard and direct-child filtering remain. Readiness is not cached. An unavailable RPC fails with 503 instead of falling back to an older database.
+
+The runtime regression failed first on the old two-call profile path, then passed with one call. A real PGlite/API fixture compares six dashboard collections: 18 requests through the previous readiness/data primitives versus six guarded calls. A collection larger than 500 records still crosses page boundaries without gaps. Tests retain owner isolation, malformed paths, zero-collection/new-profile behavior, encoded notification IDs, roles, timestamp markers and fresh gates. Independent review found no actionable issues.
+
+This is a database HTTP round-trip reduction for the ordinary record path. It does not remove the underlying readiness queries, bound every collection's total row count, or establish a whole-project CPU reduction. Sensor GET/ingestion, five-second fallback, Realtime/SSE, notification pager, notification IDs/deduplication, FCM/service worker, firmware and camera code are unchanged.
+
+### Release and rollback
+
+`npm run check` passed: ESLint, all 598 app tests, six relay tests and the production build including TypeScript. The existing MODULE_TYPELESS_PACKAGE_JSON diagnostic remains non-failing. Two earlier runs exposed an old three-request assertion and a test fixture that stubbed the former read transport; both were updated, passed focused tests, and were included in the successful full run.
+
+Database migration applied successfully as `20261015143508_guarded_record_reads`; the local migration filename matches the recorded production version. Read-only production REST checks compared six collection results against existing canonical table reads and preserved every returned raw record, including 172 session records and imported data. Own profile lookup also passed. Database security advisors stayed at the same 13 pre-existing INFO notices for RLS-enabled server-only tables with no browser-role grants ([advisor reference](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)). Test-tab cleanup returned Realtime subscription rows to zero.
+
+The database dependency is prepared; commit and deploy the website next. After Vercel Ready, verify Home, My Cats, Settings, Notifications, history pagination and navigation using the new commit, then repeat the separate Home/Notifications query-count intervals. Browser acceptance and load measurements must use that new deployment; tests against `10443ef` remain baseline evidence. Include the new `operational_read_records` RPC in request accounting. Hardware, offline replay and closed-app physical push delivery remain separate and pending.
+
+Rollback: restore only this iteration's `lib/server/operationalRecords.ts`, its changed tests and this documentation from `993503b`, or revert the isolated commit after preserving later/unrelated changes. Redeploy. Keep iterations 1-5 and the additive unused RPC during website rollback. Optional SQL cleanup after website rollback removes only `public.operational_read_records(text,text,boolean,integer,boolean)` through a reviewed migration. No record deletion or firmware rollback is needed.
 
 ## Rollback
 
