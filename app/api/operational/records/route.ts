@@ -1,6 +1,7 @@
 import { getAdminAuth } from '@/lib/configs/firebase-admin';
 import { OperationalError, rfidPrimaryEnabled } from '@/lib/server/operationalStore';
 import { readClientRecords, writeClientRecords, projectOperationalAccount } from '@/lib/server/operationalRecords';
+import { readNotificationPage, mutateAllNotifications } from '@/lib/server/notificationPages';
 const headers = { 'Cache-Control': 'no-store, private' };
 export async function POST(request: Request) {
   let identity;
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
     catch { throw new OperationalError('Invalid JSON', 400); }
     if (!body || typeof body !== 'object') throw new OperationalError('Invalid request', 400);
+    if (body.action === 'notificationPage') return Response.json(await readNotificationPage(identity.uid, body), { headers });
+    if (body.action === 'notificationBulk') return Response.json(await mutateAllNotifications(identity.uid, body.operation), { headers });
     if (body.action === 'read' || body.action === 'list') return Response.json({ rows: await readClientRecords(identity, body.path, body.action === 'list') }, { headers });
     if (body.action !== 'write') throw new OperationalError('Invalid operation', 400);
     await writeClientRecords(identity, body.writes);

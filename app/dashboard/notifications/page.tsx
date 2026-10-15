@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { useNotificationHistory } from '@/lib/hooks/useNotificationHistory';
 import {
   getDateGroup,
   getNotificationCategory,
@@ -141,8 +142,9 @@ function NotificationRow({
 export default function NotificationsPage() {
   const router = useRouter();
   const {
-    notifications,
-    isLoading,
+    notifications: recentNotifications,
+    isLoading: recentLoading,
+    paginated,
     markAsRead,
     markAllAsRead,
     deleteNotification,
@@ -151,6 +153,8 @@ export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [showMenu, setShowMenu] = useState(false);
   const [readError, setReadError] = useState("");
+  const history = useNotificationHistory(activeTab, paginated, recentNotifications, recentLoading);
+  const { notifications, isLoading } = history;
 
   const tabs: { key: NotificationTab; label: string }[] = [
     { key: "all", label: "All" },
@@ -181,10 +185,16 @@ export default function NotificationsPage() {
   );
 
   const handleNotificationClick = async (notification: AppNotification) => {
-    await markAsRead(notification.id);
-    if (notification.route) {
-      router.push(notification.route);
-    }
+    setReadError('');
+    try {
+      await markAsRead(notification.id);
+      if (notification.route) router.push(notification.route);
+    } catch { setReadError("Couldn't mark this notification as read. Please try again."); }
+  };
+  const handleDelete = async (id: string) => {
+    setReadError('');
+    try { await deleteNotification(id); }
+    catch { setReadError("Couldn't delete this notification. Please try again."); }
   };
 
   const handleMarkAllRead = async () => {
@@ -195,8 +205,10 @@ export default function NotificationsPage() {
   };
 
   const handleClearAll = async () => {
-    await clearAll();
     setShowMenu(false);
+    setReadError('');
+    try { await clearAll(); }
+    catch { setReadError("Couldn't clear notifications. Please try again."); }
   };
 
   return (
@@ -307,7 +319,7 @@ export default function NotificationsPage() {
               />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && !history.error ? (
           <div className="rounded-2xl border border-litter-border bg-litter-card shadow-sm">
             <EmptyState activeTab={activeTab} />
           </div>
@@ -328,7 +340,7 @@ export default function NotificationsPage() {
                           key={notification.id}
                           notification={notification}
                           onOpen={() => void handleNotificationClick(notification)}
-                          onDelete={() => void deleteNotification(notification.id)}
+                          onDelete={() => void handleDelete(notification.id)}
                         />
                       ))}
                     </AnimatePresence>
@@ -338,6 +350,8 @@ export default function NotificationsPage() {
             })}
           </div>
         )}
+        {history.error && <div role="alert" className="mt-4 text-sm text-litter-danger"><p>{history.error}</p><button type="button" onClick={() => void history.retry()} className="mt-2 underline">Try again</button></div>}
+        {history.hasMore && <div className="mt-6 flex justify-center"><button type="button" disabled={history.isLoadingMore || isLoading} onClick={() => void history.loadMore()} className="rounded-xl border border-litter-border bg-litter-card px-5 py-3 text-sm font-medium text-litter-text disabled:opacity-50">{history.isLoadingMore ? 'Loading older notifications…' : 'Load older notifications'}</button></div>}
       </main>
 
       <BottomNav />

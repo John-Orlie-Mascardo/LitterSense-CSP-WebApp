@@ -16,7 +16,6 @@ import {
   doc,
   onSnapshot,
   addDoc,
-  setDoc,
   updateDoc,
   deleteDoc,
   writeBatch,
@@ -32,6 +31,9 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { operationalPrimary } from '@/lib/utils/operationalMode';
 import { refreshNotificationRecords } from '@/lib/utils/operationalClient';
+import { getNotificationPage, mutateNotificationHistory, subscribeNotificationRefresh } from '@/lib/utils/operationalClient';
+import { createNotificationPager } from '@/lib/utils/notificationPager';
+import { notificationFromRecord } from '@/lib/utils/notificationRecord';
 import { subscribeNotificationLive } from '@/lib/utils/notificationLive';
 import type { Cat } from "@/lib/data/mockData";
 
@@ -93,12 +95,17 @@ interface NotificationSyncState {
   userId: string | null;
   notifications: AppNotification[];
   isLoading: boolean;
+  unreadCount?: number;
+  paginated?: boolean;
+  error?: string;
 }
 
 interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   isLoading: boolean;
+  paginated: boolean;
+  syncError: string;
   addNotification: (data: NewNotificationData) => Promise<void>;
   upsertNotification: (data: UpsertNotificationData) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
@@ -188,7 +195,7 @@ export function NotificationProvider({
   );
   const isLoading =
     authLoading || (userId ? syncState.userId !== userId || syncState.isLoading : false);
-  const notificationsRef = useRef<AppNotification[]>([]);
+  const paginated = syncState.userId === userId && syncState.paginated === true;
   const optimisticReadsRef = useRef({ userId, pending: new Set<string>() });
   useEffect(() => {
     optimisticReadsRef.current = { userId, pending: new Set<string>() };
@@ -211,10 +218,6 @@ export function NotificationProvider({
   }, [user, authLoading]);
 
   useEffect(() => {
-    notificationsRef.current = notifications;
-  }, [notifications]);
-
-  useEffect(() => {
     if (authLoading) return;
 
     if (!userId) {
@@ -232,18 +235,21 @@ export function NotificationProvider({
       setSyncState((current) => ({
         userId,
         notifications: current.userId === userId ? current.notifications : [],
-        isLoading: false,
+        isLoading: true,
       }));
     });
 
+    let stopped = false, unsub: (() => void) | undefined;
+    const connectLegacy = () => {
     const notifQuery = query(
       collection(db, "users", userId, "notifications"),
       orderBy("createdAt", "desc")
     );
 
-    const unsub = onSnapshot(
+    return onSnapshot(
       notifQuery,
       (snapshot) => {
+        if (stopped) return;
         const loaded: AppNotification[] = [];
         snapshot.forEach((d) =>
           loaded.push({ id: d.id, ...d.data(), title: ownerText(String(d.data().title ?? "")), message: ownerText(String(d.data().message ?? "")) } as AppNotification)
@@ -255,6 +261,7 @@ export function NotificationProvider({
         });
       },
       (error) => {
+        if (stopped) return;
         console.error("Failed to sync notifications:", error);
         setSyncState((current) => ({
           userId,
@@ -263,8 +270,19 @@ export function NotificationProvider({
         }));
       }
     );
-
-    return () => unsub();
+    };
+    void operationalPrimary().then(primary => {
+      if (stopped) return;
+      if (!primary) { unsub = connectLegacy(); return; }
+      const pager = createNotificationPager(cursor => getNotificationPage('all', cursor), feed => {
+        if (!stopped) setSyncState({ userId, notifications: feed.rows.map(notificationFromRecord), unreadCount: feed.unreadCount, paginated: true, isLoading: feed.isLoading, error: feed.error });
+      });
+      const stopRefresh = subscribeNotificationRefresh(userId, () => { void pager.refresh(); });
+      unsub = () => { stopRefresh(); pager.stop(); };
+    }).catch(() => {
+      if (!stopped) setSyncState(current => ({ ...current, userId, isLoading: false, error: 'Notifications could not be loaded. Please try again.' }));
+    });
+    return () => { stopped = true; unsub?.(); };
   }, [userId, authLoading]);
 
   const addNotification = useCallback(
@@ -304,33 +322,30 @@ export function NotificationProvider({
 
       const notificationId = getNotificationDocId(data.abnormalKey);
       const notificationRef = doc(db, "users", user.uid, "notifications", notificationId);
-      const existing = notificationsRef.current.find((notification) => notification.id === notificationId);
       const nextPayload = buildNotificationSyncPayload(data);
-
-      if (!existing) {
-        await setDoc(notificationRef, {
-          ...nextPayload,
-          createdAt: serverTimestamp(),
-          isRead: false,
-        });
-        void dispatchPush(notificationRef.id);
-        return;
-      }
-
-      const currentPayload = buildNotificationSyncPayload(existing);
-      const updates = Object.fromEntries(
-        Object.entries(nextPayload).filter(([key, value]) => currentPayload[key as keyof typeof currentPayload] !== value),
-      );
-
-      if (Object.keys(updates).length === 0) return;
-
-      await updateDoc(notificationRef, updates);
+      const created = await runTransaction(db, async transaction => {
+        // A notification outside the loaded page can still exist and must retain its date/read state.
+        const saved = await transaction.get(notificationRef);
+        if (!saved.exists()) {
+          transaction.set(notificationRef, { ...nextPayload, createdAt: serverTimestamp(), isRead: false });
+          return true;
+        }
+        const currentPayload = buildNotificationSyncPayload(saved.data() as AppNotification);
+        const updates = Object.fromEntries(Object.entries(nextPayload).filter(([key, value]) => currentPayload[key as keyof typeof currentPayload] !== value));
+        if (Object.keys(updates).length) transaction.update(notificationRef, updates);
+        return false;
+      });
+      if (created) void dispatchPush(notificationRef.id);
     },
     [settings, user],
   );
 
   const markRead = useCallback(async (ids: string[]) => {
     if (!user) return;
+    if (paginated) {
+      for (const id of new Set(ids)) await updateDoc(doc(db, 'users', user.uid, 'notifications', id), { isRead: true });
+      return;
+    }
     const pending = optimisticReadsRef.current.pending;
     const setRead = (changed: string[], isRead: boolean) => setSyncState(current => current.userId !== user.uid ? current : {
       ...current, notifications: current.notifications.map(notification => changed.includes(notification.id) ? { ...notification, isRead } : notification),
@@ -348,9 +363,13 @@ export function NotificationProvider({
       }
       refreshNotificationRecords();
     });
-  }, [user, notifications]);
+  }, [user, notifications, paginated]);
   const markAsRead = useCallback((id: string) => markRead([id]), [markRead]);
-  const markAllAsRead = useCallback(() => markRead(notifications.filter(notification => !notification.isRead).map(notification => notification.id)), [markRead, notifications]);
+  const markAllAsRead = useCallback(async () => {
+    if (!user) return;
+    if (paginated) await mutateNotificationHistory('markRead');
+    else await markRead(notifications.filter(notification => !notification.isRead).map(notification => notification.id));
+  }, [user, paginated, markRead, notifications]);
 
   const deleteNotification = useCallback(
     async (id: string) => {
@@ -361,7 +380,9 @@ export function NotificationProvider({
   );
 
   const clearAll = useCallback(async () => {
-    if (!user || notifications.length === 0) return;
+    if (!user) return;
+    if (paginated) { await mutateNotificationHistory('clear'); return; }
+    if (notifications.length === 0) return;
 
     const chunkSize = 450;
     for (let index = 0; index < notifications.length; index += chunkSize) {
@@ -371,9 +392,9 @@ export function NotificationProvider({
       });
       await batch.commit();
     }
-  }, [user, notifications]);
+  }, [user, notifications, paginated]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = paginated ? syncState.unreadCount ?? 0 : notifications.filter((n) => !n.isRead).length;
 
   return (
     <NotificationContext.Provider
@@ -381,6 +402,8 @@ export function NotificationProvider({
         notifications,
         unreadCount,
         isLoading,
+        paginated,
+        syncError: syncState.userId === userId ? syncState.error ?? '' : '',
         addNotification,
         upsertNotification,
         markAsRead,

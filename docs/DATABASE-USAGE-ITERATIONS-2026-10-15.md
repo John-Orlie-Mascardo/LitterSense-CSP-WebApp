@@ -110,7 +110,7 @@ Rollback: restore only `lib/server/notificationRealtime.ts` and its test from `c
 
 ## Iteration 4: measure query load and batch configuration reads
 
-Baseline: clean `orlie-branch` at `be826c7c85117f89dc548c006b8a8830eac506f2`. Status: source change prepared; website deployment and post-deployment load comparison pending. No production records, schema, schedules, firmware, or relay settings were changed.
+Baseline: clean `orlie-branch` at `be826c7c85117f89dc548c006b8a8830eac506f2`. Status: production commit `9ee1ceff408301dd08733ad211321b54b6ad2433` confirmed Ready; Home, Settings, notification history and two-tab smoke checks passed. The new batched read ran 22 times in a 104.642-second production sample. Overall request rate was similar to the preceding sample, so total request-rate/CPU improvement was not established. Test subscriptions returned to zero after cleanup. No production records, schema, schedules, firmware, or relay settings were changed in iteration 4.
 
 Story: As an owner keeping the dashboard visible, I want each sensor refresh to use fewer database requests while retaining fresh authorization and the current update cadence.
 
@@ -153,6 +153,40 @@ After Vercel is Ready, verify Home, Settings/device configuration, Notifications
 Rollback: restore only `lib/server/operationalDevices.ts`, `lib/server/operationalStore.ts`, and `lib/server/operationalRfid.test.mjs` from `be826c7`, or revert the isolated iteration 4 commit after preserving later/unrelated changes. Redeploy the website. Retain iterations 1-3. No database or firmware rollback is needed.
 
 Further finding: collection queries still fetch full owner collections before client-side filtering/order/limit. They are bounded by the existing page guard but can become expensive as history grows. Proper server pagination must preserve filter/cursor ordering; it was not added to this small iteration.
+
+## Iteration 5: bounded notification history
+
+Baseline: clean work branch `48bde78`; production baseline `9ee1cef`. Scope approved by the user: newest notifications from the server, older pages on demand, correct unread counts/actions and hardware-free verification. Firmware and sensor/push transport remain outside this task.
+
+Story: An owner sees the latest 25 notifications without downloading the entire history. The Notifications page offers **Load older notifications**. All/Alerts/System filtering happens before the server page limit. The panel's unread badge counts all unread records in the account, including older pages; clearing the local panel remains a browser dismissal, not a read/delete operation on history.
+
+### Data and behavior
+
+- Existing notification dates include ISO strings and imported Firestore timestamp objects. An immutable sort helper normalizes them to nanoseconds for ordering; path is the descending tie-breaker. Invalid dates sort at zero and do not prevent index creation or rendering.
+- An additive migration adds notification-only time/unread indexes, a server-only read RPC, and a server-only bulk-action RPC. Existing tables, RLS, ingestion, notification IDs, deduplication, FCM delivery, and schedules are retained.
+- The read RPC checks cutover and the owner account internally. It returns at most 25 rows by default (maximum 50), an opaque time/path cursor, and account-wide unread/total counts. It never downloads full histories to apply client-side limits.
+- The API uses the verified Firebase identity's UID. Client owner fields cannot select another account. Cursor ownership, category and page size are validated. RPC execution is revoked from PUBLIC/anon/authenticated and granted only to service_role; functions use SECURITY INVOKER.
+- The root provider polls just its latest page on the existing 30-second notification fallback and existing invalidations. A history controller runs only while the history page is mounted. It refreshes the number of pages the user requested, starting from the newest cursor chain, so new arrivals do not leave gaps between loaded pages. Stale responses are discarded after invalidation, filter changes, account changes and unmount.
+- On the full history page there is a bounded history request in addition to the provider's bounded recent request. This intentionally keeps the panel's All feed independent of history filters. It does not claim to remove every duplicate read. Leaving history stops its older-page refreshes.
+- Mark all as read and Clear all remain account-wide, including unloaded records. The SQL updates/deletes only direct notification paths, preserves timestamps and other collections, increments revisions, coordinates with operational commits, and refuses writes during account deletion. Defining these functions does not execute bulk actions.
+- A notification absent from the newest page is not assumed new: upsert reads its canonical document in a transaction, preserving its original read/date fields and avoiding another creation push.
+- A failed read retains displayed records and shows a retry message. Individual read/delete failures and bulk failures report an error instead of becoming unhandled navigation actions. Legacy Firestore mode retains its existing full snapshot path.
+
+### Proof and release
+
+The route test compares the old path with the new path against real SQL: 55 history rows and three Supabase requests versus a 25-row page and one RPC, with all 55 included in the unread count. These are fixture measurements, not a claim about total production CPU. Further tests cover multiple pages, category filters, equal dates, nanoseconds, deleted cursors, inserted arrivals, malformed dates, unloaded bulk actions, owner/role isolation, account deletion, invalid input, stale requests, cleanup, retries, global badge counts, and preservation of old upserts. The new pager/provider/API tests failed before implementation, then passed. Review's malformed-timezone finding was reproduced and fixed.
+
+Release verification: `npm run check` passed with ESLint, 593 app tests, six relay tests and the production build including TypeScript. Two additional page interaction/error tests and their lint check passed afterward (595 distinct app tests in total). Existing negative-path logs and the existing MODULE_TYPELESS_PACKAGE_JSON warning remain non-failing diagnostics. No real sensor events or physical pushes can be tested while hardware is unavailable.
+
+Database migration applied successfully as `20261015134510_notification_pagination`; the local migration file is aligned with that recorded version. Read-only production SQL returned 25 records from an account with 447 notifications, retained its total count and indicated older pages. The security advisor returned the same 13 pre-existing informational RLS-without-policy notices for server-only tables, with no new warnings/errors; the relevant tables and RPCs retain their browser-role restrictions. Reference: [Supabase RLS advisor guidance](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+
+Read-only production REST verification passed: 25 newest records, 25 older records with no repeated IDs, total count 447, and correct System filtering. A production EXPLAIN of the bounded page read used `operational_notifications_time` and returned 26 rows (25 plus the has-more probe); the sample's execution time was 3.038 ms including its owner-selection subquery. This is one query-plan observation, not a CPU or end-to-end latency improvement claim.
+
+Deployment order: database migration `supabase/migrations/20261015134510_notification_pagination.sql` is already applied and read-only REST RPC access is verified; commit and deploy the website next. No firmware upload or Render deployment is needed. No production bulk action is part of acceptance. Website deployment and live browser acceptance of the new Load older control remain pending.
+
+After Vercel is Ready: open the panel and Notifications; confirm only the newest page appears, use Load older notifications, switch All/Alerts/System, navigate away/back, and compare the unread badge with the account-wide count. If suitable unread test records exist, test mark-read and a second-tab refresh. Destructive Clear all is covered by isolated tests and must not be run on real history just to verify deployment. Physical closed-app push and hardware timing remain separate acceptance checks.
+
+Rollback: restore this iteration's website files from `48bde78` (preserving unrelated/later changes) or revert its isolated commit, then redeploy. Keep the additive database objects in place during website rollback; they do not alter the earlier website paths. Optional database cleanup after the website rollback: remove `operational_notifications_time` and `operational_notifications_unread`, then the `operational_notification_page(text,text,integer,jsonb)`, `operational_notification_bulk(text,text)` and `operational_notification_time(jsonb)` functions through a reviewed migration. This cleanup removes no notification rows. Do not roll back iterations 1-4 or alter firmware.
 
 ## Rollback
 
