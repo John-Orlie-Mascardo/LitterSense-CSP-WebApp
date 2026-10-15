@@ -174,13 +174,13 @@ test('sensor presence is authenticated, separated by board, and broadcast withou
   const base = `ws://127.0.0.1:${server.address().port}`;
   const sensorRfid = `sen_${'c'.repeat(32)}`;
   const sensorGas = `sen_${'d'.repeat(32)}`;
-  const viewerRfid = await connectSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid)}`, { origin: 'https://app.example.com' });
+  const viewerRfid = await connectSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid, now)}`, { origin: 'https://app.example.com' });
   connections.push(viewerRfid.ws);
   assert.deepEqual(JSON.parse((await viewerRfid.next()).data.toString()), { type: 'presence', role: 'rfid', online: false, updatedAt: null });
-  await rejectedSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid)}`, { origin: 'https://evil.example.com' }, 403);
-  await rejectedSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-view', sensorRfid)}` } }, 401);
+  await rejectedSocket(`${base}/v1/presence/live?ticket=${ticket('presence-view', sensorRfid, now)}`, { origin: 'https://evil.example.com' }, 403);
+  await rejectedSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-view', sensorRfid, now)}` } }, 401);
 
-  const publisherRfid = await connectSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-publish', sensorRfid)}` } });
+  const publisherRfid = await connectSocket(`${base}/v1/presence/publish`, { headers: { Authorization: `Bearer ${ticket('presence-publish', sensorRfid, now)}` } });
   connections.push(publisherRfid.ws);
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(viewerRfid.messages.length, 0, 'opening a socket alone must not prove the physical board is alive');
