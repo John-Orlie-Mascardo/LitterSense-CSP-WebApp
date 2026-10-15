@@ -47,7 +47,7 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
     void load();
     const refresh = () => { void load(); };
     const disconnect = subscribeSensorChanges(refresh);
-    const timer = setInterval(refresh, 5000);
+    const timer = setInterval(refresh, 60_000);
     document.addEventListener('visibilitychange', refresh);
     return () => { active = false; controller.abort(); clearInterval(timer); disconnect(); document.removeEventListener('visibilitychange', refresh); loadRef.current = () => {}; };
   }, [user]);

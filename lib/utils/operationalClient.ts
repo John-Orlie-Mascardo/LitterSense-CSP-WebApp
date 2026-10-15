@@ -39,7 +39,9 @@ function decode(value: unknown): unknown {
 const recordRefreshListeners = new Set<() => void>();
 const notificationRefreshListeners = new Set<() => void>();
 export function refreshNotificationRecords() { notificationRefreshListeners.forEach(refresh => refresh()); }
-const REFRESH_MS = 5000;
+// Live invalidations refresh changed records immediately. Polling remains as a
+// fallback for dropped events or a temporarily unavailable live connection.
+const REFRESH_MS = 30_000;
 const MAX_RETRY_MS = 60000;
 async function request(body: unknown) {
   const user = auth.currentUser;

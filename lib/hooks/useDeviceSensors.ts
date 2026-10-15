@@ -203,7 +203,9 @@ function useSensorPolling() {
             return;
           }
           const retryMs = Math.min(10000, 5000 * 2 ** Math.min(failures - 1, 1));
-          const interval = failures ? retryMs : 2000;
+          // Realtime invalidations and the relay presence stream provide fast updates.
+          // This timer is only a safety net when either live channel misses an event.
+          const interval = failures ? retryMs : 30_000;
           timeoutId = window.setTimeout(pollSensors, interval);
         }
       }

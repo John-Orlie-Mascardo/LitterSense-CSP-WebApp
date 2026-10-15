@@ -12,3 +12,8 @@ test('website update loops do not throttle or suspend by tab visibility',()=>{
  const camera=readFileSync(new URL('components/dashboard/RemoteCamera.tsx',root),'utf8');
  assert.doesNotMatch(camera,/stopped.*document\.hidden|document\.hidden.*return|Viewer hidden/);
 });
+test('gas history uses realtime updates with a one-minute fallback instead of five-second polling',()=>{
+ const history=readFileSync(new URL('components/history/GasSensorHistory.tsx',root),'utf8');
+ assert.match(history,/setInterval\(refresh, 60_000\)/);
+ assert.doesNotMatch(history,/setInterval\(refresh, 5000\)/);
+});
