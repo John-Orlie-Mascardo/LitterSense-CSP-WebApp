@@ -75,6 +75,11 @@ export function useAirQualityReadings(
     };
   }
 
+  if (sensorData.gasUltrasonicState === 'stale' || sensorData.gasUltrasonicState === 'unknown') {
+    const waiting = { ppm: 0, displayValue: 'Syncing', status: 'watch', online: false } as const;
+    return { ammonia: waiting, h2s: waiting };
+  }
+
   return {
     ammonia: getGasReading(sensorData.mq135, sensorData.mq135Raw, 3.2),
     h2s: getGasReading(sensorData.mq136, sensorData.mq136Raw, 0.6),

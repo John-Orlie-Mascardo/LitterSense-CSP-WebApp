@@ -45,6 +45,12 @@ const getStoredStatus = (state: "online" | "stale" | "unknown" | undefined, last
   return null;
 };
 
+const getAwaitingReadingsStatus = (sensorData: LiveSensorData | null): SensorDisplayStatus | null =>
+  sensorData?.gasUltrasonicOnline && !sensorData.gasUltrasonicCloudError &&
+    (sensorData.gasUltrasonicState === 'stale' || sensorData.gasUltrasonicState === 'unknown')
+    ? { value: 'Syncing', status: 'watch', label: 'Awaiting readings', lastUpdatedAt: sensorData.gasUltrasonicUpdatedAt }
+    : null;
+
 const getSensorErrorStatus = (error: string): SensorDisplayStatus => ({
   value: "Unavailable",
   status: "watch",
@@ -93,6 +99,8 @@ export const getLiveAirQualityStatus = ({
 }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
+  const waiting = getAwaitingReadingsStatus(sensorData);
+  if (waiting) return waiting;
   const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt, sensorData?.gasUltrasonicCloudError);
   if (stored) return sensorData?.gasUltrasonicState === 'stale' ? { ...stored, label: 'Offline' } : stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");
@@ -129,6 +137,8 @@ export const getLiveRfidStatus = ({
 export const getLiveUltrasonicStatus = ({ sensorData, sensorsLoading, sensorsError }: LiveSensorStatusInput): SensorDisplayStatus => {
   if (sensorsError) return getSensorErrorStatus(sensorsError);
   if (sensorsLoading) return getLoadingSensorStatus();
+  const waiting = getAwaitingReadingsStatus(sensorData);
+  if (waiting) return waiting;
   const stored = getStoredStatus(sensorData?.gasUltrasonicState, sensorData?.gasUltrasonicUpdatedAt, sensorData?.gasUltrasonicCloudError);
   if (stored) return stored;
   if (!(sensorData?.gasUltrasonicOnline ?? sensorData?.online)) return getUnavailableSensorStatus("Offline");

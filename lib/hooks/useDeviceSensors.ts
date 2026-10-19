@@ -128,8 +128,8 @@ function useSensorPolling() {
       }
       if (gas) {
         result.gasUltrasonicOnline = gas.online;
-        result.gasUltrasonicState = gas.online ? 'online' : 'stale';
-        if (gas.updatedAt) result.gasUltrasonicUpdatedAt = gas.updatedAt;
+        // Relay connectivity cannot freshen the last uploaded gas readings.
+        if (!gas.online) result.gasUltrasonicState = 'stale';
       }
       return result;
     };
@@ -151,8 +151,7 @@ function useSensorPolling() {
           }
           if (gas) {
             next.data.gasUltrasonicOnline = gas.online;
-            next.data.gasUltrasonicState = gas.online ? 'online' : 'stale';
-            if (gas.updatedAt) next.data.gasUltrasonicUpdatedAt = gas.updatedAt;
+            if (!gas.online) next.data.gasUltrasonicState = 'stale';
           }
         }
         return (previous.data.online === next.data.online && previous.data.gasUltrasonicOnline === next.data.gasUltrasonicOnline &&
@@ -184,7 +183,7 @@ function useSensorPolling() {
             online: livePresence.rfid?.online ?? false,
             rfidState: livePresence.rfid ? (livePresence.rfid.online ? 'online' : 'stale') : 'stale',
             gasUltrasonicOnline: livePresence['gas-ultrasonic']?.online ?? false,
-            gasUltrasonicState: livePresence['gas-ultrasonic'] ? (livePresence['gas-ultrasonic'].online ? 'online' : 'stale') : 'stale',
+            gasUltrasonicState: 'stale',
             // A cloud read failure cannot undo the last confirmed RFID entry.
           } : null,
           ownerId: user.uid,
@@ -229,8 +228,10 @@ function useSensorPolling() {
     const stopPresence = subscribeDevicePresence(
       () => user.getIdToken(),
       event => {
+        const gasReconnected = event.role === 'gas-ultrasonic' && event.online && livePresence[event.role]?.online === false;
         livePresence[event.role] = event;
         refreshFromSnapshot();
+        if (gasReconnected) requestRefresh();
       },
       role => {
         delete livePresence[role];
@@ -242,7 +243,8 @@ function useSensorPolling() {
       if (!rawSnapshot || !isMounted) return;
       const data = withLivePresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt));
       setState(previous => previous.ownerId !== user.uid || !previous.data ||
-        (previous.data.online === data.online && previous.data.gasUltrasonicOnline === data.gasUltrasonicOnline)
+        (previous.data.online === data.online && previous.data.gasUltrasonicOnline === data.gasUltrasonicOnline &&
+          previous.data.gasUltrasonicState === data.gasUltrasonicState)
         ? previous : { ...previous, data });
     }, 1000);
     document.addEventListener("visibilitychange", onVisibilityChange);
