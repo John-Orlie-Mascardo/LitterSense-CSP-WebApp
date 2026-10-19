@@ -62,7 +62,8 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
       }
     }
     const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [], ignoredEvents: normalized.ignored, previous: current?.data, liveSensors: payload, now });
-    const changes = hasMatchedEvent ? [] : [setOperational(snapshotPath, current, { ...snapshot })];
+    const newerSnapshot = Date.parse(String(current?.data.updatedAt ?? '')) > now.getTime();
+    const changes = hasMatchedEvent || newerSnapshot ? [] : [setOperational(snapshotPath, current, { ...snapshot })];
     if (enrollment && enrollment !== scan?.data) changes.push(setOperational(enrollmentPath, scan, { ...enrollment }));
     if (changes.length > 0) await commitOperational(uid, changes);
   });
@@ -89,21 +90,22 @@ export async function syncOperationalRfid(payload: Record<string, unknown>, conf
         changes.push(setOperational(path, previous, { ...plan.summaryData, visits: (sameDay ? Number(previous?.data.visits ?? 0) : 0) + 1, totalDurationSecs: (sameDay ? Number(previous?.data.totalDurationSecs ?? 0) : 0) + event.durationSecs }));
       }
       await commitOperational(uid, changes);
-
-      // The next regular reader heartbeat will also refresh this snapshot.  A
-      // failed catch-up must never cause the firmware to retain and replay an
-      // already saved visit.
-      try {
-        await retryOperational(async () => {
-          const current = await readOperationalRecord(uid, snapshotPath);
-          const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: [event], ignoredEvents: [], previous: current?.data, liveSensors: payload, now });
-          await commitOperational(uid, [setOperational(snapshotPath, current, { ...snapshot })]);
-        });
-      } catch (error) {
-        console.warn('[rfid timing] Visit saved; live snapshot will catch up on the next heartbeat.', { error: error instanceof Error ? error.message : 'unknown' });
-      }
       return 'recorded';
     });
+    // A retained completion travels with separately captured current reader
+    // state. Refresh it on duplicate retries without counting that visit again.
+    // A failed catch-up must never withhold acknowledgment of a saved visit.
+    try {
+      await retryOperational(async () => {
+        const current = await readOperationalRecord(uid, snapshotPath);
+        // Requests can finish out of order; durable visit history was saved above.
+        if (Date.parse(String(current?.data.updatedAt ?? '')) > now.getTime()) return;
+        const snapshot = buildDeviceSensorSnapshot({ deviceId, configToken, recordedEvents: outcome === 'recorded' ? [event] : [], ignoredEvents: [], previous: current?.data, liveSensors: payload, now });
+        await commitOperational(uid, [setOperational(snapshotPath, current, { ...snapshot })]);
+      });
+    } catch (error) {
+      console.warn('[rfid timing] Visit saved; live snapshot will catch up on the next heartbeat.', { error: error instanceof Error ? error.message : 'unknown' });
+    }
     (outcome === 'duplicate' ? duplicates : recorded).push({ sessionId, catId });
   }
   const acknowledged = normalized.events.length === 1 && !unmatched.length && recorded.length + duplicates.length === 1 && /^[A-Za-z0-9_-]{1,96}$/.test(normalized.events[0].eventId) ? normalized.events[0].eventId : '';
