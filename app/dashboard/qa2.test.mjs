@@ -7,8 +7,9 @@ test('dashboard-only gas history removal preserves the full history surface and 
  assert.match(readFileSync(new URL('app/dashboard/history/page.tsx',root),'utf8'),/<GasSensorHistory/);
  assert.match(readFileSync(new URL('app/api/sensors/history/route.ts',root),'utf8'),/saveSensorEventHistory/);
 });
-test('website update loops do not throttle or suspend by tab visibility',()=>{
- for(const file of ['lib/utils/operationalClient.ts','lib/hooks/useCatBackup.ts','lib/hooks/useSessionHistory.ts','components/history/GasSensorHistory.tsx'])assert.doesNotMatch(readFileSync(new URL(file,root),'utf8'),/document\.hidden/,file);
+test('alert, catalog and history update loops remain active independently of ordinary record visibility',()=>{
+ // Ordinary record visibility and notification exceptions are covered by operationalClient.test.cjs.
+ for(const file of ['lib/utils/notificationLive.ts','lib/utils/notificationPager.ts','lib/hooks/useCatBackup.ts','lib/hooks/useSessionHistory.ts','components/history/GasSensorHistory.tsx'])assert.doesNotMatch(readFileSync(new URL(file,root),'utf8'),/document\.hidden/,file);
  const camera=readFileSync(new URL('components/dashboard/RemoteCamera.tsx',root),'utf8');
  assert.doesNotMatch(camera,/stopped.*document\.hidden|document\.hidden.*return|Viewer hidden/);
 });

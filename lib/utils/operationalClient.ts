@@ -107,16 +107,23 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
   const options = args.find(v => v && typeof v === 'object' && 'includeMetadataChanges' in v) as fs.SnapshotListenOptions | undefined;
   let stopped = false, timer: ReturnType<typeof setTimeout>, legacy: (() => void) | undefined, previous = '';
   const user = auth.currentUser?.uid;
-  let inFlight = false, refreshPending = false, failures = 0;
+  const listenerPath = specs.get(ref)?.path ?? (ref as fs.CollectionReference).path;
+  // Notification records and preferences remain current for background alert handling.
+  const keepBackground = listenerPath?.endsWith('/notifications') || listenerPath?.includes('/notifications/');
+  let inFlight = false, refreshPending = false, failures = 0, hasSnapshot = false;
+  const shouldPause = () => hasSnapshot && !keepBackground && document.hidden;
   const refresh = () => {
     if (stopped || legacy || auth.currentUser?.uid !== user) return;
     clearTimeout(timer);
+    if (shouldPause()) return;
     if (inFlight) { refreshPending = true; return; }
     void poll();
   };
-  const onVisibility = refresh;
+  const onVisibility = () => {
+    if (document.hidden) { if (shouldPause()) clearTimeout(timer); }
+    else refresh();
+  };
   document.addEventListener('visibilitychange', onVisibility);
-  const listenerPath = specs.get(ref)?.path ?? (ref as fs.CollectionReference).path;
   const onWrite = (paths: readonly string[]) => {
     // A confirmed write only invalidates overlapping document/collection paths.
     if (paths.some(path => path === listenerPath || path.startsWith(listenerPath + '/') || listenerPath.startsWith(path + '/'))) refresh();
@@ -124,23 +131,27 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
   recordRefreshListeners.add(onWrite);
   if (listenerPath?.includes('/notifications')) notificationRefreshListeners.add(refresh);
   async function poll() {
-    if (stopped || inFlight || auth.currentUser?.uid !== user) return;
+    if (stopped || inFlight || auth.currentUser?.uid !== user || shouldPause()) return;
+    refreshPending = false;
     inFlight = true;
     try {
       if (stopped || auth.currentUser?.uid !== user) return;
-      if (!await operationalPrimary()) {
+      const primary = await operationalPrimary();
+      if (stopped || auth.currentUser?.uid !== user || shouldPause()) return;
+      if (!primary) {
         if (!stopped) legacy = options ? fs.onSnapshot(ref as fs.Query, options, next, error) : fs.onSnapshot(ref as fs.Query, next, error);
         return;
       }
       const value = ref.type === 'document' ? await getDoc(ref as fs.DocumentReference) : await getDocs(ref as fs.Query);
       if (stopped || auth.currentUser?.uid !== user) return;
+      hasSnapshot = true;
       failures = 0;
       const digest = JSON.stringify('docs' in value ? value.docs.map(d => [d.id, d.data()]) : value.data());
       if (digest !== previous) { previous = digest; next(value); }
     } catch (e) { ++failures; if (!stopped && auth.currentUser?.uid === user) error?.(e); }
     finally {
       inFlight = false;
-      if (!stopped && !legacy && auth.currentUser?.uid === user) {
+      if (!stopped && !legacy && auth.currentUser?.uid === user && !shouldPause()) {
         const delay = failures ? Math.min(MAX_RETRY_MS, REFRESH_MS * 2 ** Math.min(failures, 4)) : REFRESH_MS;
         timer = setTimeout(poll, refreshPending ? 0 : delay);
         refreshPending = false;
