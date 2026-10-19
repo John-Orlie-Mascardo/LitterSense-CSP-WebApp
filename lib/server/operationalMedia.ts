@@ -18,11 +18,24 @@ export async function mediaRequest(path: string, init: RequestInit = {}) {
   return response;
 }
 const encodedPath = (path: string) => path.split('/').map(encodeURIComponent).join('/');
-export async function signPhoto(path: string) {
-  const response = await mediaRequest(`object/sign/${MEDIA_BUCKET}/${encodedPath(path)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 86400 }) });
-  const { signedURL } = await response.json();
-  if (typeof signedURL !== 'string' || !signedURL.startsWith(`/object/sign/${MEDIA_BUCKET}/`)) throw new OperationalError('Invalid photo response');
-  return `${process.env.SUPABASE_URL!.replace(/\/$/, '')}/storage/v1${signedURL}`;
+const signedPhotos = new Map<string, { promise: Promise<string>; expiresAt: number }>();
+const photoKey = (path: string, version: string | number = '') => `${process.env.SUPABASE_URL}\n${path}\n${version}`;
+const invalidatePhoto = (path: string) => { for (const key of signedPhotos.keys()) if (key.startsWith(photoKey(path))) signedPhotos.delete(key); };
+export async function signPhoto(path: string, version: string | number = '') {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) throw new OperationalError('Photo storage is not configured');
+  const key = photoKey(path, version), now = Date.now(), cached = signedPhotos.get(key);
+  if (cached && cached.expiresAt > now) return cached.promise;
+  const entry = { expiresAt: now + 23 * 60 * 60 * 1000, promise: (async () => {
+    const response = await mediaRequest(`object/sign/${MEDIA_BUCKET}/${encodedPath(path)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 86400 }) });
+    const { signedURL } = await response.json();
+    if (typeof signedURL !== 'string' || !signedURL.startsWith(`/object/sign/${MEDIA_BUCKET}/`)) throw new OperationalError('Invalid photo response');
+    return `${process.env.SUPABASE_URL!.replace(/\/$/, '')}/storage/v1${signedURL}`;
+  })() };
+  signedPhotos.set(key, entry);
+  // Keep reuse bounded, and renew at least an hour before the signed URL expires.
+  if (signedPhotos.size > 256) signedPhotos.delete(signedPhotos.keys().next().value!);
+  try { return await entry.promise; }
+  catch (error) { if (signedPhotos.get(key) === entry) signedPhotos.delete(key); throw error; }
 }
 export function photoPath(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -34,11 +47,11 @@ export function photoPath(value: unknown): string | null {
     return url.origin === base.origin && url.pathname.startsWith(signed) ? decodeURIComponent(url.pathname.slice(signed.length)) : null;
   } catch { return null; }
 }
-export async function refreshPhotos(data: Record<string, unknown>, uid: string) {
+export async function refreshPhotos(data: Record<string, unknown>, uid: string, version: string | number = '') {
   const next = JSON.parse(JSON.stringify(data));
   for (const { target, key } of photoFields(next)) {
     const path = photoPath(target[key]);
-    if (path && ownedPhotoPath(uid, path)) target[key] = await signPhoto(path);
+    if (path && ownedPhotoPath(uid, path)) target[key] = await signPhoto(path, version);
   }
   return next;
 }
@@ -56,10 +69,14 @@ export async function uploadOperationalPhoto(uid: string, path: string, bytes: U
   const hex = Buffer.from(bytes.subarray(0, 12)).toString('hex');
   const valid = mime === 'image/jpeg' && hex.startsWith('ffd8ff') || mime === 'image/png' && hex.startsWith('89504e470d0a1a0a') || mime === 'image/gif' && (hex.startsWith('474946383761') || hex.startsWith('474946383961')) || mime === 'image/webp' && hex.startsWith('52494646') && hex.slice(16, 24) === '57454250';
   if (!valid) throw new OperationalError('Invalid image', 400);
+  invalidatePhoto(path);
   await mediaRequest(`object/${MEDIA_BUCKET}/${encodedPath(path)}`, { method: 'POST', headers: { 'Content-Type': mime, 'x-upsert': 'true', 'Cache-Control': 'private,max-age=3600' }, body: Buffer.from(bytes) });
+  invalidatePhoto(path);
   return signPhoto(path);
 }
 export async function deleteOperationalPhoto(uid: string, path: string) {
   if (!ownedPhotoPath(uid, path)) throw new OperationalError('Forbidden photo path', 403);
+  invalidatePhoto(path);
   await mediaRequest(`object/${MEDIA_BUCKET}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: [path] }) });
+  invalidatePhoto(path);
 }

@@ -78,7 +78,7 @@ export async function readClientRecords(identity: Identity, path: string, list: 
     else await assertOperationalReady(owner);
     rows = await fetchSpecial(owner, path, list);
   } else rows = await readGuardedRecords(owner, path, list, path !== `users/${identity.uid}`);
-  return Promise.all(rows.filter(row => !list || !row.document_path.slice(path.length + 1).includes('/')).map(async row => ({ path: row.document_path, revision: row.revision, data: await refreshPhotos(row.rawData ?? row.data, row.owner_id) })));
+  return Promise.all(rows.filter(row => !list || !row.document_path.slice(path.length + 1).includes('/')).map(async row => ({ path: row.document_path, revision: row.revision, data: await refreshPhotos(row.rawData ?? row.data, row.owner_id, `${row.document_path}:${row.revision}`) })));
 }
 function plain(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 function materialize(value: unknown, previous: unknown, now: string): unknown {
