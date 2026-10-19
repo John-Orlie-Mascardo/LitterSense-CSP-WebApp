@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   try {
     if (rfidPrimaryEnabled()) {
       const catalog = await readOperationalCatalog(uid);
-      const profiles = await Promise.all(catalog.profiles.map(async profile => ({ ...profile, cat: await refreshPhotos(profile.cat, uid) })));
+      const profiles = await Promise.all(catalog.profiles.map(async profile => ({ ...profile, cat: await refreshPhotos(profile.cat, uid, `catalog:${catalog.revision}`) })));
       return Response.json({ ...catalog, profiles, source: 'supabase', operationalPrimary: true, backupPending: false }, { headers });
     }
     const result = await readCatCatalog(uid);

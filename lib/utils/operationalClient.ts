@@ -101,10 +101,7 @@ export const getDocs: typeof fs.getDocs = (async (ref: fs.Query) => {
   if (cap) docs = docs.slice(0, Number(cap.value));
   return { docs, size: docs.length, empty: !docs.length, forEach: (cb: (d: fs.QueryDocumentSnapshot) => void) => docs.forEach(cb), metadata: { fromCache: false, hasPendingWrites: false } } as fs.QuerySnapshot;
 }) as typeof fs.getDocs;
-export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentReference, ...args: unknown[]) => {
-  const next = args.find(v => typeof v === 'function') as (value: unknown) => void;
-  const error = args.filter(v => typeof v === 'function')[1] as ((error: unknown) => void) | undefined;
-  const options = args.find(v => v && typeof v === 'object' && 'includeMetadataChanges' in v) as fs.SnapshotListenOptions | undefined;
+function listenToSnapshot(ref: fs.Query | fs.DocumentReference, next: (value: unknown) => void, error?: (error: unknown) => void, options?: fs.SnapshotListenOptions) {
   let stopped = false, timer: ReturnType<typeof setTimeout>, legacy: (() => void) | undefined, previous = '';
   const user = auth.currentUser?.uid;
   const listenerPath = specs.get(ref)?.path ?? (ref as fs.CollectionReference).path;
@@ -160,6 +157,54 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
   }
   void poll();
   return () => { stopped = true; clearTimeout(timer); legacy?.(); recordRefreshListeners.delete(onWrite); notificationRefreshListeners.delete(refresh); document.removeEventListener('visibilitychange', onVisibility); };
+}
+type SnapshotSubscriber = { next: (value: unknown) => void; error?: (error: unknown) => void; received: boolean };
+type SharedSnapshot = { ref: fs.Query | fs.DocumentReference; user?: string; metadata: boolean; listeners: Set<SnapshotSubscriber>; value?: unknown; hasValue: boolean; stop: () => void };
+const snapshotStreams = new WeakMap<fs.Firestore, Set<SharedSnapshot>>();
+function notifySnapshotError(listener: SnapshotSubscriber, failure: unknown) {
+  try { listener.error?.(failure); } catch (error) { console.error('Snapshot error callback failed:', error); }
+}
+function notifySnapshot(listener: SnapshotSubscriber, value: unknown) {
+  listener.received = true;
+  try { listener.next(value); } catch (error) { notifySnapshotError(listener, error); }
+}
+export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentReference, ...args: unknown[]) => {
+  const next = args.find(v => typeof v === 'function') as (value: unknown) => void;
+  const error = args.filter(v => typeof v === 'function')[1] as ((error: unknown) => void) | undefined;
+  const options = args.find(v => v && typeof v === 'object' && 'includeMetadataChanges' in v) as fs.SnapshotListenOptions | undefined;
+  const spec = specs.get(ref);
+  // Unknown native queries cannot be compared safely by collection path alone.
+  if (ref.type === 'query' && !spec) return listenToSnapshot(ref, next, error, options);
+  const user = auth.currentUser?.uid;
+  const metadata = options?.includeMetadataChanges === true;
+  let streams = snapshotStreams.get(ref.firestore);
+  if (!streams) { streams = new Set(); snapshotStreams.set(ref.firestore, streams); }
+  const subscriber: SnapshotSubscriber = { next, error, received: false };
+  // Firestore equality preserves Date/Timestamp boundaries and query constraints.
+  let shared = [...streams].find(entry => entry.user === user && entry.metadata === metadata && entry.ref.type === ref.type &&
+    (ref.type === 'document' ? fs.refEqual(entry.ref as fs.DocumentReference, ref) : fs.queryEqual(entry.ref as fs.Query, ref as fs.Query)));
+  if (!shared) {
+    const entry: SharedSnapshot = { ref, user, metadata, listeners: new Set([subscriber]), hasValue: false, stop: () => {} };
+    shared = entry;
+    streams.add(entry);
+    entry.stop = listenToSnapshot(ref, value => {
+      entry.value = value; entry.hasValue = true;
+      for (const listener of entry.listeners) notifySnapshot(listener, value);
+    }, failure => { for (const listener of entry.listeners) notifySnapshotError(listener, failure); }, options);
+  } else {
+    shared.listeners.add(subscriber);
+    const entry = shared;
+    void Promise.resolve().then(() => {
+      if (!subscriber.received && entry.hasValue && entry.listeners.has(subscriber) && auth.currentUser?.uid === user) {
+        notifySnapshot(subscriber, entry.value);
+      }
+    });
+  }
+  const entry = shared;
+  return () => {
+    entry.listeners.delete(subscriber);
+    if (!entry.listeners.size && streams.delete(entry)) entry.stop();
+  };
 }) as typeof fs.onSnapshot;
 export const setDoc: typeof fs.setDoc = (async (ref: fs.DocumentReference, data: fs.DocumentData, options?: fs.SetOptions) => {
   if (!await operationalPrimary()) return options ? fs.setDoc(ref, data, options) : fs.setDoc(ref, data);
