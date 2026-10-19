@@ -1,4 +1,4 @@
-import { ownerText } from '@/lib/presentation/ownerText';
+import { gasNotificationText, ownerText } from '@/lib/presentation/ownerText';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createHash } from 'node:crypto';
 import { getAdminAuth, getAdminFirestore, getAdminMessaging } from '@/lib/configs/firebase-admin';
@@ -61,8 +61,10 @@ export async function processPushOutbox(ownerId?: string) {
     const providerStartedAt = new Date().toISOString();
     let result;
     try {
+      const gas = gasNotificationText(record.reason, record.context.source === 'gas_history' ? record.context.occurredAt : record.context.occurredAt ?? record.created_at);
+      const notification = gas ? { title: gas.title, body: gas.message } : { title: ownerText(record.context.title ?? 'LitterSense Alert'), body: ownerText(record.context.body ?? buildAlertMessage(record.reason, { ...record.context, occurredAt: record.context.occurredAt ?? record.created_at, catName: account.cats.find(cat => cat.id === record.cat_id)?.name })) };
       providerAttempted = true;
-      result = await getAdminMessaging().sendEachForMulticast({ tokens, notification: { title: ownerText(record.context.title ?? 'LitterSense Alert'), body: ownerText(record.context.body ?? buildAlertMessage(record.reason, { ...record.context, occurredAt: record.context.occurredAt ?? record.created_at, catName: account.cats.find(cat => cat.id === record.cat_id)?.name })) }, data: { eventKey: record.event_key, url: record.context.url?.startsWith('/dashboard') ? record.context.url : '/dashboard' }, webpush: { headers: { TTL: '3600', Urgency: 'high' } } });
+      result = await getAdminMessaging().sendEachForMulticast({ tokens, notification, data: { eventKey: record.event_key, url: record.context.url?.startsWith('/dashboard') ? record.context.url : '/dashboard' }, webpush: { headers: { TTL: '3600', Urgency: 'high' } } });
     } catch { await patch('unknown'); continue; }
     // Never retry a whole batch after some devices already received it.
     // Provider acceptance is not proof of display on the phone. Retain each gas target's outcome.

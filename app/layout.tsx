@@ -12,6 +12,7 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
+import { SettingsProvider } from "@/lib/hooks/useSettings";
 import { CatProvider } from "@/lib/contexts/CatContext";
 import { NotificationProvider } from "@/lib/contexts/NotificationContext";
 import { DeleteRequestProvider } from "@/lib/contexts/DeleteRequestContext";
@@ -56,15 +57,17 @@ export default function RootLayout({
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            <DeleteRequestProvider>
-              <CatProvider>
-                <NotificationProvider>
-                  <PWAInstallProvider>
-                    {children}
-                  </PWAInstallProvider>
-                </NotificationProvider>
-              </CatProvider>
-            </DeleteRequestProvider>
+            <PWAInstallProvider>
+              <SettingsProvider>
+                <DeleteRequestProvider>
+                  <CatProvider>
+                    <NotificationProvider>
+                      {children}
+                    </NotificationProvider>
+                  </CatProvider>
+                </DeleteRequestProvider>
+              </SettingsProvider>
+            </PWAInstallProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

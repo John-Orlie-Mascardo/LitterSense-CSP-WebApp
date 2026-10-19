@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { createContext, createElement, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import { doc, onSnapshot, serverTimestamp, setDoc } from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -108,7 +108,25 @@ const pickNotificationSettings = (
   return next;
 };
 
+const SettingsContext = createContext<ReturnType<typeof useSettingsState> | null>(null);
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  return createElement(SettingsOwnerProvider, { key: user?.uid ?? "signed-out" }, children);
+}
+
+function SettingsOwnerProvider({ children }: { children?: ReactNode }) {
+  const value = useSettingsState();
+  return createElement(SettingsContext.Provider, { value }, children);
+}
+
 export function useSettings() {
+  const value = useContext(SettingsContext);
+  if (!value) throw new Error("SettingsProvider is required for settings");
+  return value;
+}
+
+function useSettingsState() {
   const { user } = useAuth();
   const uid = user?.uid;
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
@@ -116,58 +134,70 @@ export function useSettings() {
   const [loadedOwner, setLoadedOwner] = useState<string | undefined>();
 
   useEffect(() => {
-    if (globalThis.window !== undefined) {
-      const stored = uid ? localStorage.getItem(`${STORAGE_KEY}:${uid}`) : null;
-      let nextSettings = defaultSettings;
-      if (stored) {
-        try {
-          nextSettings = mergeSettings(JSON.parse(stored));
-        } catch (e) {
-          console.error("Failed to parse settings:", e);
+    let stopped = false;
+    let unsubscribe: (() => void) | undefined;
+    queueMicrotask(() => {
+      if (stopped) return;
+      let nextSettings = defaultSettings, cached = false;
+      try {
+        const stored = uid ? localStorage.getItem(`${STORAGE_KEY}:${uid}`) : null;
+        if (stored) {
+          const parsed = JSON.parse(stored) as Partial<UserSettings> | null;
+          if (parsed && typeof parsed.notifications?.rfidVisitAlerts === "boolean") {
+            nextSettings = mergeSettings(parsed);
+            cached = true;
+          }
         }
+      } catch (error) {
+        console.error("Failed to load cached settings:", error);
       }
-      queueMicrotask(() => {
-        setSettings(nextSettings);
-        setIsLoaded(true);
-        setLoadedOwner(uid);
-      });
-    }
+      setSettings(nextSettings);
+      setIsLoaded(cached);
+      setLoadedOwner(uid);
+      if (!uid) return;
+
+      unsubscribe = onSnapshot(
+        doc(db, "users", uid, "settings", "notifications"),
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          if (stopped) return;
+          if (!snapshot.exists() && snapshot.metadata.fromCache) return;
+          if (snapshot.exists()) {
+            const remote = pickNotificationSettings(
+              snapshot.data() as Partial<UserSettings["notifications"]>,
+            );
+            setSettings((prev) => ({
+              ...prev,
+              notifications: {
+                ...prev.notifications,
+                ...remote,
+                quietHours: { ...prev.notifications.quietHours, ...(remote.quietHours ?? {}) },
+                perCat: remote.perCat ?? prev.notifications.perCat,
+              },
+            }));
+          }
+          setIsLoaded(true);
+        },
+        (error) => {
+          if (!stopped) console.error("Failed to sync notification settings:", error);
+        },
+      );
+    });
+    return () => {
+      stopped = true;
+      unsubscribe?.();
+    };
   }, [uid]);
 
   useEffect(() => {
     if (uid && loadedOwner === uid && isLoaded && globalThis.window !== undefined) {
-      localStorage.setItem(`${STORAGE_KEY}:${uid}`, JSON.stringify(settings));
+      try {
+        localStorage.setItem(`${STORAGE_KEY}:${uid}`, JSON.stringify(settings));
+      } catch (error) {
+        console.error("Failed to cache settings:", error);
+      }
     }
   }, [settings, isLoaded, uid, loadedOwner]);
-
-  useEffect(() => {
-    if (!uid || !isLoaded) return undefined;
-
-    return onSnapshot(
-      doc(db, "users", uid, "settings", "notifications"),
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-        const remote = pickNotificationSettings(
-          snapshot.data() as Partial<UserSettings["notifications"]>,
-        );
-        setSettings((prev) => ({
-          ...prev,
-          notifications: {
-            ...prev.notifications,
-            ...remote,
-            quietHours: {
-              ...prev.notifications.quietHours,
-              ...(remote.quietHours ?? {}),
-            },
-            perCat: remote.perCat ?? prev.notifications.perCat,
-          },
-        }));
-      },
-      (error) => {
-        console.error("Failed to sync notification settings:", error);
-      },
-    );
-  }, [uid, isLoaded]);
 
   const persistNotificationSettings = useCallback(
     async (notifications: UserSettings["notifications"]) => {

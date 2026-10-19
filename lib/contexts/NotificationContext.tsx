@@ -1,6 +1,5 @@
 "use client";
 
-import { ownerText } from "@/lib/presentation/ownerText";
 import { markNotificationIdsRead, reconcileNotificationReads } from '@/lib/utils/notificationReads';
 import React, {
   createContext,
@@ -252,7 +251,7 @@ export function NotificationProvider({
         if (stopped) return;
         const loaded: AppNotification[] = [];
         snapshot.forEach((d) =>
-          loaded.push({ id: d.id, ...d.data(), title: ownerText(String(d.data().title ?? "")), message: ownerText(String(d.data().message ?? "")) } as AppNotification)
+          loaded.push(notificationFromRecord({ path: `users/${userId}/notifications/${d.id}`, revision: 0, data: d.data() }))
         );
         setSyncState({
           userId,
