@@ -104,6 +104,7 @@ export const getDocs: typeof fs.getDocs = (async (ref: fs.Query) => {
 export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentReference, ...args: unknown[]) => {
   const next = args.find(v => typeof v === 'function') as (value: unknown) => void;
   const error = args.filter(v => typeof v === 'function')[1] as ((error: unknown) => void) | undefined;
+  const options = args.find(v => v && typeof v === 'object' && 'includeMetadataChanges' in v) as fs.SnapshotListenOptions | undefined;
   let stopped = false, timer: ReturnType<typeof setTimeout>, legacy: (() => void) | undefined, previous = '';
   const user = auth.currentUser?.uid;
   let inFlight = false, refreshPending = false, failures = 0;
@@ -127,7 +128,10 @@ export const onSnapshot: typeof fs.onSnapshot = ((ref: fs.Query | fs.DocumentRef
     inFlight = true;
     try {
       if (stopped || auth.currentUser?.uid !== user) return;
-      if (!await operationalPrimary()) { if (!stopped) legacy = fs.onSnapshot(ref as fs.Query, next, error); return; }
+      if (!await operationalPrimary()) {
+        if (!stopped) legacy = options ? fs.onSnapshot(ref as fs.Query, options, next, error) : fs.onSnapshot(ref as fs.Query, next, error);
+        return;
+      }
       const value = ref.type === 'document' ? await getDoc(ref as fs.DocumentReference) : await getDocs(ref as fs.Query);
       if (stopped || auth.currentUser?.uid !== user) return;
       failures = 0;

@@ -245,6 +245,7 @@ export default function SettingsPage() {
   const { isInstallable, triggerInstall } = usePWAInstall();
   const {
     settings,
+    isLoaded: settingsLoaded,
     updateNotificationSetting,
     updateDeviceSetting,
     updateAppearanceSetting,
@@ -718,10 +719,10 @@ export default function SettingsPage() {
               icon={Activity}
               label="Health Alerts"
               control={
-                <Toggle
+                settingsLoaded ? <Toggle
                   checked={settings.notifications.healthAlerts}
                   onChange={(v) => updateNotificationSetting("healthAlerts", v)}
-                />
+                /> : <span role="status" className="text-sm text-theme-muted">Checking…</span>
               }
             />
             <div className="border-t border-litter-border">
@@ -730,10 +731,10 @@ export default function SettingsPage() {
                 label="Urine Alerts"
                 description="Get notified when urine odor is detected"
                 control={
-                  <Toggle
+                  settingsLoaded ? <Toggle
                     checked={settings.notifications.ammoniaAlerts}
                     onChange={(v) => updateNotificationSetting("ammoniaAlerts", v)}
-                  />
+                  /> : <span role="status" className="text-sm text-theme-muted">Checking…</span>
                 }
               />
             </div>
@@ -743,10 +744,10 @@ export default function SettingsPage() {
                 label="Stool Alerts"
                 description="Get notified when stool odor is detected"
                 control={
-                  <Toggle
+                  settingsLoaded ? <Toggle
                     checked={settings.notifications.h2sAlerts}
                     onChange={(v) => updateNotificationSetting("h2sAlerts", v)}
-                  />
+                  /> : <span role="status" className="text-sm text-theme-muted">Checking…</span>
                 }
               />
             </div>
@@ -756,10 +757,10 @@ export default function SettingsPage() {
                 label="RFID Entry/Exit"
                 description="Get notified when a cat enters or leaves"
                 control={
-                  <Toggle
+                  settingsLoaded ? <Toggle
                     checked={settings.notifications.rfidVisitAlerts}
                     onChange={(v) => updateNotificationSetting("rfidVisitAlerts", v)}
-                  />
+                  /> : <span role="status" className="text-sm text-theme-muted">Checking…</span>
                 }
               />
             </div>
