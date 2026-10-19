@@ -1,5 +1,5 @@
 import { Timestamp } from '@/lib/utils/operationalClient';
-import { ownerText } from '@/lib/presentation/ownerText';
+import { gasNotificationText, ownerText } from '@/lib/presentation/ownerText';
 import type { NotificationRecord } from '@/lib/interfaces/NotificationPage';
 import type { AppNotification } from '@/lib/contexts/NotificationContext';
 
@@ -12,5 +12,6 @@ export function notificationFromRecord(row: NotificationRecord): AppNotification
     const milliseconds = Date.parse(value);
     if (milliseconds >= -62135596800000 && milliseconds < 253402300800000) createdAt = Timestamp.fromMillis(milliseconds);
   }
-  return { ...row.data, id: row.path.slice(row.path.lastIndexOf('/') + 1), createdAt, title: ownerText(String(row.data.title ?? '')), message: ownerText(String(row.data.message ?? '')) } as AppNotification;
+  const gas = gasNotificationText(row.data.source, createdAt.toMillis());
+  return { ...row.data, id: row.path.slice(row.path.lastIndexOf('/') + 1), createdAt, title: gas?.title ?? ownerText(String(row.data.title ?? '')), message: gas?.message ?? ownerText(String(row.data.message ?? '')) } as AppNotification;
 }
