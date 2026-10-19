@@ -73,24 +73,31 @@ type SensorState = {
 
 const SensorContext = createContext<SensorState | null>(null);
 
-async function fetchDeviceSensors(token: string, signal?: AbortSignal): Promise<DeviceSensors> {
-  const response = await fetch("/api/sensors", {
-    cache: "no-store",
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000),
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  const payload = await response.json() as {
-    error?: string;
-    detail?: string;
-  };
-
-  if (!response.ok) {
-    const message = [payload.error, payload.detail].filter(Boolean).join(": ");
-    throw new Error(message || "Unable to read device sensors");
+async function fetchDeviceSensors(getToken: () => Promise<string>, signal: AbortSignal): Promise<DeviceSensors> {
+  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(10000)]);
+  let onAbort = () => {};
+  try {
+    requestSignal.throwIfAborted();
+    // The operation deadline includes authentication, which otherwise can hold polling indefinitely.
+    const token = await new Promise<string>((resolve, reject) => {
+      onAbort = () => reject(requestSignal.reason);
+      requestSignal.addEventListener("abort", onAbort, { once: true });
+      getToken().then(resolve, reject);
+    });
+    requestSignal.throwIfAborted();
+    const response = await fetch("/api/sensors", {
+      cache: "no-store", signal: requestSignal,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = await response.json() as { error?: string; detail?: string };
+    if (!response.ok) {
+      const message = [payload.error, payload.detail].filter(Boolean).join(": ");
+      throw new Error(message || "Unable to read device sensors");
+    }
+    return payload as DeviceSensors;
+  } finally {
+    requestSignal.removeEventListener("abort", onAbort);
   }
-
-  return payload as DeviceSensors;
 }
 
 function useSensorPolling() {
@@ -123,8 +130,8 @@ function useSensorPolling() {
       const gas = livePresence['gas-ultrasonic'];
       if (rfid) {
         result.online = rfid.online;
-        result.rfidState = rfid.online ? 'online' : 'stale';
-        if (rfid.updatedAt) result.rfidUpdatedAt = rfid.updatedAt;
+        // Relay connectivity cannot freshen the last uploaded RFID session.
+        if (!rfid.online) result.rfidState = 'stale';
       }
       if (gas) {
         result.gasUltrasonicOnline = gas.online;
@@ -146,8 +153,7 @@ function useSensorPolling() {
           const gas = livePresence['gas-ultrasonic'];
           if (rfid) {
             next.data.online = rfid.online;
-            next.data.rfidState = rfid.online ? 'online' : 'stale';
-            if (rfid.updatedAt) next.data.rfidUpdatedAt = rfid.updatedAt;
+            next.data.rfidState = 'stale';
           }
           if (gas) {
             next.data.gasUltrasonicOnline = gas.online;
@@ -165,7 +171,7 @@ function useSensorPolling() {
       window.clearTimeout(timeoutId);
       inFlight = true;
       try {
-        const data = await fetchDeviceSensors(await user.getIdToken(), controller.signal);
+        const data = await fetchDeviceSensors(() => user.getIdToken(), controller.signal);
         if (!isMounted) return;
         failures = 0;
         rawSnapshot = data;
@@ -181,7 +187,7 @@ function useSensorPolling() {
           data: previous.ownerId === user.uid && previous.data ? {
             ...previous.data,
             online: livePresence.rfid?.online ?? false,
-            rfidState: livePresence.rfid ? (livePresence.rfid.online ? 'online' : 'stale') : 'stale',
+            rfidState: 'stale',
             gasUltrasonicOnline: livePresence['gas-ultrasonic']?.online ?? false,
             gasUltrasonicState: 'stale',
             // A cloud read failure cannot undo the last confirmed RFID entry.
@@ -244,7 +250,7 @@ function useSensorPolling() {
       const data = withLivePresence(rawSnapshot, serverAt + Math.max(0, Date.now() - fetchedAt));
       setState(previous => previous.ownerId !== user.uid || !previous.data ||
         (previous.data.online === data.online && previous.data.gasUltrasonicOnline === data.gasUltrasonicOnline &&
-          previous.data.gasUltrasonicState === data.gasUltrasonicState)
+          previous.data.rfidState === data.rfidState && previous.data.gasUltrasonicState === data.gasUltrasonicState)
         ? previous : { ...previous, data });
     }, 1000);
     document.addEventListener("visibilitychange", onVisibilityChange);

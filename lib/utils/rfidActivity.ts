@@ -58,7 +58,7 @@ export function buildRfidActivityVisits(sensor: DeviceSensors | null, cats: Cat[
       cat, session: session(cat.id, sensor.activeSessionStartMs ?? start, start,
         timedOut ? timeoutMs : duration, timedOut ? 'NO_EXIT_TIMEOUT' : 'IN_PROGRESS',
         timedOut ? start + timeoutMs : undefined),
-      liveUpdatePending: !sensor.online,
+      liveUpdatePending: !sensor.online || sensor.rfidState === 'stale' || sensor.rfidState === 'unknown' || sensor.rfidCloudError === true,
     });
   }
   // Retain the latest reported exit during the asynchronous history refresh, even if
