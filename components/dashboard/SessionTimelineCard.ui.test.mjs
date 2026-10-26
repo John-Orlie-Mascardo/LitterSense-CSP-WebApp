@@ -89,7 +89,7 @@ test('other session cards retain their time and duration details', () => {
 });
 
 
-test("timed-out and rebooted sessions retain details without an incomplete badge", () => {
+test("timed-out and interrupted sessions retain details without claiming a reboot", () => {
   const loaded = { exports: {} };
   const jsx = (type, props) => ({ type, props });
   const imports = {
@@ -111,7 +111,12 @@ test("timed-out and rebooted sessions retain details without an incomplete badge
     assert.match(result, /Out/);
     assert.equal(JSON.stringify(tree).includes('badge'), false);
     if (status === 'NO_EXIT_TIMEOUT') assert.match(result, /Not confirmed/);
-    if (status === 'SESSION_INTERRUPTED') assert.match(result, /Duration unknown|Time uncertain/);
+    if (status === 'SESSION_INTERRUPTED') {
+      assert.match(result, /Time uncertain/);
+      assert.match(result, /Not confirmed/);
+      assert.match(result, /Duration unknown - tracking interrupted/);
+      assert.doesNotMatch(result, /device restarted|900s/);
+    }
   }
 });
 
