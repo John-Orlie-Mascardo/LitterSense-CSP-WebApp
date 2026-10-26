@@ -162,7 +162,7 @@ export function SessionTimelineCard({
           </div>
           <div className="mt-3 flex items-center gap-2 text-xs text-litter-muted">
             <Clock3 className="h-4 w-4" />
-            <span>{interrupted ? "Duration unknown - device restarted" : formatDuration(session.durationSecs)}</span>
+            <span>{interrupted ? "Duration unknown - tracking interrupted" : formatDuration(session.durationSecs)}</span>
           </div>
         </div>
       </div>

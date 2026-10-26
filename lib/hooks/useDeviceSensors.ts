@@ -222,7 +222,10 @@ function useSensorPolling() {
         refreshPending = false;
         return;
       }
-      if (inFlight) return;
+      if (inFlight) {
+        refreshPending = true;
+        return;
+      }
       void pollSensors();
     };
     const requestRefresh = () => {
