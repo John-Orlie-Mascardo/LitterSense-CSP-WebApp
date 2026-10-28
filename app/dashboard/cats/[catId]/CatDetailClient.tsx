@@ -1092,7 +1092,7 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
     <div
       className={`flex items-center justify-between p-3 rounded-xl border ${
         session.anomaly
-          ? "bg-amber-50 border-amber-200"
+          ? "bg-status-warning border-status-warning"
           : "bg-litter-card border-litter-border"
       }`}
     >
