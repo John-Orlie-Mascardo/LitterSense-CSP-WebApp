@@ -35,6 +35,9 @@ import {
 } from "@/lib/presentation/loginFeedback";
 import { recordAdminLogin } from "@/lib/utils/adminLoginAudit";
 import { ADMIN_LOGIN_PATH, requireAdminLogin } from "@/lib/utils/adminLoginAccess";
+import { shouldShowAuthRestore } from "@/lib/utils/authGate";
+import { requestSignInNotice } from "@/lib/utils/signInNotice";
+import { AuthLoadingScreen } from "@/components/ui/AuthLoadingScreen";
 
 const features = [
   { icon: Activity, text: "Real-time litter monitoring" },
@@ -97,6 +100,7 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       if (adminOnly) await requireAdminLogin(userCredential.user, () => signOut(auth));
       await recordAdminLogin(userCredential.user, "password");
+      void requestSignInNotice(userCredential.user);
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {
@@ -127,6 +131,7 @@ export default function LoginPage() {
       }
 
       await recordAdminLogin(user, "google");
+      void requestSignInNotice(user);
       setAuthSucceeded(true);
       addSuccessToast();
     } catch (caughtError) {
@@ -135,6 +140,15 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  if (shouldShowAuthRestore({
+    authLoading,
+    hasUser: Boolean(user),
+    isSigningIn: isLoading,
+    authSucceeded,
+  })) {
+    return <AuthLoadingScreen />;
+  }
 
   return (
     <div className="dark min-h-screen flex flex-col lg:flex-row">

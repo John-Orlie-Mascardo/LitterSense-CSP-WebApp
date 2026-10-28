@@ -32,6 +32,16 @@ test("successful authentication shows a toast before the resolved redirect", () 
   assert.match(source, /setTimeout/);
 });
 
+test("a restoring or signed-in session shows the loading screen instead of the form", () => {
+  assert.match(source, /shouldShowAuthRestore\(\{[\s\S]*authLoading,[\s\S]*isSigningIn: isLoading,[\s\S]*\}\)\) \{\s*return <AuthLoadingScreen \/>;/);
+  assert.ok(source.indexOf("<AuthLoadingScreen />") < source.indexOf("<form"));
+});
+
+test("only interactive sign-ins request the email, without awaiting it", () => {
+  assert.equal((source.match(/void requestSignInNotice\(/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /await requestSignInNotice/);
+});
+
 test("login uses privacy-safe mapped errors instead of raw Firebase messages", () => {
   assert.match(source, /getEmailLoginErrorMessage/);
   assert.match(source, /getGoogleLoginErrorMessage/);
