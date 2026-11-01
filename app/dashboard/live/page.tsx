@@ -315,70 +315,6 @@ function LiveHeader({
   );
 }
 
-function DeviceGate({
-  isConnecting,
-  onConnect,
-}: {
-  readonly isConnecting: boolean;
-  readonly onConnect: () => void;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-3xl border border-litter-border bg-litter-card shadow-xl p-8 text-center">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-64 w-64 rounded-full bg-litter-primary/10 blur-3xl" />
-      </div>
-      <div className="relative z-10 flex flex-col items-center gap-4">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-litter-primary/20 bg-litter-primary/10 shadow-inner">
-          <Radio className="h-9 w-9 text-litter-primary" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-litter-text">No Device Connected</h2>
-          <p className="mx-auto mt-1 max-w-xs text-sm leading-relaxed text-theme-muted">
-            {SHOW_RECORDINGS_UI
-              ? "Pair your LitterSense unit to watch the live feed and browse recording history."
-              : "Pair your LitterSense unit to watch the live feed."}
-          </p>
-        </div>
-        <div className="w-full rounded-2xl border border-litter-border bg-litter-bg p-4 text-left space-y-3 mt-1">
-          {[
-            { step: "1", label: "Power on your LitterSense device" },
-            { step: "2", label: "Connect the litterbox to a Wi-Fi network with internet" },
-            { step: "3", label: "Open the viewer, then choose Pair camera" },
-          ].map(({ step, label }) => (
-            <div key={step} className="flex items-center gap-3">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-litter-primary text-xs font-bold text-white">
-                {step}
-              </span>
-              <span className="text-sm text-theme-muted">{label}</span>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={onConnect}
-          disabled={isConnecting}
-          className="mt-2 flex items-center gap-2 rounded-full bg-litter-primary px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-litter-primary/25 transition-all hover:bg-[#165a4e] hover:shadow-litter-primary/40 disabled:opacity-60"
-        >
-          {isConnecting ? (
-            <>
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
-                className="block h-4 w-4 rounded-full border-2 border-white/30 border-t-white"
-              />
-              Connecting…
-            </>
-          ) : (
-            <>
-              <Radio className="h-4 w-4" />
-              Connect Device
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function LiveViewer({
   activeView,
   selectedRecording,
@@ -423,37 +359,27 @@ function RecordingDeviceInfo({ selectedRecording }: { readonly selectedRecording
   );
 }
 
-function DeviceStatusCard({
+function ViewerStatusCard({
   statusLabel,
   statusColor,
-  onDisconnect,
 }: {
   readonly statusLabel: string;
   readonly statusColor: string;
-  readonly onDisconnect: () => void;
 }) {
   return (
     <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm p-4 mb-4">
       <p className="text-xs font-bold tracking-widest text-litter-primary uppercase mb-3">
-        Device Status
+        Viewer Status
       </p>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-4 w-4 shrink-0">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusColor} opacity-50`} />
-            <span className={`relative inline-flex h-4 w-4 rounded-full ${statusColor}`} />
-          </span>
-          <div>
-            <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
-            <p className="text-xs text-theme-muted leading-tight mt-0.5">LitterSense camera</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <span className="relative flex h-4 w-4 shrink-0">
+          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${statusColor} opacity-50`} />
+          <span className={`relative inline-flex h-4 w-4 rounded-full ${statusColor}`} />
+        </span>
+        <div>
+          <p className="text-sm font-bold text-litter-text leading-tight">{statusLabel}</p>
+          <p className="text-xs text-theme-muted leading-tight mt-0.5">Live camera viewer</p>
         </div>
-        <button
-          onClick={onDisconnect}
-          className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/40 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
-        >
-          Disconnect
-        </button>
       </div>
     </div>
   );
@@ -582,7 +508,6 @@ function ConnectedLiveView({
   showAllRecordings,
   liveStreamState,
   onStreamStateChange,
-  onDisconnect,
   onDateChange,
   onCatChange,
   onToggleShowAllRecordings,
@@ -598,7 +523,6 @@ function ConnectedLiveView({
   readonly showAllRecordings: boolean;
   readonly liveStreamState: LiveStreamState;
   readonly onStreamStateChange: (state: LiveStreamState) => void;
-  readonly onDisconnect: () => void;
   readonly onDateChange: (date: SelectedDate) => void;
   readonly onCatChange: (cat: string) => void;
   readonly onToggleShowAllRecordings: () => void;
@@ -608,16 +532,16 @@ function ConnectedLiveView({
   const activeView: ActiveView = SHOW_RECORDINGS_UI ? activeTab : "live";
   const statusLabel =
     liveStreamState === "connected"
-      ? "Connected"
+      ? "Stream connected"
       : liveStreamState === "error"
-        ? "Error"
-        : "Connecting";
+        ? "Stream unavailable"
+        : "Connecting to stream";
   const statusColor =
     liveStreamState === "connected"
       ? "bg-green-500"
       : liveStreamState === "error"
-        ? "bg-yellow-500"
-        : "bg-green-500";
+        ? "bg-red-500"
+        : "bg-amber-500";
 
   return (
     <div>
@@ -631,10 +555,9 @@ function ConnectedLiveView({
         <RecordingDeviceInfo selectedRecording={selectedRecording} />
       )}
 
-      <DeviceStatusCard
+      <ViewerStatusCard
         statusLabel={statusLabel}
         statusColor={statusColor}
-        onDisconnect={onDisconnect}
       />
 
       {SHOW_RECORDINGS_UI && (
@@ -669,22 +592,7 @@ export default function LivePage() {
   const [selectedCat, setSelectedCat] = useState("All Cats");
   const [selectedDate, setSelectedDate] = useState<SelectedDate>("all");
   const [showAllRecordings, setShowAllRecordings] = useState(false);
-  // Open the remote viewer immediately so pairing remains available when the camera is offline.
-  const [deviceConnected, setDeviceConnected] = useState(true);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [liveStreamState, setLiveStreamState] = useState<LiveStreamState>("unknown");
-
-  const handleConnect = () => {
-    setIsConnecting(true);
-    setLiveStreamState("unknown");
-    setDeviceConnected(true);
-    setIsConnecting(false);
-  };
-
-  const handleDisconnect = () => {
-    setDeviceConnected(false);
-    setLiveStreamState("unknown");
-  };
 
   const handleDelete = (id: string) => {
     const remainingRecordings = recordings.filter((recording) => recording.id !== id);
@@ -704,27 +612,22 @@ export default function LivePage() {
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
         <LiveHeader activeTab={activeTab} onActiveTabChange={setActiveTab} />
 
-        {deviceConnected ? (
-          <ConnectedLiveView
-            activeTab={activeTab}
-            selectedRecording={selectedRecording}
-            selectedDate={selectedDate}
-            selectedCat={selectedCat}
-            filteredRecordings={filteredRecordings}
-            visibleRecordings={visibleRecordings}
-            showAllRecordings={showAllRecordings}
-            liveStreamState={liveStreamState}
-            onStreamStateChange={setLiveStreamState}
-            onDisconnect={handleDisconnect}
-            onDateChange={setSelectedDate}
-            onCatChange={setSelectedCat}
-            onToggleShowAllRecordings={() => setShowAllRecordings((value) => !value)}
-            onSelectRecording={setSelectedRecording}
-            onDeleteRecording={handleDelete}
-          />
-        ) : (
-          <DeviceGate isConnecting={isConnecting} onConnect={handleConnect} />
-        )}
+        <ConnectedLiveView
+          activeTab={activeTab}
+          selectedRecording={selectedRecording}
+          selectedDate={selectedDate}
+          selectedCat={selectedCat}
+          filteredRecordings={filteredRecordings}
+          visibleRecordings={visibleRecordings}
+          showAllRecordings={showAllRecordings}
+          liveStreamState={liveStreamState}
+          onStreamStateChange={setLiveStreamState}
+          onDateChange={setSelectedDate}
+          onCatChange={setSelectedCat}
+          onToggleShowAllRecordings={() => setShowAllRecordings((value) => !value)}
+          onSelectRecording={setSelectedRecording}
+          onDeleteRecording={handleDelete}
+        />
       </main>
 
       <BottomNav />
