@@ -38,6 +38,7 @@ import {
   Droplets,
   Radio,
   Wifi,
+  CircleHelp,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -82,6 +83,7 @@ import {
   requestAccountDeletion,
   type AccountDeletionState,
 } from "@/lib/utils/accountDeletion";
+import { useTour } from "@/components/tour/TourProvider";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -242,6 +244,7 @@ const buildExportCsv = (payload: ExportAllPayload) => {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { requestReplay } = useTour();
   const { isInstallable, triggerInstall } = usePWAInstall();
   const {
     settings,
@@ -296,6 +299,11 @@ export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
   const accountDeletion: AccountDeletionState = user && deletionState.ownerUid === user.uid ? deletionState.account : { status: 'none', requestedAt: null };
   const isDeletionStatusLoading = Boolean(user && deletionState.ownerUid !== user.uid);
+
+  const handleStartTour = () => {
+    requestReplay();
+    router.push("/dashboard");
+  };
 
   const handleSubmitDeletion = async () => {
     if (!user || accountDeletion.status !== "none" || isSubmittingDeletion) return;
@@ -863,6 +871,28 @@ export default function SettingsPage() {
                 updateAppearanceSetting("theme", v);
                 setTheme(v);
               }}
+            />
+          </div>
+        </div>
+
+        {/* Help Section */}
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+            HELP
+          </h3>
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 overflow-hidden">
+            <SettingsRow
+              icon={CircleHelp}
+              label="App tour"
+              description="Show the guided tour again"
+              control={
+                <button
+                  onClick={handleStartTour}
+                  className="bg-litter-primary text-white rounded-xl px-4 py-2 text-sm font-medium active:opacity-80 transition-opacity"
+                >
+                  Start
+                </button>
+              }
             />
           </div>
         </div>

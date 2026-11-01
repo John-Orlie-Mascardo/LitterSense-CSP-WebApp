@@ -44,6 +44,13 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 prefetch={true}
+                data-tour={
+                  item.href === "/dashboard/cats"
+                    ? "nav-cats"
+                    : item.href === "/dashboard/settings"
+                      ? "nav-settings"
+                      : undefined
+                }
                 className="relative flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 group sm:px-2"
                 aria-current={isActive ? "page" : undefined}
               >

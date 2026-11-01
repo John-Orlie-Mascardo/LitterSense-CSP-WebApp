@@ -5,6 +5,8 @@ import { OnboardingGate } from "@/components/onboarding/OnboardingGate";
 import { DeviceSensorsProvider } from "@/lib/hooks/useDeviceSensors";
 import { SmsAccountSync } from "@/components/dashboard/SmsAccountSync";
 import { PushNotifications } from "@/components/dashboard/PushNotifications";
+import { AppTour } from "@/components/tour/AppTour";
+import { TourProvider } from "@/components/tour/TourProvider";
 
 export const metadata: Metadata = {
   title: {
@@ -21,12 +23,15 @@ export default function DashboardLayout({
   return (
     <ProtectedRoute>
       <OnboardingGate>
-        <DeviceSensorsProvider>
-          <RfidVisitBridge />
-          <SmsAccountSync />
-          <PushNotifications />
-          {children}
-        </DeviceSensorsProvider>
+        <TourProvider>
+          <DeviceSensorsProvider>
+            <RfidVisitBridge />
+            <SmsAccountSync />
+            <PushNotifications />
+            {children}
+          </DeviceSensorsProvider>
+          <AppTour />
+        </TourProvider>
       </OnboardingGate>
     </ProtectedRoute>
   );
