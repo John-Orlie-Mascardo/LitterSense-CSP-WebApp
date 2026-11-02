@@ -44,6 +44,9 @@ export const viewport: Viewport = {
   themeColor: "#1E6B5E",
 };
 
+// Mirrors ThemeProvider's storage key and resolveTheme so the first paint matches the saved theme.
+const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t!=="dark")t="light";var r=document.documentElement;r.classList.add(t);r.style.colorScheme=t}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -51,6 +54,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        {/* Apply the saved theme before first paint so dark mode never flashes light. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
         className="font-body antialiased bg-litter-bg text-litter-text transition-colors duration-300"
         suppressHydrationWarning
