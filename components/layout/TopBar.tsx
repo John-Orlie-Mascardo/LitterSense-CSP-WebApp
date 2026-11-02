@@ -24,6 +24,7 @@ import {
 } from "@/lib/contexts/NotificationContext";
 import { usePWAInstall } from "@/lib/hooks/usePWAInstall";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { useTour } from "@/components/tour/TourProvider";
 
 const dismissalEvent = "littersense-notification-dismissal";
 const subscribeToDismissals = (notify: () => void) => {
@@ -65,6 +66,7 @@ const navItems = [
 
 export function TopBar() {
   const { isInstallable, triggerInstall } = usePWAInstall();
+  const { closeWithoutCompletion } = useTour();
   const { notifications, unreadCount, syncError, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
   const { user } = useAuth();
   const dismissalKey = user ? `littersense-dismissed-notifications:${user.uid}` : "";
@@ -214,6 +216,13 @@ export function TopBar() {
                 key={item.href}
                 href={item.href}
                 prefetch={true}
+                data-tour={
+                  item.href === "/dashboard/cats"
+                    ? "nav-cats"
+                    : item.href === "/dashboard/settings"
+                      ? "nav-settings"
+                      : undefined
+                }
                 aria-current={isActive ? "page" : undefined}
                 className={`flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors ${
                   isActive
@@ -269,6 +278,7 @@ export function TopBar() {
           <Link
             href="/dashboard/predictive-health"
             prefetch={true}
+            data-tour="predictive-health"
             aria-label="Predictive Health Analysis"
             aria-current={pathname === "/dashboard/predictive-health" ? "page" : undefined}
             title="Predictive Health Analysis"
@@ -284,6 +294,7 @@ export function TopBar() {
           {/* Notification bell + dropdown */}
           <div className="relative" ref={dropdownRef}>
             <motion.button
+              data-tour="bell"
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
               transition={{ type: "spring", stiffness: 600, damping: 25 }}
@@ -291,7 +302,10 @@ export function TopBar() {
               style={{ color: "var(--color-text)", background: dropdownOpen ? "var(--color-bg)" : "transparent" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-bg)"; }}
               onMouseLeave={(e) => { if (!dropdownOpen) e.currentTarget.style.background = "transparent"; }}
-              onClick={() => setDropdownOpen((v) => !v)}
+              onClick={() => {
+                closeWithoutCompletion();
+                setDropdownOpen((v) => !v);
+              }}
               aria-label={`Notifications (${unreadCount} unread)`}
               aria-expanded={dropdownOpen}
               aria-controls="notification-panel"

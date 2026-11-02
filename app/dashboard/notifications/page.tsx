@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useNotificationHistory } from '@/lib/hooks/useNotificationHistory';
 import {
   getDateGroup,
@@ -152,6 +153,7 @@ export default function NotificationsPage() {
   } = useNotifications();
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
   const [showMenu, setShowMenu] = useState(false);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [readError, setReadError] = useState("");
   const history = useNotificationHistory(activeTab, paginated, recentNotifications, recentLoading);
   const { notifications, isLoading } = history;
@@ -273,7 +275,10 @@ export default function NotificationsPage() {
                         Mark all as read
                       </button>
                       <button
-                        onClick={handleClearAll}
+                        onClick={() => {
+                          setShowMenu(false);
+                          setShowClearConfirmation(true);
+                        }}
                         className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-litter-danger transition-colors hover:bg-litter-danger-bg"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -353,6 +358,16 @@ export default function NotificationsPage() {
         {history.error && <div role="alert" className="mt-4 text-sm text-litter-danger"><p>{history.error}</p><button type="button" onClick={() => void history.retry()} className="mt-2 underline">Try again</button></div>}
         {history.hasMore && <div className="mt-6 flex justify-center"><button type="button" disabled={history.isLoadingMore || isLoading} onClick={() => void history.loadMore()} className="rounded-xl border border-litter-border bg-litter-card px-5 py-3 text-sm font-medium text-litter-text disabled:opacity-50">{history.isLoadingMore ? 'Loading older notifications…' : 'Load older notifications'}</button></div>}
       </main>
+
+      <ConfirmDialog
+        isOpen={showClearConfirmation}
+        onClose={() => setShowClearConfirmation(false)}
+        onConfirm={() => void handleClearAll()}
+        title="Permanently delete notification history?"
+        message="This permanently deletes all notification history from your account. This action cannot be undone."
+        confirmText="Delete all"
+        variant="danger"
+      />
 
       <BottomNav />
     </div>

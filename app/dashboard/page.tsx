@@ -65,6 +65,8 @@ import {
   buildCatTrendReferences,
   type TrendReferenceSet,
 } from "@/lib/presentation/trendCharts";
+import { useTour } from "@/components/tour/TourProvider";
+import { getDashboardTourState } from "@/components/tour/tourSteps";
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -252,11 +254,11 @@ function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
         No cats registered yet
       </h2>
       <p className="text-litter-muted text-sm leading-relaxed max-w-xs mb-8">
-        Keep track of your furry friend&apos;s health, bathroom habits,
         {/* NOTE(manuscript): Dashboard copy no longer promises weight tracking. */}
-        and visit trends by adding them to your dashboard.
+        Keep track of your furry friend&apos;s health, bathroom habits, and visit trends by adding them to your dashboard.
       </p>
       <button
+        data-tour="add-first-cat"
         onClick={onAddCat}
         className="w-full max-w-xs py-4 bg-litter-primary text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
       >
@@ -346,7 +348,7 @@ function PopulatedDashboardState({
           </p>
         </section>
 
-        <section className="mb-6">
+        <section data-tour="cat-chips" className="mb-6">
           <div className="flex flex-wrap gap-2">
             {cats.map((cat) => (
               <CatChip
@@ -403,7 +405,7 @@ function PopulatedDashboardState({
           />
         )}
 
-        <section className="mb-8">
+        <section data-tour="cat-stats" className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Cat Stats
@@ -428,7 +430,7 @@ function PopulatedDashboardState({
           </div>
         </section>
 
-        <section className="mb-8">
+        <section data-tour="environment" className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Litter Box Environment
@@ -453,7 +455,7 @@ function PopulatedDashboardState({
           </div>
         </section>
 
-        <section>
+        <section data-tour="recent-activity">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-lg sm:text-xl font-semibold text-litter-text">
               Recent Activity
@@ -502,6 +504,7 @@ function PopulatedDashboardState({
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { reportDashboardState } = useTour();
   const {
     isLoading: notificationsLoading,
     upsertNotification,
@@ -513,6 +516,7 @@ export default function DashboardPage() {
     getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
+    catalogReady: catCatalogReady,
     isLoading: catsLoading,
     historyLoading,
   } = useCats();
@@ -649,6 +653,12 @@ export default function DashboardPage() {
 
   const airQualityStatus = getLiveAirQualityStatus({ sensorData, sensorsLoading, sensorsError });
   const isEmpty = !catsLoading && cats.length === 0;
+
+  useEffect(() => {
+    reportDashboardState(getDashboardTourState(catCatalogReady, cats.length));
+    return () => reportDashboardState(null);
+  }, [catCatalogReady, cats.length, reportDashboardState]);
+
   const liveVisits = buildRfidActivityVisits(sensorData, cats, getDetailsByCatId);
   const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisits);
   const displayStats = useMemo(

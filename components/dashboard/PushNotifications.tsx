@@ -15,7 +15,7 @@ export function PushNotifications() {
     return () => { window.removeEventListener('focus', renew); window.removeEventListener('online', renew); navigator.serviceWorker.removeEventListener('message', receive); };
   }, [user]);
   if (!notice) return null;
-  return <div role="status" className="fixed bottom-24 right-4 z-50 max-w-sm rounded-2xl border border-litter-border bg-litter-card p-4 text-theme-text shadow-lg"><strong>{notice.title}</strong><p className="mt-2 text-sm">{notice.body}</p><button className="mt-3 text-litter-primary" onClick={() => setNotice(null)}>Dismiss</button></div>;
+  return <div role="status" className="fixed bottom-24 right-4 z-[70] max-w-sm rounded-2xl border border-litter-border bg-litter-card p-4 text-theme-text shadow-lg"><strong>{notice.title}</strong><p className="mt-2 text-sm">{notice.body}</p><button className="mt-3 text-litter-primary" onClick={() => setNotice(null)}>Dismiss</button></div>;
 }
 
 export function PushNotificationSettings() {

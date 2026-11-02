@@ -68,6 +68,7 @@ test('notification badge includes unread records outside the loaded panel page',
     if (name.endsWith('/NotificationContext')) return {useNotifications:()=>({notifications:[{id:'loaded',isRead:false}],unreadCount:80,syncError:''})};
     if (name.endsWith('/usePWAInstall')) return {usePWAInstall:()=>({isInstallable:false})};
     if (name.endsWith('/AuthContext')) return {useAuth:()=>({user:{uid:'owner'}})};
+    if (name.endsWith('/TourProvider')) return {useTour:()=>({closeWithoutCompletion(){}})};
     return {};
   };
   new Function('exports','require','localStorage',compiled)(loaded,dependencies,{getItem:()=>null});
