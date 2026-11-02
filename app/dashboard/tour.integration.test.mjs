@@ -54,6 +54,14 @@ test("Home and both responsive navigation surfaces expose every required tour ta
     assert.match(navigationSource, /"nav-settings"/);
   }
   assert.match(topBarSource, /data-tour="bell"/);
+  assert.match(topBarSource, /data-tour="predictive-health"/);
+});
+
+test("Home reports no tour variant until the cat catalog is ready", () => {
+  assert.match(
+    homeSource,
+    /reportDashboardState\(getDashboardTourState\(catCatalogReady, cats\.length\)\)/,
+  );
 });
 
 test("Settings requests replay before navigating Home", () => {

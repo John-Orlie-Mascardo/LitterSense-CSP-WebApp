@@ -37,25 +37,38 @@ const withCatsExpected = [
   ["recent-activity", "Recent visits", "Each visit appears here. Tap VIEW ALL for the full history."],
   ["nav-cats", "My Cats", "Add cats, register their collar tags, and see each cat's history."],
   ["bell", "Notifications", "Alerts about your cats and the litter box show up here."],
+  ["predictive-health", "Predictive Health", "See your cat's usual pattern and ask for an AI summary. It needs about 7 days of visits first."],
   ["nav-settings", "Settings", "Turn on alerts for this device and choose which ones you get. You can replay this tour here anytime."],
 ];
 
 const zeroCatsExpected = [
   withCatsExpected[0],
   ["add-first-cat", "Your cats", "Start by adding your cat and scanning their collar tag."],
-  ...withCatsExpected.slice(5),
+  ...withCatsExpected.slice(5, 7),
+  withCatsExpected[8],
 ];
 
 const summarize = (steps) =>
   steps.map(({ target, title, description }) => [target, title, description]);
 
-test("the populated dashboard has the exact eight steps in guide order", () => {
-  assert.equal(stepExports.TOUR_STEPS_WITH_CATS.length, 8);
+test("the populated dashboard has the exact nine steps in guide order", () => {
+  assert.equal(stepExports.TOUR_STEPS_WITH_CATS.length, 9);
   assert.deepEqual(summarize(stepExports.TOUR_STEPS_WITH_CATS), withCatsExpected);
   assert.deepEqual(
     summarize(stepExports.getTourSteps("with-cats")),
     withCatsExpected,
   );
+});
+
+test("the tour variant is not chosen until the cat catalog is ready", () => {
+  const loadingSequence = [
+    stepExports.getDashboardTourState(false, 0),
+    stepExports.getDashboardTourState(false, 1),
+    stepExports.getDashboardTourState(true, 1),
+  ];
+
+  assert.deepEqual(loadingSequence, [null, null, "with-cats"]);
+  assert.equal(stepExports.getDashboardTourState(true, 0), "zero-cats");
 });
 
 test("the empty dashboard replaces all cat-data steps with the exact five-step version", () => {

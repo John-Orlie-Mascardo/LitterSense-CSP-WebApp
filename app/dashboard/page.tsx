@@ -66,6 +66,7 @@ import {
   type TrendReferenceSet,
 } from "@/lib/presentation/trendCharts";
 import { useTour } from "@/components/tour/TourProvider";
+import { getDashboardTourState } from "@/components/tour/tourSteps";
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -253,9 +254,8 @@ function EmptyDashboardState({ onAddCat }: { readonly onAddCat: () => void }) {
         No cats registered yet
       </h2>
       <p className="text-litter-muted text-sm leading-relaxed max-w-xs mb-8">
-        Keep track of your furry friend&apos;s health, bathroom habits,
         {/* NOTE(manuscript): Dashboard copy no longer promises weight tracking. */}
-        and visit trends by adding them to your dashboard.
+        Keep track of your furry friend&apos;s health, bathroom habits, and visit trends by adding them to your dashboard.
       </p>
       <button
         data-tour="add-first-cat"
@@ -516,6 +516,7 @@ export default function DashboardPage() {
     getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
+    catalogReady: catCatalogReady,
     isLoading: catsLoading,
     historyLoading,
   } = useCats();
@@ -654,10 +655,9 @@ export default function DashboardPage() {
   const isEmpty = !catsLoading && cats.length === 0;
 
   useEffect(() => {
-    if (catsLoading) return;
-    reportDashboardState(cats.length === 0 ? "zero-cats" : "with-cats");
+    reportDashboardState(getDashboardTourState(catCatalogReady, cats.length));
     return () => reportDashboardState(null);
-  }, [cats.length, catsLoading, reportDashboardState]);
+  }, [catCatalogReady, cats.length, reportDashboardState]);
 
   const liveVisits = buildRfidActivityVisits(sensorData, cats, getDetailsByCatId);
   const recentVisits = getRecentVisits(displaySessions, getCatById, liveVisits);

@@ -8,6 +8,7 @@ export type TourTarget =
   | "recent-activity"
   | "nav-cats"
   | "bell"
+  | "predictive-health"
   | "nav-settings";
 
 export interface TourStep {
@@ -39,14 +40,15 @@ const navigationSteps: TourStep[] = [
     title: "Notifications",
     description: "Alerts about your cats and the litter box show up here.",
   },
-  {
-    id: "settings",
-    target: "nav-settings",
-    title: "Settings",
-    description:
-      "Turn on alerts for this device and choose which ones you get. You can replay this tour here anytime.",
-  },
 ];
+
+const settingsStep: TourStep = {
+  id: "settings",
+  target: "nav-settings",
+  title: "Settings",
+  description:
+    "Turn on alerts for this device and choose which ones you get. You can replay this tour here anytime.",
+};
 
 export const TOUR_STEPS_WITH_CATS: TourStep[] = [
   welcomeStep,
@@ -77,6 +79,14 @@ export const TOUR_STEPS_WITH_CATS: TourStep[] = [
       "Each visit appears here. Tap VIEW ALL for the full history.",
   },
   ...navigationSteps,
+  {
+    id: "predictive-health",
+    target: "predictive-health",
+    title: "Predictive Health",
+    description:
+      "See your cat's usual pattern and ask for an AI summary. It needs about 7 days of visits first.",
+  },
+  settingsStep,
 ];
 
 export const TOUR_STEPS_ZERO_CATS: TourStep[] = [
@@ -88,8 +98,17 @@ export const TOUR_STEPS_ZERO_CATS: TourStep[] = [
     description: "Start by adding your cat and scanning their collar tag.",
   },
   ...navigationSteps,
+  settingsStep,
 ];
 
 export function getTourSteps(state: DashboardTourState): TourStep[] {
   return state === "with-cats" ? TOUR_STEPS_WITH_CATS : TOUR_STEPS_ZERO_CATS;
+}
+
+export function getDashboardTourState(
+  catalogReady: boolean,
+  catCount: number,
+): DashboardTourState | null {
+  if (!catalogReady) return null;
+  return catCount === 0 ? "zero-cats" : "with-cats";
 }

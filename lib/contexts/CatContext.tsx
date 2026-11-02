@@ -32,7 +32,11 @@ import {
 } from "@/lib/utils/operationalClient";
 import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { shouldFinishInitialCatsLoad } from "@/lib/utils/catSyncState";
+import {
+  isOwnerCatCatalogReady,
+  isOwnerCatDataLoading,
+  shouldFinishInitialCatsLoad,
+} from "@/lib/utils/catSyncState";
 import {
   getLocalDateKey,
   getSessionActivityDateKey,
@@ -103,6 +107,7 @@ interface CatContextType {
     durationSecs: number,
     options?: RecordVisitOptions,
   ) => Promise<void>;
+  catalogReady: boolean;
   isLoading: boolean;
   historyLoading: boolean;
   backupStatus: { mode: boolean; incomplete: boolean; pendingCount: number; error: string | null; operationalPrimary?: boolean };
@@ -442,6 +447,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const pendingCount = backupSnapshot?.pendingCount ?? 0;
   const backupMode = Boolean(fallbackCats || fallbackHistory) && !operationalPrimary;
   const [primaryOwner, setPrimaryOwner] = useState<string | null>(null);
+  const [primaryCatalogOwner, setPrimaryCatalogOwner] = useState<string | null>(null);
   const lastOwnerRef = useRef<string | null>(null);
   const [listenerRevision, setListenerRevision] = useState(0);
   const [previousBackupMode, setPreviousBackupMode] = useState(false);
@@ -467,6 +473,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
       lastOwnerRef.current = null;
       queueMicrotask(() => {
         setPrimaryOwner(null);
+        setPrimaryCatalogOwner(null);
         setRawCats([]);
         setCatStats({});
         setCatDetails({});
@@ -485,6 +492,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     queueMicrotask(() => {
       setPrimaryOwner(uid);
       if (ownerChanged) {
+        setPrimaryCatalogOwner(null);
         setRawCats([]); setCatDetails({}); setSessions([]); setFirebaseCatStats({}); setCatDailyStats({}); setCatStats({});
         setHealthLogs([]); setCatSessionLogs({});
         setIsLoading(true);
@@ -515,6 +523,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           })
         ) {
           setIsLoading(false);
+          setPrimaryCatalogOwner(uid);
         }
       },
       (error) => {
@@ -633,7 +642,12 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   }, [uid, authLoading, isHistoryRoute, listenerRevision, backupReady, backup.error, operationalPrimary]);
 
   useEffect(() => {
-    if (previousBackupMode && !backupMode) queueMicrotask(() => setListenerRevision(value => value + 1));
+    if (previousBackupMode && !backupMode) {
+      queueMicrotask(() => {
+        setPrimaryCatalogOwner(null);
+        setListenerRevision(value => value + 1);
+      });
+    }
     queueMicrotask(() => setPreviousBackupMode(backupMode));
   }, [backupMode, previousBackupMode]);
 
@@ -976,7 +990,19 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         addHealthLog,
         removeHealthLog,
         recordVisit,
-        isLoading: fallbackCats ? false : isLoading,
+        catalogReady: isOwnerCatCatalogReady({
+          hasOwner: Boolean(uid),
+          hasFallbackCatalog: fallbackCats,
+          fallbackCatalogComplete: backupSnapshot?.catalog.complete === true,
+          catCount: cats.length,
+          primaryCatalogReady: primaryCatalogOwner === uid,
+        }),
+        isLoading: isOwnerCatDataLoading({
+          hasOwner: Boolean(uid),
+          ownerReady,
+          hasFallbackCatalog: fallbackCats,
+          isLoading,
+        }),
         historyLoading,
         backupStatus,
       }}

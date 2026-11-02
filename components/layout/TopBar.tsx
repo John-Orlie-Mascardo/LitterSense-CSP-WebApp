@@ -278,6 +278,7 @@ export function TopBar() {
           <Link
             href="/dashboard/predictive-health"
             prefetch={true}
+            data-tour="predictive-health"
             aria-label="Predictive Health Analysis"
             aria-current={pathname === "/dashboard/predictive-health" ? "page" : undefined}
             title="Predictive Health Analysis"

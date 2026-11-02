@@ -62,6 +62,10 @@ test('real client profile methods require confirmed responses, show pending back
     '@/lib/configs/firebase': { db: {} },
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user: { uid: 'owner-a', getIdToken: async () => 'good' }, loading: false }) },
     '@/lib/hooks/useCatBackup': { useCatBackup: () => ({ snapshot: null, error: null, refresh: () => {}, applyProfile: (mutation, revision) => applied.push({ mutation, revision }) }) },
+    '@/lib/utils/catSyncState': {
+      isOwnerCatCatalogReady: ({ hasOwner, hasFallbackCatalog, fallbackCatalogComplete, catCount, primaryCatalogReady }) => hasOwner && (hasFallbackCatalog ? catCount > 0 || fallbackCatalogComplete : primaryCatalogReady),
+      isOwnerCatDataLoading: ({ hasOwner, ownerReady, hasFallbackCatalog, isLoading }) => hasFallbackCatalog ? false : hasOwner ? !ownerReady || isLoading : isLoading,
+    },
     '@/lib/utils/catPhoto': { deleteCatPhoto: async (...args) => photoDeletes.push(args) },
     '@/lib/utils/sessionDate': { getLocalDateKey: () => '2026-10-04' },
   };
