@@ -26,6 +26,11 @@ import {
 import { doc, setDoc, serverTimestamp } from "@/lib/utils/operationalClient";
 import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
+import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import {
+  PASSWORD_POLICY_MESSAGE,
+  isPasswordPolicySatisfied,
+} from "@/lib/utils/passwordPolicy";
 
 export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -43,6 +48,7 @@ export default function SignUpPage() {
     profileLoading,
     isAdmin,
   } = useAuth();
+  const passwordMeetsPolicy = isPasswordPolicySatisfied(password);
 
   useEffect(() => {
     if (!authLoading && !profileLoading && user) {
@@ -57,6 +63,10 @@ export default function SignUpPage() {
   const handleSubmit = async (event: React.SubmitEvent) => {
     event.preventDefault();
     setError("");
+    if (!passwordMeetsPolicy) {
+      setError(PASSWORD_POLICY_MESSAGE);
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -86,9 +96,11 @@ export default function SignUpPage() {
       if (error instanceof FirebaseError) {
         if (error.code === "auth/email-already-in-use") {
           errorMessage = "This email is already registered. Please log in.";
-        } else if (error.code === "auth/weak-password") {
-          // NOTE(manuscript): The visible minimum password length must match the paper.
-          errorMessage = "Password is too weak. Please use at least 6 characters.";
+        } else if (
+          error.code === "auth/weak-password" ||
+          error.code === "auth/password-does-not-meet-requirements"
+        ) {
+          errorMessage = PASSWORD_POLICY_MESSAGE;
         } else if (error.code === "auth/invalid-email") {
           errorMessage = "Please enter a valid email address.";
         } else {
@@ -288,6 +300,8 @@ export default function SignUpPage() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
+                  minLength={8}
+                  maxLength={128}
                   className="w-full pl-12 pr-12 py-4 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
@@ -303,6 +317,7 @@ export default function SignUpPage() {
                   )}
                 </button>
               </div>
+              <PasswordChecklist password={password} />
             </div>
 
             {/* Confirm Password Field */}
@@ -321,6 +336,8 @@ export default function SignUpPage() {
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Repeat your password"
+                  minLength={8}
+                  maxLength={128}
                   className="w-full pl-12 pr-12 py-4 bg-litter-input border border-litter-border rounded-xl text-litter-text placeholder:text-litter-muted/60 transition-all duration-200 focus:border-litter-primary focus:ring-4 focus:ring-litter-primary/10 hover:border-litter-primary/40"
                   required
                 />
@@ -341,7 +358,7 @@ export default function SignUpPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !passwordMeetsPolicy}
               className="w-full py-4 bg-litter-primary text-white font-semibold rounded-xl shadow-lg shadow-[#1B7A6E]/25 hover:shadow-xl hover:shadow-[#1B7A6E]/30 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
             >
               {isLoading ? (
