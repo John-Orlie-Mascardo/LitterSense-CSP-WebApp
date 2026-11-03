@@ -84,6 +84,12 @@ import {
   type AccountDeletionState,
 } from "@/lib/utils/accountDeletion";
 import { useTour } from "@/components/tour/TourProvider";
+import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import {
+  PASSWORD_POLICY_MESSAGE,
+  getMissingPasswordRules,
+  isPasswordPolicySatisfied,
+} from "@/lib/utils/passwordPolicy";
 
 const RETENTION_OPTIONS = ["7 Days", "14 Days", "21 Days", "30 Days"];
 type AppearanceTheme = UserSettings["appearance"]["theme"];
@@ -104,6 +110,16 @@ const PHONE_COUNTRY_CODES = [
 ];
 
 type ExportAllFormat = "pdf" | "csv" | "doc";
+
+const getPasswordStrength = (password: string): { strength: number; label: string } => {
+  if (!password) return { strength: 0, label: "Too short" };
+
+  const missingRuleCount = getMissingPasswordRules(password).length;
+  if (missingRuleCount === 0) return { strength: 4, label: "Strong" };
+  if (missingRuleCount === 1) return { strength: 3, label: "Good" };
+  if (missingRuleCount <= 3) return { strength: 2, label: "Fair" };
+  return { strength: 1, label: "Weak" };
+};
 
 type ExportAllPayload = {
   cats: ReturnType<typeof useCats>["cats"];
@@ -502,6 +518,10 @@ export default function SettingsPage() {
   };
 
   const handleChangePassword = async () => {
+    if (!isPasswordPolicySatisfied(passwordForm.new)) {
+      addToast(PASSWORD_POLICY_MESSAGE, "error");
+      return;
+    }
     if (passwordForm.new !== passwordForm.confirm) {
       addToast("Passwords do not match", "error");
       return;
@@ -524,6 +544,11 @@ export default function SettingsPage() {
     } catch (error) {
       if (error instanceof FirebaseError) {
         if (
+          error.code === "auth/password-does-not-meet-requirements" ||
+          error.code === "auth/weak-password"
+        ) {
+          addToast(PASSWORD_POLICY_MESSAGE, "error");
+        } else if (
           error.code === "auth/wrong-password" ||
           error.code === "auth/invalid-credential"
         ) {
@@ -645,17 +670,8 @@ export default function SettingsPage() {
     }
   };
 
-  const getPasswordStrength = (password: string): { strength: number; label: string } => {
-    let strength = 0;
-    if (password.length >= 8) strength++;
-    if (/[A-Z]/.test(password)) strength++;
-    if (/\d/.test(password)) strength++;
-    if (/[^A-Za-z0-9]/.test(password)) strength++;
-    const labels = ["Weak", "Fair", "Good", "Strong"];
-    return { strength, label: labels[strength - 1] || "Too short" };
-  };
-
   const passwordStrength = getPasswordStrength(passwordForm.new);
+  const isNewPasswordValid = isPasswordPolicySatisfied(passwordForm.new);
 
   return (
     <div
@@ -1133,8 +1149,11 @@ export default function SettingsPage() {
             <label htmlFor="newPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">New Password</label>
             <input id="newPassword" type="password" value={passwordForm.new}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, new: event.target.value }))}
+              minLength={8}
+              maxLength={128}
               className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
+            <PasswordChecklist password={passwordForm.new} />
             {passwordForm.new && (() => {
               const getStrengthClass = () => {
                 if (passwordStrength.strength === 0) return "bg-red-500 w-1/4";
@@ -1158,12 +1177,14 @@ export default function SettingsPage() {
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-theme-secondary mb-1.5">Confirm New Password</label>
             <input id="confirmPassword" type="password" value={passwordForm.confirm}
               onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirm: event.target.value }))}
+              minLength={8}
+              maxLength={128}
               className="w-full px-4 py-3 rounded-xl bg-litter-input text-litter-text border border-litter-border focus:outline-none focus:ring-2 focus:ring-litter-primary/30 focus:border-transparent transition-all"
             />
           </div>
           <button
             onClick={handleChangePassword}
-            disabled={!passwordForm.current || !passwordForm.new || !passwordForm.confirm || passwordForm.new !== passwordForm.confirm}
+            disabled={!passwordForm.current || !isNewPasswordValid || !passwordForm.confirm || passwordForm.new !== passwordForm.confirm}
             className="w-full px-4 py-3 rounded-xl bg-litter-primary text-white font-medium hover:bg-litter-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Change Password

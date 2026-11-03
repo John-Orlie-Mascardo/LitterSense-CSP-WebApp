@@ -10,6 +10,11 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
 import { auth } from "@/lib/configs/firebase";
+import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import {
+  PASSWORD_POLICY_MESSAGE,
+  isPasswordPolicySatisfied,
+} from "@/lib/utils/passwordPolicy";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
@@ -18,17 +23,19 @@ function ResetPasswordContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [error, setError] = useState("");
+  const [linkError, setLinkError] = useState("");
+  const [formError, setFormError] = useState("");
   const [isChecking, setIsChecking] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const passwordMeetsPolicy = isPasswordPolicySatisfied(password);
 
   useEffect(() => {
     let active = true;
 
     const checkCode = async () => {
       if (!code) {
-        setError("This password reset link is missing or invalid.");
+        setLinkError("This password reset link is missing or invalid.");
         setIsChecking(false);
         return;
       }
@@ -38,7 +45,7 @@ function ResetPasswordContent() {
         if (active) setEmail(accountEmail);
       } catch {
         if (active) {
-          setError("This password reset link has expired or was already used.");
+          setLinkError("This password reset link has expired or was already used.");
         }
       } finally {
         if (active) setIsChecking(false);
@@ -55,27 +62,30 @@ function ResetPasswordContent() {
     event.preventDefault();
     if (isSaving || !code) return;
 
-    if (password.length < 6) {
-      setError("Your password must be at least 6 characters.");
+    if (!passwordMeetsPolicy) {
+      setFormError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     if (password !== confirmation) {
-      setError("The passwords do not match.");
+      setFormError("The passwords do not match.");
       return;
     }
 
     setIsSaving(true);
-    setError("");
+    setFormError("");
     try {
       await confirmPasswordReset(auth, code, password);
       setSaved(true);
     } catch (caughtError) {
       const firebaseCode = caughtError instanceof FirebaseError ? caughtError.code : undefined;
-      setError(
-        firebaseCode === "auth/weak-password"
-          ? "Choose a stronger password."
-          : "This reset link is invalid or has expired. Request a new one.",
-      );
+      if (
+        firebaseCode === "auth/weak-password" ||
+        firebaseCode === "auth/password-does-not-meet-requirements"
+      ) {
+        setFormError(PASSWORD_POLICY_MESSAGE);
+      } else {
+        setLinkError("This reset link is invalid or has expired. Request a new one.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -107,31 +117,41 @@ function ResetPasswordContent() {
               {isChecking ? "Checking your reset link..." : email ? `Set a new password for ${email}.` : "Set your new password."}
             </p>
 
-            {error && <div className="mb-5 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-300">{error}</div>}
+            {linkError && <div className="mb-5 rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-300">{linkError}</div>}
 
-            {!isChecking && !error && (
+            {!isChecking && !linkError && (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {formError && <div className="rounded-xl border border-red-400/30 bg-red-950/30 p-3 text-sm text-red-300">{formError}</div>}
                 <input
                   type="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setFormError("");
+                  }}
                   placeholder="New password"
-                  minLength={6}
+                  minLength={8}
+                  maxLength={128}
                   required
                   className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-4 text-litter-text focus:border-litter-primary focus:outline-none"
                 />
+                <PasswordChecklist password={password} />
                 <input
                   type="password"
                   value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
+                  onChange={(event) => {
+                    setConfirmation(event.target.value);
+                    setFormError("");
+                  }}
                   placeholder="Confirm new password"
-                  minLength={6}
+                  minLength={8}
+                  maxLength={128}
                   required
                   className="w-full rounded-xl border border-litter-border bg-litter-input px-4 py-4 text-litter-text focus:border-litter-primary focus:outline-none"
                 />
                 <button
                   type="submit"
-                  disabled={isSaving}
+                  disabled={isSaving || !passwordMeetsPolicy}
                   className="w-full rounded-xl bg-litter-primary py-4 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSaving ? "Updating..." : "Update Password"}
@@ -139,7 +159,7 @@ function ResetPasswordContent() {
               </form>
             )}
 
-            {error && <Link href="/forgot-password" className="mt-5 block text-center text-sm text-litter-primary hover:underline">Request a new reset link</Link>}
+            {linkError && <Link href="/forgot-password" className="mt-5 block text-center text-sm text-litter-primary hover:underline">Request a new reset link</Link>}
           </>
         )}
       </div>
