@@ -117,3 +117,33 @@ test("owner photos upload to Storage before Auth and mirror the URL to Firestore
   assert.doesNotMatch(saveHandler, /photoURL:\s*editProfileForm\.photo/);
   assert.match(source, /isSavingProfile/);
 });
+
+test("instructions section sits above notifications and opens read-only guides", () => {
+  const instructions = source.indexOf("{/* Instructions Section */}");
+  const notifications = source.indexOf("{/* Notifications Section */}");
+  assert.notEqual(instructions, -1);
+  assert.ok(instructions < notifications);
+
+  const section = sourceBetween("{/* Instructions Section */}", "{/* Notifications Section */}");
+  assert.match(section, /INSTRUCTIONS/);
+  assert.match(section, /setShowWifiInstructions\(true\)/);
+  assert.match(section, /setShowCameraInstructions\(true\)/);
+  assert.doesNotMatch(section, /<input|<Toggle|handleSave/);
+
+  assert.match(source, /isOpen=\{showWifiInstructions\}[\s\S]*?<WifiSetupInstructions \/>/);
+  assert.match(source, /isOpen=\{showCameraInstructions\}[\s\S]*?<CameraSetupInstructions \/>/);
+});
+
+test("setup guides match the device setup page wording", () => {
+  const guide = readFileSync(
+    join(__dirname, "../../../components/settings/SetupInstructions.tsx"),
+    "utf8",
+  );
+  for (const text of [
+    "LitterSense-Setup", "littersense", "http://192.168.4.1", "Connect litterbox",
+    "Connected and saved!", "Remote camera", "Save camera pairing and restart",
+    "Create pairing code", "Pair camera",
+  ]) assert.ok(guide.includes(text), `Missing: ${text}`);
+  assert.doesNotMatch(guide, /<input|<button|onClick|fetch\(/);
+  assert.doesNotMatch(guide, /Serial Monitor/);
+});

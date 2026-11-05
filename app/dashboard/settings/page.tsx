@@ -39,6 +39,7 @@ import {
   Radio,
   Wifi,
   CircleHelp,
+  Camera,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -46,6 +47,7 @@ import { PushNotificationSettings } from '@/components/dashboard/PushNotificatio
 import { unregisterFirebaseMessagingToken } from '@/lib/utils/firebaseMessaging';
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { SettingsIcon } from '@/components/settings/SettingsIcon';
+import { WifiSetupInstructions, CameraSetupInstructions } from "@/components/settings/SetupInstructions";
 import { Toggle } from "@/components/ui/Toggle";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -304,6 +306,8 @@ export default function SettingsPage() {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [showWifiProvisioning, setShowWifiProvisioning] = useState(false);
+  const [showWifiInstructions, setShowWifiInstructions] = useState(false);
+  const [showCameraInstructions, setShowCameraInstructions] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showWifiPassword, setShowWifiPassword] = useState(false);
   const [exportPrintHtml, setExportPrintHtml] = useState<string | null>(null);
@@ -732,6 +736,45 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* Instructions Section */}
+        <div>
+          <h3 className="font-body text-xs font-semibold tracking-widest text-theme-muted uppercase px-1 mb-2 mt-6">
+            INSTRUCTIONS
+          </h3>
+          <div className="bg-litter-card rounded-2xl border border-litter-border shadow-sm mb-2 overflow-hidden">
+            <div>
+              <button
+                onClick={() => setShowWifiInstructions(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <SettingsIcon icon={Wifi} />
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-litter-text">How to connect to Wi-Fi</span>
+                    <p className="truncate text-xs text-theme-muted">Step-by-step litterbox Wi-Fi setup</p>
+                  </div>
+                </div>
+                <ChevronRight className="ml-3 w-5 h-5 shrink-0 text-theme-muted" />
+              </button>
+            </div>
+            <div className="border-t border-litter-border">
+              <button
+                onClick={() => setShowCameraInstructions(true)}
+                className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-theme-hover transition-colors bg-transparent border-none text-left"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <SettingsIcon icon={Camera} />
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-litter-text">How to set up the camera</span>
+                    <p className="truncate text-xs text-theme-muted">Pair the camera for Live View</p>
+                  </div>
+                </div>
+                <ChevronRight className="ml-3 w-5 h-5 shrink-0 text-theme-muted" />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Notifications Section */}
         <div>
@@ -1190,6 +1233,24 @@ export default function SettingsPage() {
             Change Password
           </button>
         </div>
+      </BottomSheet>
+
+      {/* Wi-Fi Instructions Bottom Sheet */}
+      <BottomSheet
+        isOpen={showWifiInstructions}
+        onClose={() => setShowWifiInstructions(false)}
+        title="How to connect to Wi-Fi"
+      >
+        <WifiSetupInstructions />
+      </BottomSheet>
+
+      {/* Camera Instructions Bottom Sheet */}
+      <BottomSheet
+        isOpen={showCameraInstructions}
+        onClose={() => setShowCameraInstructions(false)}
+        title="How to set up the camera"
+      >
+        <CameraSetupInstructions />
       </BottomSheet>
 
       {/* Wi-Fi Provisioning Bottom Sheet */}
