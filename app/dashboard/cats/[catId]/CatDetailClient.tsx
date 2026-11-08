@@ -13,8 +13,6 @@
 
 import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
 
-import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
-
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -80,18 +78,16 @@ import {
 import { formatSessionTimeLabel, getSessionSortValue } from "@/lib/utils/sessionTime";
 import {
   formatMetricValue,
-  getSessionDisplayState,
-  getMostSevereState,
+  getBehaviorStateLabel,
+  getIndexedSessionBehavior,
   hasEstablishedBaseline,
   hasRecordedCatData,
-  BEHAVIOR_STATE_BY_ID,
   type BehaviorStateId,
+  type CatBehaviorIndex,
 } from "@/lib/presentation/behaviorStates";
-import {
-  BASELINE_MIN_DAYS,
-  MIN_DURATION_BAND_S,
-  MIN_VISIT_BAND,
-} from "@/lib/configs/behaviorThresholds";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import type { PersonalBaseline } from "@/lib/utils/personalBaseline";
+import { BASELINE_MIN_DAYS } from "@/lib/configs/behaviorThresholds";
 import {
   buildCatTrendReferences,
   getMetricTrendPoints,
@@ -229,6 +225,7 @@ export default function CatDetailClient() {
     removeCat,
     addHealthLog,
     removeHealthLog,
+    behaviorIndex,
   } = useCats();
   const { data: sensorData } = useDeviceSensors();
 
@@ -237,14 +234,16 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
-  const sessionLog = deriveSessionLogCounts(sessions, hasEstablishedBaseline(details));
+  const sessionLog = deriveSessionLogCounts(sessions, behaviorIndex);
   const trendData = getTrendData(catId);
   const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
-  const baselineEstablished = hasEstablishedBaseline(details);
-  const displayState = getMostSevereState(sessions
-    .filter((session) => getSessionActivityDateKey(session) === getTodayDateKey())
-    .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished })));
+  // Same shared rollup as Home, My Cats, and Predictive Health.
+  const {
+    state: displayState,
+    provisional: displayProvisional,
+    baseline: computedBaseline,
+  } = getCatBehaviorToday(catId, sessions, behaviorIndex);
 
   const requestedTab = searchParams.get("tab");
   const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
@@ -545,7 +544,7 @@ export default function CatDetailClient() {
               RFID: {details?.rfidTag || "—"}
             </span>
 
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} />
+            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} provisional={displayProvisional} />
           </div>
         </section>
 
@@ -795,6 +794,9 @@ export default function CatDetailClient() {
                   details={details ?? null}
                   sessions={sessions}
                   displayState={displayState}
+                  displayProvisional={displayProvisional}
+                  baseline={computedBaseline}
+                  behaviorIndex={behaviorIndex}
                   hasData={hasData}
                   sessionLog={sessionLog}
                   sensorData={sensorData}
@@ -852,16 +854,24 @@ interface OverviewTabProps {
   readonly details: CatDetails | null;
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
+  readonly displayProvisional: boolean;
+  readonly baseline: PersonalBaseline | null;
+  readonly behaviorIndex: CatBehaviorIndex;
   readonly hasData: boolean;
   readonly sessionLog: SessionLogCounts;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
 }
+
+const formatBandValue = (value: number) => Number(Math.max(0, value).toFixed(1));
 
 function OverviewTab({
   stats,
   details,
   sessions,
   displayState,
+  displayProvisional,
+  baseline,
+  behaviorIndex,
   hasData,
   sessionLog,
   sensorData,
@@ -895,9 +905,14 @@ function OverviewTab({
       : { ...baseStats, visits: baseStats.visits + 1 };
   }, [details, sessions, sensorData, stats]);
 
-  const recentAnomalies = sessions.filter((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished: hasEstablishedBaseline(details) }) === "abnormal").sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a)).slice(0, 3);
+  const recentAnomalies = sessions.filter((session) => getIndexedSessionBehavior(session, behaviorIndex).state === "abnormal").sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a)).slice(0, 3);
   const hasDisplayedData = hasData || displayedStats.visits > 0;
   const summaryDisplayState = hasDisplayedData ? displayState : "insufficient";
+  const summaryProvisional = hasDisplayedData && displayProvisional;
+  const baselineEstablished = hasEstablishedBaseline(baseline);
+  const summaryStatusLabel = summaryDisplayState === "insufficient" && hasDisplayedData && !baselineEstablished
+    ? "No baseline yet"
+    : getBehaviorStateLabel(summaryDisplayState, summaryProvisional);
 
   return (
     <div className="space-y-6">
@@ -923,14 +938,14 @@ function OverviewTab({
             value={formatMetricValue(displayedStats.visits, hasDisplayedData)}
             label="Visits Today"
             status={summaryDisplayState}
-            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryStatusLabel}
           />
           <StatCard
             icon={Timer}
             value={formatMetricValue(stats?.avgDuration, hasDisplayedData)}
             label="Avg Duration"
             status={summaryDisplayState}
-            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryStatusLabel}
           />
         </div>
       </div>
@@ -939,7 +954,7 @@ function OverviewTab({
       <div><p className="mb-2 text-xs text-litter-muted">All recorded sessions</p><SessionLogSummary log={sessionLog} /></div>
 
       {/* Baseline Profile */}
-      {details && hasEstablishedBaseline(details) ? (
+      {baselineEstablished && baseline.visitBand && baseline.durationBand ? (
         <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
@@ -958,21 +973,21 @@ function OverviewTab({
             <div className="bg-litter-card rounded-lg p-3">
               <p className="text-theme-muted">Usual visits/day</p>
               <p className="font-semibold text-litter-text">
-                {details.baseline.avgVisitsPerDay - MIN_VISIT_BAND}–
-                {details.baseline.avgVisitsPerDay + MIN_VISIT_BAND}
+                {formatBandValue(baseline.visitBand[0])}–
+                {formatBandValue(baseline.visitBand[1])}
               </p>
             </div>
             <div className="bg-litter-card rounded-lg p-3">
               <p className="text-theme-muted">Usual duration</p>
               <p className="font-semibold text-litter-text">
-                {formatDuration(details.baseline.avgDurationSecs - MIN_DURATION_BAND_S)} –{" "}
-                {formatDuration(details.baseline.avgDurationSecs + MIN_DURATION_BAND_S)}
+                {formatDuration(Math.round(Math.max(0, baseline.durationBand[0])))} –{" "}
+                {formatDuration(Math.round(baseline.durationBand[1]))}
               </p>
             </div>
           </div>
 
           <p className="text-xs text-theme-muted mt-3">
-            Last updated {formatDate(details.baseline.lastUpdated)}
+            Based on visits from {formatDate(baseline.windowStart)} to {formatDate(baseline.windowEnd)}
           </p>
         </div>
       ) : (

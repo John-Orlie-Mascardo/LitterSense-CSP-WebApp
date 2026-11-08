@@ -1,14 +1,18 @@
 /**
  * sessionLogCounts.ts
  *
- * Pure derivation helper: given a cat's sessions and whether their baseline
- * is established, returns a count for each of the six behavior states.
+ * Pure derivation helper: given a cat's sessions and the owner's behavior index
+ * (computed baselines and same-day visit counts), returns a count for each of
+ * the six behavior states.
  *
  * This is intentionally pure (no side-effects) so it can be called in both
  * CatContext (for Firestore writes) and in UI components (for optimistic display).
  */
 
-import { getSessionDisplayState } from "@/lib/presentation/behaviorStates";
+import {
+  getIndexedSessionBehavior,
+  type CatBehaviorIndex,
+} from "@/lib/presentation/behaviorStates";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import type { Session } from "@/lib/interfaces/Session";
 
@@ -27,28 +31,19 @@ const EMPTY_COUNTS: SessionLogCounts = {
  * Derive session log counts for a single cat.
  *
  * @param sessions - All sessions for this cat (including daily summaries).
- * @param baselineEstablished - Whether this cat has an established baseline.
+ * @param index - The owner's behavior index. Without it, counted visits are Normal (provisional).
  * @returns An object with a count for each behavior state.
  */
 export function deriveSessionLogCounts(
   sessions: readonly Session[],
-  baselineEstablished: boolean,
+  index?: CatBehaviorIndex | null,
 ): SessionLogCounts {
   const counts = { ...EMPTY_COUNTS };
 
   for (const session of sessions) {
     // Daily summary rows are aggregate placeholders — count each hidden visit
     const visits = session.summaryVisits ?? 1;
-    const isAttributed = Boolean(session.catId);
-
-    const state = getSessionDisplayState({
-      durationSecs: session.durationSecs,
-      sessionStatus: session.sessionStatus,
-      anomaly: session.anomaly,
-      anomalyType: session.anomalyType,
-      isAttributed,
-      baselineEstablished,
-    });
+    const { state } = getIndexedSessionBehavior(session, index);
 
     counts[state] = (counts[state] ?? 0) + visits;
   }

@@ -53,6 +53,8 @@ import type {
 } from "@/lib/data/mockData";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
+import { buildCatBehaviorIndex } from "@/lib/presentation/catBehavior";
+import type { CatBehaviorIndex } from "@/lib/presentation/behaviorStates";
 import {
   ABNORMAL_DURATION_SECS,
   DASHBOARD_VISIT_WARNING_COUNT,
@@ -89,6 +91,8 @@ interface CatContextType {
   sessions: Session[];
   healthLogs: HealthLog[];
   catSessionLogs: Record<string, CatSessionLog>;
+  /** Computed baselines and same-day visit counts for every cat, from the loaded visits. */
+  behaviorIndex: CatBehaviorIndex;
   addCat: (cat: Cat, stats?: CatStats, details?: CatDetails) => Promise<void>;
   removeCat: (id: string) => Promise<void>;
   updateCat: (id: string, updates: Partial<Cat>) => Promise<void>;
@@ -663,6 +667,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const visibleSessions = useMemo(() => fallbackHistory ? backupSessions : pendingCount > 0
     ? [...new Map([...backupSessions, ...(ownerReady ? sessions : [])].map(session => [session.id, session])).values()].sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a))
     : ownerReady ? sessions : [], [fallbackHistory, backupSessions, pendingCount, ownerReady, sessions]);
+  // Computed on read from the loaded visits; never stored (BASELINE_BRIEF).
+  const behaviorIndex = useMemo(() => buildCatBehaviorIndex(visibleSessions), [visibleSessions]);
   const visibleDailyStats = useMemo(() => fallbackHistory ? {} : catDailyStats, [fallbackHistory, catDailyStats]);
   const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
@@ -720,20 +726,14 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     if (!uid || backupMode || operationalPrimary || pendingCount > 0 || !ownerReady || rawCats.length === 0) return;
 
     const writeSessionLogs = async () => {
+      const sessionLogBehavior = buildCatBehaviorIndex(sessions);
       for (const cat of rawCats) {
         const catSessions = buildSessionsWithDailySummaries(
           cat.id,
           sessions,
           catDailyStats[cat.id] ?? [],
         );
-        const details = catDetails[cat.id];
-        const baselineEstablished = Boolean(
-          details?.baseline &&
-          (details.baseline.avgVisitsPerDay ?? 0) > 0 &&
-          (details.baseline.avgDurationSecs ?? 0) > 0 &&
-          details.baseline.lastUpdated?.trim(),
-        );
-        const counts = deriveSessionLogCounts(catSessions, baselineEstablished);
+        const counts = deriveSessionLogCounts(catSessions, sessionLogBehavior);
         const logDoc = {
           catId: cat.id,
           ...counts,
@@ -978,6 +978,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
         sessions: visibleSessions,
         healthLogs: visibleHealthLogs,
         catSessionLogs: fallbackHistory ? {} : visibleSessionLogs,
+        behaviorIndex,
         addCat,
         removeCat,
         updateCat,

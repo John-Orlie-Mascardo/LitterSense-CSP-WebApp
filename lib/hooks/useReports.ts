@@ -184,6 +184,7 @@ export function useReports() {
   const {
     cats,
     sessions: rawSessions,
+    behaviorIndex,
     getDetailsByCatId,
     getHealthLogsByCatId,
     getSessionsByCatId,
@@ -350,7 +351,7 @@ export function useReports() {
         id: reportCat.id,
         name: reportCat.name,
         avatar: reportCat.avatar,
-        baselineEstablished: hasEstablishedBaseline(getDetailsByCatId(reportCat.id)),
+        baselineEstablished: hasEstablishedBaseline(behaviorIndex?.baselineByCatId.get(reportCat.id)),
       })),
       summary: {
         totalSessions,
@@ -403,7 +404,7 @@ export function useReports() {
     }
 
     return report;
-  }, [cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
+  }, [behaviorIndex, cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
 
   const deleteReport = useCallback(async (reportId: string) => {
     if (!isCurrentOwner()) return;

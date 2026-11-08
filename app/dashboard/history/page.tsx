@@ -23,7 +23,6 @@ import { SessionHistoryFilters } from "@/components/history/HistoryFilters";
 import { SessionHistorySkeleton } from "@/components/ui/AppLoadingSkeletons";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useSessionHistory } from "@/lib/hooks/useSessionHistory";
-import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
 import {
   formatHistoryRange,
   getDefaultHistoryFilters,
@@ -49,7 +48,7 @@ function BatchSkeletons() {
 export default function SessionHistoryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { cats, catDetails, isLoading: catsLoading } = useCats();
+  const { cats, behaviorIndex, isLoading: catsLoading } = useCats();
   const searchKey = searchParams.toString();
   const validCatIds = useMemo(() => cats.map((cat) => cat.id), [cats]);
   const filters = useMemo(
@@ -72,14 +71,6 @@ export default function SessionHistoryPage() {
     [cats],
   );
   const catIds = useMemo(() => new Set(validCatIds), [validCatIds]);
-  const baselineCatIds = useMemo(
-    () => new Set(
-      cats
-        .filter((cat) => hasEstablishedBaseline(catDetails[cat.id]))
-        .map((cat) => cat.id),
-    ),
-    [catDetails, cats],
-  );
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { hasMore, loadMore } = history;
 
@@ -169,7 +160,7 @@ export default function SessionHistoryPage() {
                       key={session.id}
                       cat={catById.get(session.catId) ?? null}
                       session={session}
-                      displayState={getHistorySessionState(session, catIds, baselineCatIds)}
+                      displayState={getHistorySessionState(session, catIds, behaviorIndex)}
                     />
                   );
 

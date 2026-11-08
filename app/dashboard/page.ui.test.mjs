@@ -145,8 +145,9 @@ test("mobile state key uses a native disclosure that starts collapsed", () => {
 });
 
 test("home derives presentation states and distinguishes missing metrics from real zeroes", () => {
-  assert.match(source, /getSessionDisplayState/);
-  assert.match(source, /getMostSevereState/);
+  // The highest-severity rollup is shared with Predictive Health (catBehavior.getCatBehaviorToday).
+  assert.match(source, /getCatBehaviorToday\(cat\.id, catSessions, behaviorIndex\)/);
+  assert.match(source, /getBehaviorStateLabel\(selectedDisplayState, selectedProvisional\)/);
   assert.doesNotMatch(source, /getVisitsStatus|getDurationStatus/);
   assert.match(source, /hasEstablishedBaseline/);
   assert.match(source, /hasRecordedCatData/);

@@ -111,7 +111,8 @@ const getValidDateKey = (value: string) => {
   return value;
 };
 
-const getManilaDateKey = (date: Date) =>
+/** Asia/Manila calendar day (YYYY-MM-DD) for an instant. */
+export const getManilaDateKey = (date: Date) =>
   formatDateKey(getManilaCalendarParts(date));
 
 const getTimestampDateKey = (value: string | null | undefined) => {
@@ -127,7 +128,8 @@ const getTimestampDateKey = (value: string | null | undefined) => {
   return datePrefix ? getValidDateKey(datePrefix) : null;
 };
 
-const getVisitDateKey = (visit: PersonalBaselineVisit) => {
+/** Asia/Manila calendar day of a visit: end time, then start time, then stored date. */
+export const getVisitManilaDateKey = (visit: PersonalBaselineVisit) => {
   const timestampKey =
     getTimestampDateKey(visit.endedAt) ??
     getTimestampDateKey(visit.startedAt);
@@ -140,6 +142,20 @@ const getVisitDateKey = (visit: PersonalBaselineVisit) => {
 
 const normalizeStatus = (status: string | null | undefined) =>
   status?.trim().toUpperCase() || "NORMAL";
+
+/**
+ * A counted visit is attributed, completed, at least 15 s long, and not
+ * Incomplete by status. Only counted visits enter visits per day, the
+ * same-day visit count, and the baseline.
+ */
+export const isCountedVisit = (visit: PersonalBaselineVisit) => {
+  if (!visit.catId?.trim()) return false;
+  if (!Number.isFinite(visit.durationSecs)) return false;
+
+  const status = normalizeStatus(visit.sessionStatus);
+  if (NON_VISIT_STATUSES.has(status) || INCOMPLETE_STATUSES.has(status)) return false;
+  return visit.durationSecs >= INCOMPLETE_SESSION_FLOOR_SECS;
+};
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((left, right) => left - right);
@@ -166,14 +182,10 @@ export function buildPersonalBaseline(
   const countedByDay = new Map<string, CountedDay>();
 
   for (const visit of visits) {
-    if (!visit.catId?.trim()) continue;
-    if (!Number.isFinite(visit.durationSecs)) continue;
+    if (!isCountedVisit(visit)) continue;
 
     const status = normalizeStatus(visit.sessionStatus);
-    if (NON_VISIT_STATUSES.has(status) || INCOMPLETE_STATUSES.has(status)) continue;
-    if (visit.durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) continue;
-
-    const dayKey = getVisitDateKey(visit);
+    const dayKey = getVisitManilaDateKey(visit);
     if (!dayKey || dayKey < windowStart || dayKey > windowEnd) continue;
 
     const countedDay = countedByDay.get(dayKey) ?? {

@@ -13,8 +13,9 @@
 import type { Session } from "@/lib/interfaces/Session";
 import {
   BEHAVIOR_STATES,
-  getSessionDisplayState,
+  getIndexedSessionBehavior,
   type BehaviorStateId,
+  type CatBehaviorIndex,
 } from "@/lib/presentation/behaviorStates";
 import {
   getLocalDateKey,
@@ -164,27 +165,32 @@ export function selectCalendarDate(
   return { startDate, endDate: selectedDate };
 }
 
+/**
+ * The owner's behavior index, or the legacy set of cat IDs with a saved baseline.
+ * The server backup reader (lib/utils/catHistoryReads.ts, protected) still
+ * passes the legacy set. A set can't supply the computed bands or same-day
+ * counts, so those rows show Normal (provisional) but never Watch or a
+ * 7th-visit Abnormal.
+ */
+export type HistoryBehaviorSource = CatBehaviorIndex | ReadonlySet<string>;
+
+const toBehaviorIndex = (source: HistoryBehaviorSource | null | undefined) =>
+  source && "baselineByCatId" in source ? source : undefined;
+
 export function getHistorySessionState(
   session: Session,
   catIds: ReadonlySet<string>,
-  baselineCatIds: ReadonlySet<string>,
+  behavior?: HistoryBehaviorSource | null,
 ): BehaviorStateId {
   const isAttributed = Boolean(session.catId) && catIds.has(session.catId);
-  return getSessionDisplayState({
-    durationSecs: session.durationSecs,
-    sessionStatus: session.sessionStatus,
-    anomaly: session.anomaly,
-    anomalyType: session.anomalyType,
-    isAttributed,
-    baselineEstablished: isAttributed && baselineCatIds.has(session.catId),
-  });
+  return getIndexedSessionBehavior(session, toBehaviorIndex(behavior), isAttributed).state;
 }
 
 export function filterAndSortHistorySessions(
   sessions: readonly Session[],
   filters: HistoryFilters,
   catIds: ReadonlySet<string>,
-  baselineCatIds: ReadonlySet<string>,
+  behavior?: HistoryBehaviorSource | null,
 ): Session[] {
   const stateSet = new Set(filters.states);
   return sessions
@@ -198,7 +204,7 @@ export function filterAndSortHistorySessions(
         session.catId !== filters.catId) return false;
 
       return stateSet.has(
-        getHistorySessionState(session, catIds, baselineCatIds),
+        getHistorySessionState(session, catIds, behavior),
       );
     })
     .sort((left, right) => {

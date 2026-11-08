@@ -102,11 +102,14 @@ export function SessionTimelineCard({
   readonly displayState?: BehaviorStateId;
   readonly liveUpdatePending?: boolean;
 }) {
-  const { getDetailsByCatId } = useCats();
+  const { behaviorIndex } = useCats();
+  const catBaseline = cat ? behaviorIndex?.baselineByCatId.get(cat.id) : null;
   const state = displayState ?? getSessionDisplayState({
     ...session, isAttributed: Boolean(cat),
-    baselineEstablished: Boolean(cat && hasEstablishedBaseline(getDetailsByCatId(cat.id))),
+    baseline: catBaseline,
+    countedVisitsToday: behaviorIndex?.countedVisitsTodayBySessionId.get(session.id),
   });
+  const provisional = state === "normal" && !hasEstablishedBaseline(catBaseline);
   const startedAt = getStartedAt(session);
   const endedAt = getSessionDate(session.endedAt);
   const inProgress = isInProgress(session);
@@ -126,7 +129,7 @@ export function SessionTimelineCard({
             <span className="rounded-full bg-litter-primary-light px-2 py-1 text-xs font-semibold uppercase tracking-wide text-litter-primary">
               {cat ? "Litter Box Session" : "Detected Session"}
             </span>
-            {!['incomplete', 'insufficient', 'unattributed'].includes(state) && <BehaviorStateBadge state={state} compact />}
+            {!['incomplete', 'insufficient', 'unattributed'].includes(state) && <BehaviorStateBadge state={state} compact provisional={provisional} />}
             <span className="text-xs font-medium text-litter-muted">
               Recorded {activityDate}
             </span>

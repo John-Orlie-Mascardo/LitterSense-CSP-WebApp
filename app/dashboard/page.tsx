@@ -13,8 +13,6 @@
 
 "use client";
 
-import { getSessionActivityDateKey as getRecordedSessionDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
-
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
@@ -55,12 +53,12 @@ import type { CatTrendPoint } from "@/lib/contexts/CatContext";
 import {
   BEHAVIOR_STATE_BY_ID,
   formatMetricValue,
-  getSessionDisplayState,
-  getMostSevereState,
+  getBehaviorStateLabel,
   hasEstablishedBaseline,
   hasRecordedCatData,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
 import {
   buildCatTrendReferences,
   type TrendReferenceSet,
@@ -294,6 +292,7 @@ function PopulatedDashboardState({
   todayDate,
   selectedHasData,
   selectedBaselineEstablished,
+  selectedProvisional,
   airQualityReadings,
   airQualityStatus,
   trendData,
@@ -316,6 +315,7 @@ function PopulatedDashboardState({
   readonly todayDate: string;
   readonly selectedHasData: boolean;
   readonly selectedBaselineEstablished: boolean;
+  readonly selectedProvisional: boolean;
   readonly airQualityReadings: AirQualityReadings;
   readonly airQualityStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
@@ -383,7 +383,7 @@ function PopulatedDashboardState({
             {/* Stack "Today" over the badge: the card sits in a narrow column on desktop too */}
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="text-xs text-litter-muted">Today</span>
-              <BehaviorStateBadge state={selectedDisplayState} className="whitespace-nowrap" />
+              <BehaviorStateBadge state={selectedDisplayState} provisional={selectedProvisional} className="whitespace-nowrap" />
             </div>
           </div>
         )}
@@ -418,14 +418,14 @@ function PopulatedDashboardState({
               value={displayVisits}
               label="Today's Visits"
               status={selectedDisplayState}
-              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
+              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : getBehaviorStateLabel(selectedDisplayState, selectedProvisional)}
             />
             <StatCard
               icon={Timer}
               value={displayDuration}
               label="Avg Duration"
               status={selectedDisplayState}
-              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[selectedDisplayState].label}
+              statusLabel={historyLoading ? "Loading history" : selectedDisplayState === "insufficient" && selectedHasData && !selectedBaselineEstablished ? "No baseline yet" : getBehaviorStateLabel(selectedDisplayState, selectedProvisional)}
             />
           </div>
         </section>
@@ -516,6 +516,7 @@ export default function DashboardPage() {
     getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
+    behaviorIndex,
     catalogReady: catCatalogReady,
     isLoading: catsLoading,
     historyLoading,
@@ -560,7 +561,8 @@ export default function DashboardPage() {
           const catSessions = getSessionsByCatId(cat.id);
           const catStats = getStatsByCatId(cat.id);
           const catTrendData = getTrendData(cat.id);
-          const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
+          // Same shared rollup as My Cats, the cat page, and Predictive Health.
+          const today = getCatBehaviorToday(cat.id, catSessions, behaviorIndex);
           const hasData = hasRecordedCatData({
             sessions: catSessions,
             stats: catStats,
@@ -571,10 +573,9 @@ export default function DashboardPage() {
             cat.id,
             {
               hasData,
-              baselineEstablished,
-              state: getMostSevereState(catSessions
-                .filter((session) => getRecordedSessionDateKey(session) === getTodayDateKey())
-                .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished }))),
+              baselineEstablished: hasEstablishedBaseline(today.baseline),
+              state: today.state,
+              provisional: today.provisional,
             },
           ];
         }),
@@ -584,9 +585,10 @@ export default function DashboardPage() {
           readonly hasData: boolean;
           readonly baselineEstablished: boolean;
           readonly state: BehaviorStateId;
+          readonly provisional: boolean;
         }
       >,
-    [cats, getDetailsByCatId, getSessionsByCatId, getStatsByCatId, getTrendData],
+    [behaviorIndex, cats, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
   const catDisplayStates = useMemo(
     () =>
@@ -602,6 +604,7 @@ export default function DashboardPage() {
     hasData: false,
     baselineEstablished: false,
     state: "insufficient" as const,
+    provisional: false,
   };
 
   const abnormalCats = useMemo(
@@ -702,6 +705,7 @@ export default function DashboardPage() {
             todayDate={todayDate}
             selectedHasData={selectedPresentation.hasData}
             selectedBaselineEstablished={selectedPresentation.baselineEstablished}
+            selectedProvisional={selectedPresentation.provisional}
             airQualityReadings={airQualityReadings}
             airQualityStatus={airQualityStatus}
             trendData={trendData}

@@ -68,6 +68,7 @@ test('real client profile methods require confirmed responses, show pending back
     },
     '@/lib/utils/catPhoto': { deleteCatPhoto: async (...args) => photoDeletes.push(args) },
     '@/lib/utils/sessionDate': { getLocalDateKey: () => '2026-10-04' },
+    '@/lib/presentation/catBehavior': { buildCatBehaviorIndex: () => ({ baselineByCatId: new Map(), countedVisitsTodayBySessionId: new Map(), catIdsWithCountedVisits: new Set() }) },
   };
   vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../../../lib/contexts/CatContext.tsx', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.React } }).outputText, { module: loaded, exports: loaded.exports, require: name => imports[name] ?? {}, Date, fetch: async (url, init) => {
     calls.push({ url, ...init });
