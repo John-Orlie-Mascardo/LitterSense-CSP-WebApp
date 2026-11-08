@@ -88,11 +88,9 @@ import {
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
 import {
-  BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
-  BASELINE_DURATION_DEVIATION_SECS,
-  BASELINE_ODOR_DEVIATION_PERCENT,
-  BASELINE_PERIOD_DAYS,
-  BASELINE_VISIT_DEVIATION_COUNT,
+  BASELINE_MIN_DAYS,
+  MIN_DURATION_BAND_S,
+  MIN_VISIT_BAND,
 } from "@/lib/configs/behaviorThresholds";
 import {
   buildCatTrendReferences,
@@ -949,7 +947,7 @@ function OverviewTab({
               <Info className="w-4 h-4 text-theme-muted cursor-help" />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                 {/* NOTE(manuscript): This numeric baseline-period copy must match the capstone paper. */}
-                Baseline is recalculated every {BASELINE_PERIOD_DAYS} days using a rolling average of
+                Baseline is recalculated every {BASELINE_MIN_DAYS} days using a rolling average of
                 recorded sessions.
               </div>
             </div>
@@ -960,27 +958,15 @@ function OverviewTab({
             <div className="bg-litter-card rounded-lg p-3">
               <p className="text-theme-muted">Usual visits/day</p>
               <p className="font-semibold text-litter-text">
-                {details.baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT}–
-                {details.baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT}
+                {details.baseline.avgVisitsPerDay - MIN_VISIT_BAND}–
+                {details.baseline.avgVisitsPerDay + MIN_VISIT_BAND}
               </p>
             </div>
             <div className="bg-litter-card rounded-lg p-3">
               <p className="text-theme-muted">Usual duration</p>
               <p className="font-semibold text-litter-text">
-                {formatDuration(details.baseline.avgDurationSecs - BASELINE_DURATION_DEVIATION_SECS)} –{" "}
-                {formatDuration(details.baseline.avgDurationSecs + BASELINE_DURATION_DEVIATION_SECS)}
-              </p>
-            </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual air quality change</p>
-              <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT}%
-              </p>
-            </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual odor level change</p>
-              <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq136DeltaPercent + BASELINE_ODOR_DEVIATION_PERCENT}%
+                {formatDuration(details.baseline.avgDurationSecs - MIN_DURATION_BAND_S)} –{" "}
+                {formatDuration(details.baseline.avgDurationSecs + MIN_DURATION_BAND_S)}
               </p>
             </div>
           </div>
@@ -1202,8 +1188,6 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
           data={getMetricTrendPoints(trendData, "airQuality")}
           metric="airQuality"
           hasData={hasData}
-          reference={references?.airQuality}
-          baselineMessage={references ? undefined : "building"}
           emptyMessage="No sessions were recorded in this 7-day period."
         />
       </div>

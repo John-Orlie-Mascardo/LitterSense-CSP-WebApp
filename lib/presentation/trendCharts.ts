@@ -10,12 +10,8 @@
  */
 
 import {
-  BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
-  BASELINE_DURATION_DEVIATION_SECS,
-  BASELINE_VISIT_DEVIATION_COUNT,
-  DASHBOARD_DURATION_WARNING_MINS,
-  DASHBOARD_VISIT_WARNING_COUNT,
-  INCOMPLETE_SESSION_FLOOR_SECS,
+  MIN_DURATION_BAND_S,
+  MIN_VISIT_BAND,
 } from "@/lib/configs/behaviorThresholds";
 
 export type TrendMetricId = "visits" | "duration" | "airQuality";
@@ -26,7 +22,6 @@ export interface TrendMetricConfig {
   readonly unit: string;
   readonly color: string;
   readonly allowDecimals: boolean;
-  readonly normalRange: { readonly min: number; readonly max: number } | null;
 }
 
 export interface TrendReference {
@@ -38,7 +33,6 @@ export interface TrendReference {
 export interface TrendReferenceSet {
   readonly visits: TrendReference;
   readonly duration: TrendReference;
-  readonly airQuality: TrendReference;
 }
 
 export interface BaselineMetricsInput {
@@ -64,7 +58,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "visits",
     color: "#1B7A6E",
     allowDecimals: false,
-    normalRange: { min: 0, max: DASHBOARD_VISIT_WARNING_COUNT },
   },
   duration: {
     metricName: "Average Duration",
@@ -72,10 +65,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "minutes",
     color: "#E8924A",
     allowDecimals: true,
-    normalRange: {
-      min: roundForDisplay(INCOMPLETE_SESSION_FLOOR_SECS / 60),
-      max: DASHBOARD_DURATION_WARNING_MINS,
-    },
   },
   airQuality: {
     metricName: "Air quality change",
@@ -83,7 +72,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "%",
     color: "#1B7A6E",
     allowDecimals: true,
-    normalRange: null,
   },
 };
 
@@ -103,16 +91,12 @@ export function getTrendYAxisDomain(
   data: readonly { readonly value: number }[],
   reference?: TrendReference | null,
 ): readonly [number, number] {
-  const config = getTrendMetricConfig(metric);
   const values = data
     .map((point) => point.value)
     .filter(Number.isFinite);
   const candidates = [
     0,
     ...values,
-    ...(config.normalRange
-      ? [config.normalRange.min, config.normalRange.max]
-      : []),
     ...(reference
       ? [reference.baseline, reference.normalMin, reference.normalMax]
       : []),
@@ -139,23 +123,17 @@ export function buildCatTrendReferences(
   if (!isEstablishedBaseline(baseline)) return null;
 
   const durationBaseline = baseline.avgDurationSecs / 60;
-  const durationDeviation = BASELINE_DURATION_DEVIATION_SECS / 60;
+  const durationDeviation = MIN_DURATION_BAND_S / 60;
   return {
     visits: {
       baseline: baseline.avgVisitsPerDay,
-      normalMin: Math.max(0, baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT),
-      normalMax: baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT,
+      normalMin: Math.max(0, baseline.avgVisitsPerDay - MIN_VISIT_BAND),
+      normalMax: baseline.avgVisitsPerDay + MIN_VISIT_BAND,
     },
     duration: {
       baseline: roundForDisplay(durationBaseline),
       normalMin: roundForDisplay(Math.max(0, durationBaseline - durationDeviation)),
       normalMax: roundForDisplay(durationBaseline + durationDeviation),
-    },
-    airQuality: {
-      baseline: baseline.mq135DeltaPercent,
-      normalMin: 0,
-      normalMax:
-        baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
     },
   };
 }
@@ -185,14 +163,14 @@ export function buildAggregateTrendReferences(
       normalMin: roundForDisplay(
         established.reduce(
           (total, baseline) =>
-            total + Math.max(0, baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT),
+            total + Math.max(0, baseline.avgVisitsPerDay - MIN_VISIT_BAND),
           0,
         ),
       ),
       normalMax: roundForDisplay(
         established.reduce(
           (total, baseline) =>
-            total + baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT,
+            total + baseline.avgVisitsPerDay + MIN_VISIT_BAND,
           0,
         ),
       ),
@@ -200,18 +178,10 @@ export function buildAggregateTrendReferences(
     duration: {
       baseline: weighted((baseline) => baseline.avgDurationSecs / 60),
       normalMin: weighted((baseline) =>
-        Math.max(0, baseline.avgDurationSecs - BASELINE_DURATION_DEVIATION_SECS) / 60
+        Math.max(0, baseline.avgDurationSecs - MIN_DURATION_BAND_S) / 60
       ),
       normalMax: weighted((baseline) =>
-        (baseline.avgDurationSecs + BASELINE_DURATION_DEVIATION_SECS) / 60
-      ),
-    },
-    airQuality: {
-      baseline: weighted((baseline) => baseline.mq135DeltaPercent),
-      normalMin: 0,
-      normalMax: weighted(
-        (baseline) =>
-          baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
+        (baseline.avgDurationSecs + MIN_DURATION_BAND_S) / 60
       ),
     },
   };

@@ -53,6 +53,10 @@ import type {
 } from "@/lib/data/mockData";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
+import {
+  ABNORMAL_DURATION_SECS,
+  DASHBOARD_VISIT_WARNING_COUNT,
+} from "@/lib/configs/behaviorThresholds";
 import type { CatProfileMutation } from "@/lib/utils/catCatalogSync";
 import { useCatBackup } from '@/lib/hooks/useCatBackup';
 
@@ -314,9 +318,7 @@ const deriveLiveStatus = (
       getSessionActivityDateKey(session) === today,
   );
 
-  if (stats.visits > 8) {
-    status = "abnormal";
-  } else if (stats.visits > 6) {
+  if (stats.visits > DASHBOARD_VISIT_WARNING_COUNT) {
     status = "abnormal";
   }
 
@@ -325,7 +327,7 @@ const deriveLiveStatus = (
       (session) =>
         session.anomaly &&
         (session.anomalyType === "No exit timeout" ||
-          session.durationSecs >= 600),
+          session.durationSecs >= ABNORMAL_DURATION_SECS),
     )
   ) {
     status = "abnormal";
@@ -401,7 +403,7 @@ const getVisitAnomaly = (
     status === "ABNORMAL" ||
     status === "NO_EXIT_TIMEOUT" ||
     status === "SHORT_SESSION" ||
-    durationSecs >= 300;
+    durationSecs >= ABNORMAL_DURATION_SECS;
 
   if (!isAnomaly) return { anomaly: false, anomalyType: null };
   if (status === "NO_EXIT_TIMEOUT") {

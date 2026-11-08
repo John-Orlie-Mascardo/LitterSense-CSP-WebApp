@@ -9,7 +9,7 @@ import { loadVisitWriter } from '../../../lib/utils/testing/catVisitWriter.mjs';
 const require = createRequire(import.meta.url);
 const { buildDeviceSensorSnapshot, toDeviceSensorsResponse, SENSOR_SNAPSHOT_STALE_AFTER_MS } = require("../../../lib/utils/deviceSensorSnapshot.ts");
 function loadTs(url, imports = {}) {
-  imports = { '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false }, '@/lib/server/operationalRfid': {}, '@/lib/server/operationalCats': {}, '@/lib/server/operationalRecords': {}, '@/lib/server/operationalDevices': {}, 'node:crypto': require('node:crypto'), '@/lib/utils/rfidNotifications': { queueRfidNotifications: async () => ({ queued: 0 }) }, '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
+  imports = { '@/lib/server/operationalStore': { rfidPrimaryEnabled: () => false }, '@/lib/server/operationalRfid': {}, '@/lib/server/operationalCats': {}, '@/lib/server/operationalRecords': {}, '@/lib/server/operationalDevices': {}, 'node:crypto': require('node:crypto'), '../configs/behaviorThresholds': require('../../../lib/configs/behaviorThresholds.ts'), '@/lib/utils/rfidNotifications': { queueRfidNotifications: async () => ({ queued: 0 }) }, '@/lib/utils/pushDelivery': { processPushOutbox: async () => ({ processed: 0 }) }, '@/lib/utils/catVisitRecovery': loadVisitWriter({}, '', {}, {}, {}), ...imports };
   const { outputText } = ts.transpileModule(readFileSync(url, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
