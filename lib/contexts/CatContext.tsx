@@ -403,6 +403,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const [catStats, setCatStats] = useState<Record<string, CatStats>>({});
   const [catDetails, setCatDetails] = useState<Record<string, CatDetails>>({});
   const [sessions, setSessions] = useState<Session[]>([]);
+  // Owner whose live visit history has arrived; until then screens show "loading", not "no data".
+  const [sessionsLoadedFor, setSessionsLoadedFor] = useState<string | null>(null);
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([]);
   const [catSessionLogs, setCatSessionLogs] = useState<Record<string, CatSessionLog>>({});
   const [, setFirebaseCatStats] = useState<
@@ -532,9 +534,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
             .map(({ session }) => session);
 
           setSessions(loaded);
+          setSessionsLoadedFor(uid);
         },
         (error) => {
           console.error("Failed to sync session history:", error);
+          setSessionsLoadedFor(uid);
           backup.refresh();
         },
       );
@@ -935,7 +939,9 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
           hasFallbackCatalog: fallbackCats,
           isLoading,
         }),
-        historyLoading,
+        historyLoading: historyLoading || (
+          Boolean(uid) && !fallbackHistory && !isHistoryRoute && sessionsLoadedFor !== uid
+        ),
         backupStatus,
       }}
     >

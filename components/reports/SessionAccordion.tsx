@@ -124,10 +124,6 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                         </div>
                         <dl className="grid grid-cols-2 gap-2 text-xs">
                           <SessionValue label="Duration" value={formatDuration(session.durationSecs)} />
-                          <SessionValue
-                            label="Odor level change"
-                            value={session.summaryVisits ? "No data yet" : `${session.mq136Delta}%`}
-                          />
                         </dl>
                       </div>
                     ))}
@@ -140,7 +136,6 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                           <th className="px-3 py-2 font-medium">Date</th>
                           <th className="px-3 py-2 font-medium">Time</th>
                           <th className="px-3 py-2 font-medium">Duration</th>
-                          <th className="px-3 py-2 font-medium">Odor level change</th>
                           <th className="px-3 py-2 font-medium">State</th>
                         </tr>
                       </thead>
@@ -153,9 +148,6 @@ export function SessionAccordion({ sessions, cats }: SessionAccordionProps) {
                             </td>
                             <td className="px-3 py-2 text-litter-text">
                               {formatDuration(session.durationSecs)}
-                            </td>
-                            <td className="px-3 py-2 text-litter-text">
-                              {session.summaryVisits ? "No data yet" : `${session.mq136Delta}%`}
                             </td>
                             <td className="px-3 py-2">
                               <BehaviorStateBadge state={session.displayState} compact />

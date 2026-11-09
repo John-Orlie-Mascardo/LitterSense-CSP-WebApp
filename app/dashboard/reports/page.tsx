@@ -43,6 +43,7 @@ import {
   generateId,
 } from "@/lib/utils/formatters";
 import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
+import { isCountedVisit } from "@/lib/utils/personalBaseline";
 import {
   getBehaviorStateSentence,
   formatMetricValue,
@@ -74,7 +75,7 @@ const csvCell = (value: string | number | boolean) => {
 };
 
 export default function ReportsPage() {
-  const { cats, isLoading: catsLoading, historyLoading } = useCats();
+  const { cats, isLoading: catsLoading, historyLoading, behaviorIndex } = useCats();
   const {
     isGenerating,
     progress,
@@ -157,7 +158,7 @@ export default function ReportsPage() {
 
   const handleExportCSV = () => {
     if (!currentReport) return;
-    const headers = "Cat,Date,Time,Visits,Duration,Odor level change (%),Anomaly\n";
+    const headers = "Cat,Date,Time,Visits,Duration,Anomaly\n";
     const rows = currentReport.sessions
       .map(
         (s) =>
@@ -165,10 +166,10 @@ export default function ReportsPage() {
             csvCell(s.catName),
             csvCell(s.date),
             csvCell(s.time || "--"),
-            csvCell(s.summaryVisits ?? 1),
+            // Incomplete visits (under 15 s, no exit, interrupted) count as 0, same as the screens.
+            csvCell(s.summaryVisits ?? (isCountedVisit(s) ? 1 : 0)),
             csvCell(s.durationSecs),
-            csvCell(s.mq136Delta),
-            csvCell(isReportSessionConcern(s) ? "Yes" : "No"),
+            csvCell(isReportSessionConcern(s, behaviorIndex) ? "Yes" : "No"),
           ].join(",")
       )
       .join("\n");

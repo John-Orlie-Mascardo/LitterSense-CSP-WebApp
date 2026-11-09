@@ -60,11 +60,11 @@ test("session groups are single-open on screen and all expanded for print", () =
 
 test("owner-facing tables and CSV exports use the same plain metric names", () => {
   assert.doesNotMatch(accordionSource, /Air quality change/);
-  assert.match(accordionSource, /Odor level change/);
+  assert.doesNotMatch(accordionSource, /Odor level change/);
   assert.match(accordionSource, />State</);
   assert.doesNotMatch(accordionSource, /MQ-135|MQ-136/);
   assert.doesNotMatch(source, /Air quality change/);
-  assert.match(source, /Odor level change \(%\)/);
+  assert.doesNotMatch(source, /Odor level change/);
   assert.doesNotMatch(source, /MQ-135 Delta|MQ-136 Delta/);
 });
 

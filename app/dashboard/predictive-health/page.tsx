@@ -42,6 +42,7 @@ export default function PredictiveHealthPage() {
   const {
     cats,
     isLoading,
+    historyLoading,
     behaviorIndex,
     getSessionsByCatId,
     getStatsByCatId,
@@ -240,7 +241,7 @@ export default function PredictiveHealthPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {isLoading || historyLoading ? (
           <div className="rounded-xl border border-litter-border bg-litter-card p-8 text-center text-sm text-litter-muted">
             Loading behavioral data...
           </div>
@@ -309,7 +310,8 @@ export default function PredictiveHealthPage() {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm leading-relaxed text-litter-muted">
-                    {overview.progress}
+                    {/* Same day count as the badge above; the baseline is computed, never saved. */}
+                    {`${overview.completed} counted visits recorded. ${formatBaselineProgress(baselineDaysUsed)} with visits. The usual range appears once 7 days are recorded.`}
                   </p>
                 )}
               </section>

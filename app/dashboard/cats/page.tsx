@@ -767,7 +767,7 @@ const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
 };
 
 function CatCard({ cat, details, stats, sessions }: CatCardProps) {
-  const { behaviorIndex } = useCats();
+  const { behaviorIndex, historyLoading } = useCats();
   const hasData = hasRecordedCatData({ sessions, stats });
   const { state: displayState, provisional } = getCatBehaviorToday(cat.id, sessions, behaviorIndex);
 
@@ -803,7 +803,7 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
             </div>
 
             {/* Status badge */}
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} provisional={provisional} compact className="shrink-0" />
+            <span className="text-xs text-litter-muted">Today</span>{historyLoading ? <span className="text-xs text-litter-muted shrink-0">Loading…</span> : <BehaviorStateBadge state={displayState} provisional={provisional} compact className="shrink-0" />}
           </div>
 
           {/* Divider */}
@@ -814,19 +814,19 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
             <div className="pr-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatMetricValue(stats?.visits ?? 0, hasData)}
+                {historyLoading ? "Loading" : formatMetricValue(stats?.visits ?? 0, hasData)}
               </p>
             </div>
             <div className="px-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatMetricValue(stats?.avgDuration, hasData)}
+                {historyLoading ? "Loading" : formatMetricValue(stats?.avgDuration, hasData)}
               </p>
             </div>
             <div className="pl-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatLastVisit(stats?.lastVisit, hasData)}
+                {historyLoading ? "Loading" : formatLastVisit(stats?.lastVisit, hasData)}
               </p>
             </div>
           </div>

@@ -227,6 +227,7 @@ export default function CatDetailClient() {
     addHealthLog,
     removeHealthLog,
     behaviorIndex,
+    historyLoading,
   } = useCats();
   const { data: sensorData } = useDeviceSensors();
 
@@ -545,7 +546,7 @@ export default function CatDetailClient() {
               RFID: {details?.rfidTag || "—"}
             </span>
 
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} provisional={displayProvisional} />
+            <span className="text-xs text-litter-muted">Today</span>{historyLoading ? <span className="text-xs text-litter-muted">Loading…</span> : <BehaviorStateBadge state={displayState} provisional={displayProvisional} />}
           </div>
         </section>
 
@@ -787,6 +788,11 @@ export default function CatDetailClient() {
           <TabBar tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
           <div className="p-4 sm:p-6">
+            {historyLoading && activeTab !== "health" ? (
+              <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-litter-muted">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading visit history…
+              </div>
+            ) : (
             <div>
               {activeTab === "overview" && (
                 <OverviewTab
@@ -825,6 +831,7 @@ export default function CatDetailClient() {
                 />
               )}
             </div>
+            )}
           </div>
         </div>
         {/* Generate Report CTA */}

@@ -88,6 +88,7 @@ import {
 import { useTour } from "@/components/tour/TourProvider";
 import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
 import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
 import { getBehaviorStateLabel } from "@/lib/presentation/behaviorStates";
 import {
   PASSWORD_POLICY_MESSAGE,
@@ -128,6 +129,8 @@ const getPasswordStrength = (password: string): { strength: number; label: strin
 type ExportAllPayload = {
   cats: ReturnType<typeof useCats>["cats"];
   catBehaviorLabels: Readonly<Record<string, string>>;
+  /** Sessions the shared rules mark Abnormal, so the export matches the screens. */
+  abnormalSessionIds: ReadonlySet<string>;
   catStats: ReturnType<typeof useCats>["catStats"];
   catDetails: ReturnType<typeof useCats>["catDetails"];
   sessions: ReturnType<typeof useCats>["sessions"];
@@ -246,7 +249,7 @@ const buildExportCsv = (payload: ExportAllPayload) => {
       session.endedAt ?? "",
       session.durationSecs,
       session.sessionStatus ?? "",
-      session.anomaly ? "Yes" : "No",
+      payload.abnormalSessionIds.has(session.id) ? "Yes" : "No",
     ]),
     [],
     ["Health Logs"],
@@ -582,6 +585,11 @@ export default function SettingsPage() {
         );
         return [cat.id, getBehaviorStateLabel(current.state, current.provisional)];
       }),
+    ),
+    abnormalSessionIds: new Set(
+      sessions
+        .filter((session) => isReportSessionConcern(session, behaviorIndex))
+        .map((session) => session.id),
     ),
     catStats,
     catDetails,
