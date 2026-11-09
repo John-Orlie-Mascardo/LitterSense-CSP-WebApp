@@ -40,6 +40,7 @@ function loadRoute(file, authorizeAdminRequest, adminAuth = {}, routeConsole = c
       if (name.endsWith('/operationalStore')) return { rfidPrimaryEnabled: () => false };
       if (name.endsWith('/operationalAdmin')) return {};
       if (name.endsWith('/operationalDeletion')) return {};
+      if (name.endsWith('/primaryAccountDeletion')) return {};
       if (name.endsWith('/operationalDevices')) return {};
       if (name === "next/server") return { NextResponse: Response };
       if (name === "@/lib/server/adminAuth") return { authorizeAdminRequest };
@@ -67,7 +68,6 @@ function loadRoute(file, authorizeAdminRequest, adminAuth = {}, routeConsole = c
 
 for (const [name, file, body] of [
   ["delete-user", "delete-user/route.ts", { userId: "owner-1" }],
-  ["update-password", "update-password/route.ts", { targetEmail: "owner@example.com", newPassword: "password123" }],
 ]) {
   test(`${name} returns the shared admin authorization response before privileged work`, async () => {
     let calls = 0;
@@ -92,57 +92,3 @@ for (const [name, file, body] of [
     assert.equal(calls, 1);
   });
 }
-
-test("update-password rejects a password that does not satisfy the shared policy", async () => {
-  const route = loadRoute("update-password/route.ts", async () => ({ ok: true }));
-
-  const response = await route.POST(new Request("https://app.example.com/api/admin/update-password", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer admin-token",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      targetEmail: "owner@example.com",
-      newPassword: "password123",
-    }),
-  }));
-
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), {
-    error: "Password must have at least 8 characters, an uppercase letter, a lowercase letter, a number and a special character.",
-  });
-});
-
-test("update-password maps Firebase password-policy errors to the shared message", async () => {
-  const passwordPolicyError = new Error("Firebase policy details");
-  passwordPolicyError.code = "auth/password-does-not-meet-requirements";
-  const route = loadRoute(
-    "update-password/route.ts",
-    async () => ({ ok: true }),
-    {
-      getUserByEmail: async () => ({ uid: "owner-1" }),
-      updateUser: async () => {
-        throw passwordPolicyError;
-      },
-    },
-    { error: () => {} },
-  );
-
-  const response = await route.POST(new Request("https://app.example.com/api/admin/update-password", {
-    method: "POST",
-    headers: {
-      Authorization: "Bearer admin-token",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      targetEmail: "owner@example.com",
-      newPassword: "Valid1!a",
-    }),
-  }));
-
-  assert.equal(response.status, 400);
-  assert.deepEqual(await response.json(), {
-    error: "Password must have at least 8 characters, an uppercase letter, a lowercase letter, a number and a special character.",
-  });
-});

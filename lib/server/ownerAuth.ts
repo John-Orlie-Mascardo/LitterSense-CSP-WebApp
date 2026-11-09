@@ -3,6 +3,8 @@ import { getAdminAuth } from "@/lib/configs/firebase-admin";
 export interface OwnerIdentity {
   uid: string;
   email: string | null;
+  /** When the owner last signed in (seconds since epoch), for actions that need a fresh sign-in. */
+  authTime: number | null;
 }
 
 export type OwnerAuthorizationResult =
@@ -27,6 +29,7 @@ export async function authorizeOwnerRequest(
       owner: {
         uid: decodedToken.uid,
         email: decodedToken.email ?? null,
+        authTime: typeof decodedToken.auth_time === "number" ? decodedToken.auth_time : null,
       },
     };
   } catch {

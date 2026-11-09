@@ -11,7 +11,10 @@ export type AuditAction =
   | "deletion_requested"
   | "deletion_approved"
   | "deletion_rejected"
-  | "deletion_failed";
+  | "deletion_failed"
+  | "user_suspended"
+  | "user_restored"
+  | "account_recovery";
 
 export interface AuditLogInput {
   action: AuditAction;

@@ -15,10 +15,7 @@ import { Suspense, useState } from "react";
 import { ArrowLeft, MailCheck, LogIn } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FirebaseError } from "firebase/app";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/configs/firebase";
-import { getPasswordResetActionCodeSettings } from "@/lib/utils/passwordReset";
+import { requestPasswordReset } from "@/lib/utils/passwordReset";
 
 function getEmailProvider(email: string | null) {
   const domain = email?.split("@")[1]?.trim().toLowerCase();
@@ -61,17 +58,14 @@ function CheckEmailContent() {
     setIsResending(true);
     setError("");
     try {
-      await sendPasswordResetEmail(auth, email, getPasswordResetActionCodeSettings());
+      await requestPasswordReset(email);
       setResent(true);
     } catch (caughtError) {
-      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
-      if (code === "auth/too-many-requests") {
-        setError("Too many reset requests. Please wait a moment and try again.");
-      } else if (code === "auth/network-request-failed") {
-        setError("We couldn’t reach LitterSense. Check your connection and try again.");
-      } else {
-        setError("We couldn’t resend the reset link. Please try again.");
-      }
+      setError(
+        caughtError instanceof TypeError
+          ? "We couldn’t reach LitterSense. Check your connection and try again."
+          : "We couldn’t resend the reset link. Please try again.",
+      );
     } finally {
       setIsResending(false);
     }

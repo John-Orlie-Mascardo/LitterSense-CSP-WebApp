@@ -36,12 +36,13 @@ test("previous report download opens the printable report instead of showing a f
   assert.doesNotMatch(source, /Downloading \$\{report\.filename\}/);
 });
 
-test("report surfaces retain activity naming and the existing CSV filename", () => {
+test("report surfaces retain activity naming and export PDF only", () => {
   assert.match(source, /Litter Box Activity Reports/);
   assert.match(source, /Litter Box Activity Report/);
   assert.match(layoutSource, /Litter Box Activity Reports/);
   assert.doesNotMatch(source, /Health Report/);
-  assert.match(source, /LitterSense_\$\{currentReport\.catName/);
+  assert.doesNotMatch(source, /Export as CSV|text\/csv/);
+  assert.match(source, /Export as PDF/);
 });
 
 test("the shared six-state key appears immediately above the grouped session log", () => {
@@ -58,7 +59,7 @@ test("session groups are single-open on screen and all expanded for print", () =
   assert.match(accordionSource, /Unattributed/);
 });
 
-test("owner-facing tables and CSV exports use the same plain metric names", () => {
+test("owner-facing tables use the same plain metric names", () => {
   assert.doesNotMatch(accordionSource, /Air quality change/);
   assert.doesNotMatch(accordionSource, /Odor level change/);
   assert.match(accordionSource, />State</);

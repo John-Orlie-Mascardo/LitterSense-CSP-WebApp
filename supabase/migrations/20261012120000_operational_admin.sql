@@ -19,7 +19,7 @@ returns text language plpgsql security invoker set search_path='' as $$
 declare audit_id text := pg_catalog.gen_random_uuid()::text; stamp timestamptz := clock_timestamp(); timestamp_data jsonb;
 begin
   if jsonb_typeof(p_input) is distinct from 'object' or p_input->>'action' is null
-    or p_input->>'action' not in ('admin_login','admin_granted','admin_revoked','deletion_requested','deletion_approved','deletion_rejected','deletion_failed')
+    or p_input->>'action' not in ('admin_login','admin_granted','admin_revoked','deletion_requested','deletion_approved','deletion_rejected','deletion_failed','user_suspended','user_restored','account_recovery')
     or p_input->>'actorUid' is null or p_input->>'actorUid' !~ '^[^[:cntrl:]]{1,255}$'
     or octet_length(p_input::text)>65536 then raise exception 'Invalid audit record' using errcode='22023'; end if;
   if not exists(select 1 from public.operational_migration_state where singleton and imported_at is not null and runtime_primary and cutover_at is not null) then

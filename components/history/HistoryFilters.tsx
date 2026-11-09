@@ -134,9 +134,10 @@ function FilterFields({
 
       <fieldset>
         <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-litter-muted">States</legend>
-        <div className="grid auto-rows-fr grid-cols-2 gap-2 sm:grid-cols-3">
+        {/* Columns at least 10.5rem wide, so the longest name ("Unattributed") always fits its chip. */}
+        <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2">
           {BEHAVIOR_STATES.map((state) => (
-            <label key={state.id} className="flex min-h-14 items-center gap-2 rounded-xl border border-litter-border px-3 py-2 text-xs font-medium leading-tight text-litter-text">
+            <label key={state.id} className="flex min-h-14 min-w-0 items-center gap-2 rounded-xl border border-litter-border px-3 py-2 text-xs font-medium leading-tight text-litter-text">
               <input
                 type="checkbox"
                 checked={draft.states.includes(state.id)}
@@ -144,7 +145,7 @@ function FilterFields({
                 className="shrink-0 accent-litter-primary"
               />
               <span className={`h-2 w-2 shrink-0 rounded-full ${state.dotClass}`} />
-              <span>{state.label}</span>
+              <span className="min-w-0 break-words">{state.label}</span>
             </label>
           ))}
         </div>

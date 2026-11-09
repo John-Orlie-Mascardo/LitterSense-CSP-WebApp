@@ -45,6 +45,7 @@ import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import { buildRfidActivityVisits, mergeRfidActivityVisits, type RfidActivityVisit } from "@/lib/utils/rfidActivity";
 import {
   getDisplayTodayStats,
+  combineCatTrends,
 } from "@/lib/utils/dashboardBehaviorMetrics";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { Session } from "@/lib/interfaces/Session";
@@ -53,17 +54,23 @@ import {
   BEHAVIOR_STATE_BY_ID,
   formatMetricValue,
   getBehaviorStateLabel,
+  getMostSevereState,
   hasEstablishedBaseline,
   hasRecordedCatData,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
 import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import { HomeAlertBanner } from "@/components/dashboard/HomeAlertBanner";
+import { getOfflineBoards } from "@/lib/utils/deviceOffline";
 import {
   buildCatTrendReferences,
   type TrendReferenceSet,
 } from "@/lib/presentation/trendCharts";
 import { useTour } from "@/components/tour/TourProvider";
 import { getDashboardTourState } from "@/components/tour/tourSteps";
+
+/** Pseudo-cat id for the Home "All cats" overview (shown when there are 2+ cats). */
+const ALL_CATS_ID = "all";
 
 const getLocalDateKey = (date = new Date()) => {
   const year = date.getFullYear();
@@ -316,7 +323,8 @@ function PopulatedDashboardState({
   readonly selectedHasData: boolean;
   readonly selectedBaselineEstablished: boolean;
   readonly selectedProvisional: boolean;
-  readonly selectedBaselineDaysUsed: number;
+  /** Null on "All cats": there is no single cat's day count. */
+  readonly selectedBaselineDaysUsed: number | null;
   readonly airQualityReadings: AirQualityReadings;
   readonly airQualityStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
@@ -351,6 +359,20 @@ function PopulatedDashboardState({
 
         <section data-tour="cat-chips" className="mb-6">
           <div className="flex flex-wrap gap-2">
+            {cats.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onSelectCat(ALL_CATS_ID)}
+                aria-pressed={activeCatId === ALL_CATS_ID}
+                className={`flex items-center justify-center px-4 py-3 rounded-full border-2 text-sm font-medium transition-all duration-200 shrink-0 ${
+                  activeCatId === ALL_CATS_ID
+                    ? "bg-litter-primary border-litter-primary text-white"
+                    : "bg-litter-card border-litter-border text-litter-text hover:border-litter-primary"
+                }`}
+              >
+                All cats
+              </button>
+            )}
             {cats.map((cat) => (
               <CatChip
                 key={cat.id}
@@ -539,14 +561,29 @@ export default function DashboardPage() {
     triggerOnAnomaly,
   } = useNotificationPermission();
 
+  const showAllCats = cats.length > 1 && selectedCatId === ALL_CATS_ID;
   const activeCatId = useMemo(() => {
+    if (showAllCats) return ALL_CATS_ID;
     if (cats.some((cat) => cat.id === selectedCatId)) return selectedCatId;
     return cats[0]?.id || "";
-  }, [cats, selectedCatId]);
+  }, [cats, selectedCatId, showAllCats]);
 
-  const selectedCat = useMemo(() => getCatById(activeCatId), [activeCatId, getCatById]);
-  const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
-  const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
+  const selectedCat = useMemo<Cat | undefined>(
+    () => showAllCats
+      ? { id: ALL_CATS_ID, name: "All cats", status: "normal", avatar: null, isOnline: false }
+      : getCatById(activeCatId),
+    [activeCatId, getCatById, showAllCats],
+  );
+  const stats = useMemo(
+    () => showAllCats ? undefined : getStatsByCatId(activeCatId),
+    [activeCatId, getStatsByCatId, showAllCats],
+  );
+  const trendData = useMemo(
+    () => showAllCats
+      ? combineCatTrends(cats.map((cat) => getTrendData(cat.id)))?.map((point) => ({ ...point, mq135Delta: 0 })) ?? null
+      : getTrendData(activeCatId),
+    [activeCatId, cats, getTrendData, showAllCats],
+  );
   const trendReferences = useMemo(
     () => buildCatTrendReferences(behaviorIndex.baselineByCatId.get(activeCatId)),
     [activeCatId, behaviorIndex],
@@ -593,17 +630,22 @@ export default function DashboardPage() {
       >,
     [behaviorIndex, cats, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
-  const catDisplayStates = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(catPresentation).map(([catId, presentation]) => [
-          catId,
-          presentation.state,
-        ]),
-      ),
-    [catPresentation],
-  );
-  const selectedPresentation = catPresentation[activeCatId] ?? {
+  const catDisplayStates = useMemo(() => {
+    const states: Record<string, BehaviorStateId> = Object.fromEntries(
+      Object.entries(catPresentation).map(([catId, presentation]) => [catId, presentation.state]),
+    );
+    // "All cats" shows the most serious state of any cat today.
+    states[ALL_CATS_ID] = getMostSevereState(Object.values(states));
+    return states;
+  }, [catPresentation]);
+  const allCatsPresentation = {
+    hasData: Object.values(catPresentation).some((presentation) => presentation.hasData),
+    baselineEstablished: true,
+    state: catDisplayStates[ALL_CATS_ID],
+    provisional: false,
+    baselineDaysUsed: 0,
+  };
+  const selectedPresentation = (showAllCats ? allCatsPresentation : catPresentation[activeCatId]) ?? {
     hasData: false,
     baselineEstablished: false,
     state: "insufficient" as const,
@@ -672,11 +714,11 @@ export default function DashboardPage() {
     () =>
       getDisplayTodayStats(
         stats,
-        displaySessions,
+        showAllCats ? displaySessions.map((session) => ({ ...session, catId: ALL_CATS_ID })) : displaySessions,
         activeCatId,
         getLocalDateKey(),
       ),
-    [activeCatId, displaySessions, stats],
+    [activeCatId, displaySessions, showAllCats, stats],
   );
   const displayAvgDuration = displayStats?.avgDuration ?? "--";
   const todayDate = formatDate();
@@ -686,6 +728,7 @@ export default function DashboardPage() {
       <TopBar />
 
       <main className="pt-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto">
+        {!catsLoading && !isEmpty && <HomeAlertBanner offlineBoards={getOfflineBoards(sensorData)} />}
         {catsLoading ? (
           <DashboardLoadingState />
         ) : isEmpty ? (
@@ -701,7 +744,7 @@ export default function DashboardPage() {
             selectedHasData={selectedPresentation.hasData}
             selectedBaselineEstablished={selectedPresentation.baselineEstablished}
             selectedProvisional={selectedPresentation.provisional}
-            selectedBaselineDaysUsed={selectedPresentation.baselineDaysUsed}
+            selectedBaselineDaysUsed={showAllCats ? null : selectedPresentation.baselineDaysUsed}
             airQualityReadings={airQualityReadings}
             airQualityStatus={airQualityStatus}
             trendData={trendData}

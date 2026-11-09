@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { useAdmin } from "@/lib/contexts/AdminContext";
 import { ToastContainer } from "@/components/ui/Toast";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import type { AdminUser } from "@/lib/data/mockData";
+import { recoverUserAccount } from "@/lib/utils/adminUserStatus";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +87,40 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [viewUser, setViewUser] = useState<AdminUser | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<AdminUser | null>(null);
+  const [savingStatusId, setSavingStatusId] = useState<string | null>(null);
+  const [recoveryNote, setRecoveryNote] = useState("");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  function openView(user: AdminUser) {
+    setRecoveryNote("");
+    setRecoveryEmail("");
+    setViewUser(user);
+  }
+
+  async function submitRecovery() {
+    if (!viewUser || isRecovering) return;
+    setIsRecovering(true);
+    try {
+      const result = await recoverUserAccount({
+        userId: viewUser.id,
+        verificationNote: recoveryNote,
+        ...(recoveryEmail.trim() ? { newEmail: recoveryEmail.trim() } : {}),
+      });
+      const notes = [
+        result.emailChanged && !result.profileUpdated ? "Profile email will refresh on next load." : "",
+        result.auditSaved ? "" : "Activity log unavailable.",
+      ].filter(Boolean).join(" ");
+      addToast(`Reset link emailed to ${viewUser.name}. They were signed out everywhere.${notes ? ` ${notes}` : ""}`, "success");
+      setViewUser(null);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : "Unable to complete account recovery.", "error");
+    } finally {
+      setIsRecovering(false);
+    }
+  }
 
   // ── Filtered + sorted ──────────────────────────────────────────────────
   const filteredUsers = useMemo(() => {
@@ -118,14 +156,28 @@ export default function AdminUsersPage() {
     }
   }
 
-  function onSuspend(userId: string, userName: string, isActive: boolean) {
-    handleSuspend(userId);
-    addToast(
-      isActive
-        ? `${userName} has been suspended.`
-        : `${userName} has been restored.`,
-      isActive ? "info" : "success"
-    );
+  function onSuspend(userId: string) {
+    const target = users.find((u) => u.id === userId);
+    if (target) setPendingStatus(target);
+  }
+
+  async function confirmStatusChange() {
+    const target = pendingStatus;
+    setPendingStatus(null);
+    if (!target || savingStatusId) return;
+    const isActive = target.status === "active";
+    setSavingStatusId(target.id);
+    try {
+      const { auditSaved } = await handleSuspend(target.id);
+      addToast(
+        `${target.name} has been ${isActive ? "suspended" : "restored"}.${auditSaved ? "" : " (Activity log unavailable.)"}`,
+        isActive ? "info" : "success"
+      );
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : "Unable to update account status.", "error");
+    } finally {
+      setSavingStatusId(null);
+    }
   }
 
   const renderSortIcon = (field: SortKey) => {
@@ -286,13 +338,14 @@ export default function AdminUsersPage() {
                             : "bg-litter-bg text-litter-muted border border-litter-border"
                         }`}
                       >
-                        {u.status}
+                        {u.status === "active" ? "active" : "suspended"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           title="View user"
+                          onClick={() => openView(u)}
                           className="theme-icon-btn p-2 text-litter-muted hover:text-litter-primary transition-colors"
                         >
                           <Eye className="w-4 h-4" />
@@ -303,9 +356,8 @@ export default function AdminUsersPage() {
                               ? "Suspend user"
                               : "Restore user"
                           }
-                          onClick={() =>
-                            onSuspend(u.id, u.name, u.status === "active")
-                          }
+                          onClick={() => onSuspend(u.id)}
+                          disabled={savingStatusId === u.id}
                           className={`p-2 rounded-lg transition-colors ${
                             u.status === "active"
                               ? "theme-danger-btn text-litter-muted"
@@ -365,7 +417,7 @@ export default function AdminUsersPage() {
                         : "bg-litter-bg text-litter-muted border border-litter-border"
                     }`}
                   >
-                    {u.status}
+                    {u.status === "active" ? "active" : "suspended"}
                   </span>
                 </div>
 
@@ -384,13 +436,14 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-2">
                     <button
                       title="View user"
+                      onClick={() => openView(u)}
                       className="p-2 text-litter-muted hover:text-litter-primary transition-colors rounded-lg bg-litter-bg border border-litter-border"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
                       title={u.status === "active" ? "Suspend user" : "Restore user"}
-                      onClick={() => onSuspend(u.id, u.name, u.status === "active")}
+                      onClick={() => onSuspend(u.id)}
                       className={`p-2 rounded-lg border transition-colors ${
                         u.status === "active"
                           ? "bg-status-danger/10 text-status-danger border-status-danger/20"
@@ -406,6 +459,66 @@ export default function AdminUsersPage() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={pendingStatus !== null}
+        onClose={() => setPendingStatus(null)}
+        onConfirm={() => void confirmStatusChange()}
+        title={pendingStatus?.status === "active" ? "Suspend this account?" : "Restore this account?"}
+        message={
+          pendingStatus?.status === "active"
+            ? `${pendingStatus?.name ?? "This user"} will be signed out on every device and can't sign in until restored. Their data and devices are not deleted.`
+            : `${pendingStatus?.name ?? "This user"} will be able to sign in again.`
+        }
+        confirmText={pendingStatus?.status === "active" ? "Suspend" : "Restore"}
+        variant={pendingStatus?.status === "active" ? "danger" : "info"}
+      />
+
+      <BottomSheet isOpen={viewUser !== null} onClose={() => setViewUser(null)} title="User details">
+        {viewUser && (
+          <dl className="space-y-3 text-sm">
+            <div><dt className="text-litter-muted">Name</dt><dd className="font-medium text-litter-text">{viewUser.name}</dd></div>
+            <div><dt className="text-litter-muted">Email</dt><dd className="font-medium text-litter-text break-all">{viewUser.email}</dd></div>
+            <div><dt className="text-litter-muted">Registered</dt><dd className="font-medium text-litter-text">{viewUser.registeredDate ? formatDate(viewUser.registeredDate) : "Unknown"}</dd></div>
+            <div><dt className="text-litter-muted">Status</dt><dd className="font-medium text-litter-text">{viewUser.status === "active" ? "Active" : "Suspended"}</dd></div>
+            <div>
+              <dt className="text-litter-muted">Cats ({viewUser.cats.length})</dt>
+              <dd className="font-medium text-litter-text">{viewUser.cats.length ? viewUser.cats.map((cat) => cat.name).join(", ") : "No cats yet"}</dd>
+            </div>
+            <div className="border-t border-litter-border pt-4 space-y-3">
+              <dt className="font-semibold text-litter-text">Recover access</dt>
+              <dd className="space-y-3">
+                <p className="text-xs text-litter-muted">
+                  First confirm the owner&apos;s identity (cat names, collar RFID tag, device, registration date).
+                  A password-reset link is emailed to the owner. You never see their password or the link.
+                </p>
+                <textarea
+                  value={recoveryNote}
+                  onChange={(event) => setRecoveryNote(event.target.value)}
+                  placeholder="How did you verify their identity? (saved in the activity log)"
+                  rows={3}
+                  maxLength={500}
+                  className="input-base w-full px-3 py-2 text-sm border border-litter-border rounded-xl"
+                />
+                <input
+                  type="email"
+                  value={recoveryEmail}
+                  onChange={(event) => setRecoveryEmail(event.target.value)}
+                  placeholder="New email (only if they lost access to the old one)"
+                  className="input-base w-full px-3 py-2 text-sm border border-litter-border rounded-xl"
+                />
+                <button
+                  type="button"
+                  onClick={() => void submitRecovery()}
+                  disabled={isRecovering || recoveryNote.trim().length < 10}
+                  className="w-full rounded-xl bg-litter-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {isRecovering ? "Sending…" : "Email reset link"}
+                </button>
+              </dd>
+            </div>
+          </dl>
+        )}
+      </BottomSheet>
     </main>
   );
 }

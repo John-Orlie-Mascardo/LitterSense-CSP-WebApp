@@ -8,9 +8,8 @@ import { authorizeAdminRequest } from "@/lib/server/adminAuth";
 import { writeAuditLog } from "@/lib/server/auditLog";
 import { smsStoreRequest } from "@/lib/utils/smsAccountSync";
 
-import { rfidPrimaryEnabled, OperationalError } from '@/lib/server/operationalStore';
-import { operationalAdminTransition } from '@/lib/server/operationalAdmin';
-import { deleteOwnerMedia } from '@/lib/server/operationalDeletion';
+import { rfidPrimaryEnabled } from '@/lib/server/operationalStore';
+import { deletePrimaryAccount } from '@/lib/server/primaryAccountDeletion';
 
 export const runtime = "nodejs";
 
@@ -29,44 +28,6 @@ function isMissingAuthUser(error: unknown): boolean {
   );
 }
 
-async function deletePrimaryUser(userId: string, admin: { uid: string; email: string | null }) {
-  const actor = { userId, actorUid: admin.uid, actorEmail: admin.email };
-  let started = false;
-  let stage = 'claiming the deletion request';
-  try {
-    await operationalAdminTransition({ ...actor, action: 'start' });
-    started = true;
-    stage = 'revoking account sessions';
-    try { await getAdminAuth().revokeRefreshTokens(userId); }
-    catch (error) { if (!isMissingAuthUser(error)) throw error; }
-    stage = 'deleting Supabase media';
-    await deleteOwnerMedia(userId);
-    stage = 'deleting legacy Firebase data';
-    const db = getAdminFirestore();
-    const userRef = db.doc(`users/${userId}`);
-    for (const nested of await userRef.listCollections()) await db.recursiveDelete(nested);
-    for (const name of ['deviceConfigs', 'cameraDevices', 'deleteRequests']) {
-      const linked = await db.collection(name).where(name === 'deleteRequests' ? 'userId' : 'ownerId', '==', userId).get();
-      for (const linkedDoc of linked.docs) await db.recursiveDelete(linkedDoc.ref);
-    }
-    await db.doc(`predictiveHealthLimits/${userId}`).delete();
-    await getAdminStorageBucket().deleteFiles({ prefix: `users/${userId}/` });
-    await userRef.delete();
-    stage = 'deleting the Firebase Auth user';
-    try { await getAdminAuth().deleteUser(userId); }
-    catch (error) { if (!isMissingAuthUser(error)) throw error; }
-    stage = 'finalizing deletion and audit';
-    await operationalAdminTransition({ ...actor, action: 'finish' });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    if (!started) return NextResponse.json({ error: error instanceof OperationalError ? error.message : 'Unable to start account deletion.' }, { status: error instanceof OperationalError ? error.status : 503 });
-    try { await operationalAdminTransition({ ...actor, action: 'fail', error: `Deletion failed while ${stage}. Retry the request or review the audit log.` }); }
-    catch (statusError) { console.error('[delete-user] Failed to retain failed request:', statusError); }
-    console.error('[delete-user] Primary deletion failed:', stage);
-    return NextResponse.json({ error: 'Account deletion failed. The request remains available for retry.' }, { status: 500 });
-  }
-}
-
 export async function POST(req: NextRequest) {
   const authorization = await authorizeAdminRequest(req);
   if (!authorization.ok) return authorization.response;
@@ -77,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid user ID." }, { status: 400 });
   }
 
-  if (rfidPrimaryEnabled()) return deletePrimaryUser(userId, authorization.admin);
+  if (rfidPrimaryEnabled()) return deletePrimaryAccount(userId, authorization.admin);
 
   const db = getAdminFirestore();
   const userRef = db.doc(`users/${userId}`);

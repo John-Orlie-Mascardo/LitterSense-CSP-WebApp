@@ -80,3 +80,9 @@ test("the calendar is full width with touch buttons and highlighted ranges", () 
   assert.match(calendarSource, /range-middle/);
   assert.match(calendarSource, /aria-pressed/);
 });
+
+test("state chips size columns to fit long names like Unattributed instead of overflowing", () => {
+  assert.match(filterSource, /grid-cols-\[repeat\(auto-fill,minmax\(10\.5rem,1fr\)\)\]/);
+  assert.doesNotMatch(filterSource, /grid-cols-2 gap-2 sm:grid-cols-3/);
+  assert.match(filterSource, /<span className="min-w-0 break-words">\{state\.label\}<\/span>/);
+});

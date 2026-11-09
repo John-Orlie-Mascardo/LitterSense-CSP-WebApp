@@ -1,7 +1,7 @@
 /**
  * Forgot Password — Step 1 (03.01.03)
  *
- * Requests a Firebase password-reset email in the shared dark/teal auth shell.
+ * Requests a LitterSense password-reset email (single-use, 30-minute link) in the shared dark/teal auth shell.
  *
  * DONE: real reset request, request locking, safe errors, matching auth styling
  * PLACEHOLDER: none
@@ -15,11 +15,8 @@ import { useState, useEffect } from "react";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/configs/firebase";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { FirebaseError } from "firebase/app";
 import { useAuth } from "@/lib/contexts/AuthContext";
-import { getPasswordResetActionCodeSettings } from "@/lib/utils/passwordReset";
+import { requestPasswordReset } from "@/lib/utils/passwordReset";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -41,21 +38,16 @@ export default function ForgotPasswordPage() {
     setError("");
     
     try {
-      await sendPasswordResetEmail(auth, email, getPasswordResetActionCodeSettings());
+      await requestPasswordReset(email);
       router.push(
         `/forgot-password/check-email?email=${encodeURIComponent(email)}`,
       );
     } catch (caughtError) {
-      const code = caughtError instanceof FirebaseError ? caughtError.code : undefined;
-      if (code === "auth/invalid-email") {
-        setError("Enter a valid email address.");
-      } else if (code === "auth/too-many-requests") {
-        setError("Too many reset requests. Please wait a moment and try again.");
-      } else if (code === "auth/network-request-failed") {
-        setError("We couldn’t reach LitterSense. Check your connection and try again.");
-      } else {
-        setError("We couldn’t send the reset link. Please try again.");
-      }
+      setError(
+        caughtError instanceof TypeError
+          ? "We couldn’t reach LitterSense. Check your connection and try again."
+          : caughtError instanceof Error ? caughtError.message : "We couldn’t send the reset link. Please try again.",
+      );
     } finally {
       setIsLoading(false);
     }

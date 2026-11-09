@@ -82,13 +82,14 @@ import {
 } from "@/lib/utils/ownerPhoto";
 import {
   readAccountDeletionState,
-  requestAccountDeletion,
+  deleteOwnAccount,
+  AccountDeletionError,
+  DELETE_ACCOUNT_PHRASE,
   type AccountDeletionState,
 } from "@/lib/utils/accountDeletion";
 import { useTour } from "@/components/tour/TourProvider";
 import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
 import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
-import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
 import { getBehaviorStateLabel } from "@/lib/presentation/behaviorStates";
 import {
   PASSWORD_POLICY_MESSAGE,
@@ -114,7 +115,7 @@ const PHONE_COUNTRY_CODES = [
   { code: "+44", label: "UK +44" },
 ];
 
-type ExportAllFormat = "pdf" | "csv" | "doc";
+type ExportAllFormat = "pdf" | "doc";
 
 const getPasswordStrength = (password: string): { strength: number; label: string } => {
   if (!password) return { strength: 0, label: "Too short" };
@@ -129,18 +130,11 @@ const getPasswordStrength = (password: string): { strength: number; label: strin
 type ExportAllPayload = {
   cats: ReturnType<typeof useCats>["cats"];
   catBehaviorLabels: Readonly<Record<string, string>>;
-  /** Sessions the shared rules mark Abnormal, so the export matches the screens. */
-  abnormalSessionIds: ReadonlySet<string>;
   catStats: ReturnType<typeof useCats>["catStats"];
   catDetails: ReturnType<typeof useCats>["catDetails"];
   sessions: ReturnType<typeof useCats>["sessions"];
   healthLogs: ReturnType<typeof useCats>["healthLogs"];
   exportedAt: string;
-};
-
-const csvCell = (value: unknown) => {
-  const text = value === null || value === undefined ? "" : String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
 
 const downloadBlob = (content: BlobPart, type: string, filename: string) => {
@@ -223,49 +217,6 @@ const buildExportHtml = (payload: ExportAllPayload) => {
     </html>`;
 };
 
-const buildExportCsv = (payload: ExportAllPayload) => {
-  const rows = [
-    ["LitterSense Data Export"],
-    ["Exported At", payload.exportedAt],
-    [],
-    ["Cats"],
-    ["ID", "Name", "Status", "RFID", "Visits", "Avg Duration"],
-    ...payload.cats.map((cat) => [
-      cat.id,
-      cat.name,
-      payload.catBehaviorLabels[cat.id] ?? "Insufficient data",
-      payload.catDetails[cat.id]?.rfidTag ?? "",
-      payload.catStats[cat.id]?.visits ?? 0,
-      payload.catStats[cat.id]?.avgDuration ?? "",
-    ]),
-    [],
-    ["Sessions"],
-    ["ID", "Cat ID", "Date", "Started At", "Ended At", "Duration Secs", "Status", "Anomaly"],
-    ...payload.sessions.map((session) => [
-      session.id,
-      session.catId,
-      session.date,
-      session.startedAt ?? "",
-      session.endedAt ?? "",
-      session.durationSecs,
-      session.sessionStatus ?? "",
-      payload.abnormalSessionIds.has(session.id) ? "Yes" : "No",
-    ]),
-    [],
-    ["Health Logs"],
-    ["ID", "Cat ID", "Date", "Type", "Note"],
-    ...payload.healthLogs.map((log) => [
-      log.id,
-      log.catId,
-      log.date,
-      log.type,
-      log.note,
-    ]),
-  ];
-
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
-};
-
 export default function SettingsPage() {
   const router = useRouter();
   const { requestReplay } = useTour();
@@ -308,7 +259,7 @@ export default function SettingsPage() {
   const [showExportSheet, setShowExportSheet] = useState(false);
   const [showDeleteRequestSheet, setShowDeleteRequestSheet] = useState(false);
   const [showDeleteFinalConfirm, setShowDeleteFinalConfirm] = useState(false);
-  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteAccountPhrase, setDeleteAccountPhrase] = useState("");
   const [deletionState, setDeletionState] = useState<{ ownerUid: string | null; account: AccountDeletionState }>({ ownerUid: null, account: { status: 'none', requestedAt: null } });
   const [isSubmittingDeletion, setIsSubmittingDeletion] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -333,23 +284,33 @@ export default function SettingsPage() {
     router.push("/dashboard");
   };
 
+  // Enter in the phrase box opens the final OK/Delete confirmation, only for the exact phrase.
+  const handleDeletePhraseSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (deleteAccountPhrase !== DELETE_ACCOUNT_PHRASE) return;
+    setShowDeleteRequestSheet(false);
+    setShowDeleteFinalConfirm(true);
+  };
+
   const handleSubmitDeletion = async () => {
-    if (!user || accountDeletion.status !== "none" || isSubmittingDeletion) return;
+    if (!user || accountDeletion.status === "processing" || isSubmittingDeletion) return;
+    setShowDeleteFinalConfirm(false);
     setIsSubmittingDeletion(true);
     try {
-      await requestAccountDeletion(user, deleteReason);
-      setDeletionState({ ownerUid: user.uid, account: { status: 'pending', requestedAt: new Date() } });
-      setDeleteReason("");
-      addToast("Deletion request submitted. An admin will review it soon.", "info");
+      await deleteOwnAccount(user, deleteAccountPhrase);
+      setDeleteAccountPhrase("");
+      addToast("Your account was deleted.", "success");
+      await signOut(auth).catch(() => {});
+      router.replace("/login");
     } catch (error) {
-      console.error("Failed to submit deletion request:", error);
-      const message = error instanceof Error ? error.message : "";
-      addToast(
-        message.includes("already active")
-          ? "A deletion request is already pending."
-          : "Failed to submit request. Please try again.",
-        message.includes("already active") ? "info" : "error",
-      );
+      console.error("Failed to delete account:", error);
+      if (error instanceof AccountDeletionError && error.reauthenticate) {
+        addToast("For your security, sign in again, then delete your account.", "info");
+        await signOut(auth).catch(() => {});
+        router.replace("/login");
+        return;
+      }
+      addToast(error instanceof Error ? error.message : "Failed to delete account. Please try again.", "error");
     } finally {
       setIsSubmittingDeletion(false);
     }
@@ -586,11 +547,6 @@ export default function SettingsPage() {
         return [cat.id, getBehaviorStateLabel(current.state, current.provisional)];
       }),
     ),
-    abnormalSessionIds: new Set(
-      sessions
-        .filter((session) => isReportSessionConcern(session, behaviorIndex))
-        .map((session) => session.id),
-    ),
     catStats,
     catDetails,
     sessions,
@@ -603,10 +559,7 @@ export default function SettingsPage() {
     const dateKey = new Date().toISOString().split("T")[0];
     const baseName = `littersense_export_${dateKey}`;
 
-    if (format === "csv") {
-      downloadBlob(buildExportCsv(payload), "text/csv", `${baseName}.csv`);
-      addToast("CSV export downloaded", "success");
-    } else if (format === "doc") {
+    if (format === "doc") {
       downloadBlob(
         buildExportHtml(payload),
         "application/msword",
@@ -1084,11 +1037,6 @@ export default function SettingsPage() {
               description: "Open a printable export and save it as PDF.",
             },
             {
-              format: "csv" as const,
-              label: "CSV",
-              description: "Download spreadsheet-friendly cat and session data.",
-            },
-            {
               format: "doc" as const,
               label: "DOC",
               description: "Download a Word-compatible document.",
@@ -1488,67 +1436,59 @@ export default function SettingsPage() {
       </BottomSheet>
 
       {/* Confirm Dialogs */}
-      {/* Step 1 â€” Reason sheet */}
+      {/* Step 1: type the exact phrase, then press Enter */}
       <BottomSheet
         isOpen={showDeleteRequestSheet}
-        onClose={() => { setShowDeleteRequestSheet(false); setDeleteReason(""); }}
-        title="Request Account Deletion"
+        onClose={() => { setShowDeleteRequestSheet(false); setDeleteAccountPhrase(""); }}
+        title="Delete Account"
       >
-        <div className="space-y-6">
-          {/* Warning */}
+        <form onSubmit={handleDeletePhraseSubmit} className="space-y-6">
           <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-800">
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-semibold text-red-700 dark:text-red-400 mb-1.5">Before you continue</p>
-              <ul className="text-red-600 dark:text-red-400 space-y-1 text-xs leading-relaxed">
-                <li>â€¢ Your account and all cat profiles will be permanently deleted</li>
-                <li>â€¢ All monitoring history and health logs will be lost</li>
-                <li>â€¢ This action cannot be undone once an admin processes it</li>
+              <ul className="list-disc pl-4 text-red-600 dark:text-red-400 space-y-1 text-xs leading-relaxed">
+                <li>Your account and all cat profiles will be permanently deleted</li>
+                <li>All monitoring history and health logs will be lost</li>
+                <li>This cannot be undone</li>
               </ul>
             </div>
           </div>
 
-          {/* Reason selector */}
           <div>
-            <label className="block text-sm font-medium text-litter-text mb-2">
-              Reason for leaving{" "}
-              <span className="text-litter-muted font-normal">(optional)</span>
+            <label htmlFor="delete-account-phrase" className="block text-sm font-medium text-litter-text mb-2">
+              To confirm, type <span className="font-semibold">{DELETE_ACCOUNT_PHRASE}</span> and press Enter
             </label>
-            <select
-              value={deleteReason}
-              onChange={(event) => setDeleteReason(event.target.value)}
+            <input
+              id="delete-account-phrase"
+              type="text"
+              autoComplete="off"
+              value={deleteAccountPhrase}
+              onChange={(event) => setDeleteAccountPhrase(event.target.value)}
+              placeholder={DELETE_ACCOUNT_PHRASE}
               className="input-base w-full px-4 py-3 rounded-xl border border-litter-border text-sm focus:outline-none focus:border-litter-primary focus:ring-2 focus:ring-litter-primary/10 transition-all"
-            >
-              <option value="">Select a reasonâ€¦</option>
-              <option value="No longer using the service">No longer using the service</option>
-              <option value="Privacy concerns">Privacy concerns</option>
-              <option value="Switching to a different app">Switching to a different app</option>
-              <option value="Too many notifications">Too many notifications</option>
-              <option value="Other">Other</option>
-            </select>
+            />
           </div>
 
-          {/* CTA */}
           <button
-            onClick={() => {
-              setShowDeleteRequestSheet(false);
-              setShowDeleteFinalConfirm(true);
-            }}
-            className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors"
+            type="submit"
+            disabled={deleteAccountPhrase !== DELETE_ACCOUNT_PHRASE}
+            className="w-full py-3 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors disabled:opacity-50"
           >
-            Continue to Confirm
+            Continue
           </button>
-        </div>
+        </form>
       </BottomSheet>
 
-      {/* Step 2 â€” Final confirmation */}
+      {/* Step 2: final confirmation with OK (keep account) and Delete */}
       <ConfirmDialog
         isOpen={showDeleteFinalConfirm}
-        onClose={() => setShowDeleteFinalConfirm(false)}
-        onConfirm={handleSubmitDeletion}
-        title="Submit Deletion Request?"
-        message="An admin will review your request. Once approved, your account and all data will be permanently deleted and cannot be recovered. You can continue using the app until an admin processes it."
-        confirmText="Submit Request"
+        onClose={() => { setShowDeleteFinalConfirm(false); setDeleteAccountPhrase(""); }}
+        onConfirm={() => void handleSubmitDeletion()}
+        title="Delete your account?"
+        message="Your account and all data will be permanently deleted right away and cannot be recovered. Press OK to keep your account."
+        confirmText="Delete"
+        cancelText="OK"
         variant="danger"
       />
       <ConfirmDialog isOpen={showSignOutConfirm} onClose={() => setShowSignOutConfirm(false)} onConfirm={handleSignOut}

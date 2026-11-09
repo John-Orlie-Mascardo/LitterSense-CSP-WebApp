@@ -33,9 +33,8 @@ export async function deleteUserData(userId: string): Promise<void> {
     //   await deleteUser(userAuth);
     // }
 
-    console.log(`[Hard Delete] User ${userId} data deletion completed`);
   } catch (error) {
-    console.error(`[Hard Delete] Failed to delete user ${userId}:`, error);
+    console.error("[Hard Delete] Failed to delete user data:", error);
     throw new Error(
       `Failed to delete user data: ${error instanceof Error ? error.message : "Unknown error"}`
     );

@@ -62,7 +62,7 @@ export function CatBehaviorTrends({
     <section className="mb-8">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-lg font-semibold text-litter-text sm:text-xl">
-          {catName}&apos;s Behavior
+          {catName.endsWith("s") ? `${catName}'` : `${catName}'s`} Behavior
         </h2>
       </div>
 

@@ -194,7 +194,7 @@ test('today metrics do not treat unverified daily summaries as counted visits', 
     result, getDisplayTodayStats, useMemo: calculate => calculate(),
     stats: { visits: 2, avgDuration: '0m 30s' }, activeCatId: 'cat-a',
     displaySessions: [summary], recentVisits: [{ session: projectedExit }, { session: summary }],
-    getLocalDateKey: () => '2026-10-09',
+    getLocalDateKey: () => '2026-10-09', showAllCats: false, ALL_CATS_ID: 'all',
   });
   assert.equal(result.stats.visits, 0, 'only session-level records can satisfy the counted-visit check');
 });
@@ -209,4 +209,15 @@ test("behavior chart labels duration in minutes on the left and visits on the ri
 test("behavior chart orders the current week from Monday through Sunday", () => {
   assert.match(catContextSource, /getDay\(\) \+ 6\) % 7/);
   assert.match(catContextSource, /monday\.getDate\(\) \+ index/);
+});
+
+test("Home offers an All cats overview only when there are two or more cats", () => {
+  assert.match(source, /cats\.length > 1 && \(/);
+  assert.match(source, /onSelectCat\(ALL_CATS_ID\)/);
+  assert.match(source, /combineCatTrends\(cats\.map/);
+  assert.match(source, /states\[ALL_CATS_ID\] = getMostSevereState/);
+});
+
+test("Home shows the alert banner without a second notification subscription", () => {
+  assert.match(source, /<HomeAlertBanner offlineBoards=\{getOfflineBoards\(sensorData\)\} \/>/);
 });
