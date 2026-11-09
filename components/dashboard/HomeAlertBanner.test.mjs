@@ -50,3 +50,9 @@ test("Home passes offline boards from the sensor data it already loads", () => {
   assert.match(home, /<HomeAlertBanner offlineBoards=\{getOfflineBoards\(sensorData\)\} \/>/);
   assert.match(source, /offlineBoards/);
 });
+
+test("closing an alert hides it immediately, then marks it read in the background", () => {
+  assert.match(source, /setDismissedAlertIds\(\(prev\) => new Set\(prev\)\.add\(alert\.id\)\)/);
+  assert.match(source, /!dismissedAlertIds\.has\(notification\.id\)/);
+  assert.match(source, /void markAsRead\(alert\.id\)/);
+});

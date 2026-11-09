@@ -24,6 +24,10 @@ function isMissingAuthUser(error: unknown): boolean {
   );
 }
 
+function isMissingBucket(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && Number(error.code) === 404;
+}
+
 export async function deletePrimaryAccount(
   userId: string,
   actorIdentity: { uid: string; email: string | null },
@@ -48,7 +52,9 @@ export async function deletePrimaryAccount(
       for (const linkedDoc of linked.docs) await db.recursiveDelete(linkedDoc.ref);
     }
     await db.doc(`predictiveHealthLimits/${userId}`).delete();
-    await getAdminStorageBucket().deleteFiles({ prefix: `users/${userId}/` });
+    try { await getAdminStorageBucket().deleteFiles({ prefix: `users/${userId}/` }); }
+    // No Firebase Storage bucket (photos live in Supabase now) means there are no files to remove.
+    catch (error) { if (!isMissingBucket(error)) throw error; }
     await userRef.delete();
     stage = 'deleting the Firebase Auth user';
     try { await getAdminAuth().deleteUser(userId); }
@@ -60,7 +66,7 @@ export async function deletePrimaryAccount(
     if (!started) return Response.json({ error: error instanceof OperationalError ? error.message : 'Unable to start account deletion.' }, { status: error instanceof OperationalError ? error.status : 503 });
     try { await operationalAdminTransition({ ...actor, action: 'fail', error: `Deletion failed while ${stage}. Retry the request or review the audit log.` }); }
     catch (statusError) { console.error('[delete-account] Failed to retain failed request:', statusError); }
-    console.error('[delete-account] Primary deletion failed:', stage);
+    console.error('[delete-account] Primary deletion failed:', stage, error instanceof Error ? error.message.slice(0, 300) : error);
     return Response.json({ error: 'Account deletion failed. The request remains available for retry.' }, { status: 500 });
   }
 }

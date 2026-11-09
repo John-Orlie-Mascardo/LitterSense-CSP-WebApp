@@ -35,7 +35,9 @@ export function HomeAlertBanner({ offlineBoards = [] }: { readonly offlineBoards
   const { notifications, markAsRead } = useNotifications();
   // Dismissed per outage: a new outage (different last signal) shows again.
   const [dismissedOutages, setDismissedOutages] = useState<ReadonlySet<string>>(() => new Set());
-  const alerts = notifications.filter(isHomeAlert);
+  // Hide a closed alert at once; saving "read" to the server can take a few seconds.
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<ReadonlySet<string>>(() => new Set());
+  const alerts = notifications.filter((notification) => isHomeAlert(notification) && !dismissedAlertIds.has(notification.id));
   const outages = offlineBoards.filter((board) => !dismissedOutages.has(`${board.board}:${board.lastSeenAt}`));
   if (alerts.length === 0 && outages.length === 0) return null;
 
@@ -72,7 +74,10 @@ export function HomeAlertBanner({ offlineBoards = [] }: { readonly offlineBoards
           </div>
           <button
             type="button"
-            onClick={() => void markAsRead(alert.id)}
+            onClick={() => {
+              setDismissedAlertIds((prev) => new Set(prev).add(alert.id));
+              void markAsRead(alert.id);
+            }}
             aria-label={`Dismiss alert: ${alert.title}`}
             className="shrink-0 rounded-lg p-1 text-litter-muted hover:text-litter-text"
           >
