@@ -5,13 +5,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { subscribeSensorChanges } from '@/lib/utils/notificationLive';
 import type { GasHistoryEvent } from '@/lib/server/gasHistory';
+import { groupGasReadings } from '@/lib/presentation/gasHistoryGroups';
+
+// Rows shown at first and added per "Show more"; repeated readings are combined into one row.
+const ROWS_PER_STEP = 8;
 
 type HistoryState = { uid: string; events: GasHistoryEvent[]; nextCursor: string | null; error: string; loading: boolean };
 const formatTime = (value: string) => new Date(value).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' });
+const formatClock = (value: string) => new Date(value).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+// The end keeps its date when a run of readings crosses midnight.
+const formatRange = (from: string, to: string) => `${formatTime(from)} – ${new Date(from).toDateString() === new Date(to).toDateString() ? formatClock(to) : formatTime(to)}`;
 
 export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
   const { user } = useAuth();
   const [state, setState] = useState<HistoryState | null>(null);
+  const [rowLimit, setRowLimit] = useState(ROWS_PER_STEP);
   const loadRef = useRef<(more?: boolean) => void>(() => {});
   useEffect(() => {
     if (!user) return;
@@ -52,7 +60,8 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
     return () => { active = false; controller.abort(); clearInterval(timer); disconnect(); document.removeEventListener('visibilitychange', refresh); loadRef.current = () => {}; };
   }, [user]);
   const current = state?.uid === user?.uid ? state : null;
-  const events = preview ? current?.events.slice(0, 3) : current?.events;
+  const rows = groupGasReadings(current?.events ?? []);
+  const shownRows = preview ? rows.slice(0, 3) : rows.slice(0, rowLimit);
   return <section className="rounded-2xl border border-litter-border bg-litter-card p-4 sm:p-6">
     <div className="flex items-center justify-between gap-3">
       <h2 className="font-display font-semibold text-litter-text">Gas Sensor History</h2>
@@ -61,17 +70,24 @@ export function GasSensorHistory({ preview = false }: { preview?: boolean }) {
     <p className="mt-1 text-xs text-litter-muted">Recorded readings, including events uploaded after internet returned. These are separate from the current gas readings.</p>
     {current?.error && <p role="alert" className="mt-3 text-sm text-red-400">{current.error} <button onClick={() => loadRef.current()} className="underline">Retry</button></p>}
     {!current && <p className="mt-3 text-sm text-litter-muted">Loading recorded readings…</p>}
-    {current && !current.loading && !current.error && !events?.length && <p className="mt-3 text-sm text-litter-muted">No recorded gas readings yet.</p>}
+    {current && !current.loading && !current.error && !rows.length && <p className="mt-3 text-sm text-litter-muted">No recorded gas readings yet.</p>}
     <ul className="mt-3 divide-y divide-litter-border">
-      {events?.map(event => <li key={event.id} className="py-3 text-sm">
+      {shownRows.map(row => <li key={row.key} className="py-3 text-sm">
         <div className="flex flex-wrap gap-x-6 gap-y-1 font-medium">
-          <span className={event.mq135Raw === 0 ? 'text-red-400' : 'text-litter-primary'}>Urine odor: {event.mq135Raw === 0 ? 'Detected' : 'Clear'}</span>
-          <span className={event.mq136Raw === 0 ? 'text-red-400' : 'text-litter-primary'}>Stool odor: {event.mq136Raw === 0 ? 'Detected' : 'Clear'}</span>
+          <span className={row.urineDetected ? 'text-red-400' : 'text-litter-primary'}>Urine odor: {row.urineDetected ? 'Detected' : 'Clear'}</span>
+          <span className={row.stoolDetected ? 'text-red-400' : 'text-litter-primary'}>Stool odor: {row.stoolDetected ? 'Detected' : 'Clear'}</span>
+          {row.count > 1 && <span className="text-xs font-normal text-litter-muted">{row.count} readings</span>}
         </div>
-        <p className="mt-1 text-xs text-litter-text">Recorded: {event.capturedAt ? formatTime(event.capturedAt) : 'Time uncertain'}</p>
-        <p className="mt-1 text-xs text-litter-muted">Uploaded: {formatTime(event.receivedAt)}</p>
+        {row.count === 1 ? <>
+          <p className="mt-1 text-xs text-litter-text">Recorded: {row.newest.capturedAt ? formatTime(row.newest.capturedAt) : 'Time uncertain'}</p>
+          <p className="mt-1 text-xs text-litter-muted">Uploaded: {formatTime(row.newest.receivedAt)}</p>
+        </> : <>
+          <p className="mt-1 text-xs text-litter-text">Recorded: {row.oldest.capturedAt && row.newest.capturedAt ? formatRange(row.oldest.capturedAt, row.newest.capturedAt) : 'Time uncertain'}</p>
+          <p className="mt-1 text-xs text-litter-muted">Last uploaded: {formatTime(row.newest.receivedAt)}</p>
+        </>}
       </li>)}
     </ul>
-    {!preview && current?.nextCursor && <button disabled={current.loading} onClick={() => loadRef.current(true)} className="mt-3 text-sm font-semibold text-litter-primary disabled:opacity-50">{current.loading ? 'Loading…' : 'Load older readings'}</button>}
+    {!preview && rows.length > rowLimit && <button onClick={() => setRowLimit(limit => limit + ROWS_PER_STEP)} className="mt-3 text-sm font-semibold text-litter-primary">Show more</button>}
+    {!preview && rows.length <= rowLimit && current?.nextCursor && <button disabled={current.loading} onClick={() => { setRowLimit(limit => limit + ROWS_PER_STEP); loadRef.current(true); }} className="mt-3 text-sm font-semibold text-litter-primary disabled:opacity-50">{current.loading ? 'Loading…' : 'Load older readings'}</button>}
   </section>;
 }

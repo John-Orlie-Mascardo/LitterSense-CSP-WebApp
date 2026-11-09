@@ -151,7 +151,8 @@ function FilterFields({
         </div>
       </fieldset>
 
-      <div className="grid grid-cols-2 gap-2">
+      {/* Pinned to the bottom of the scrolling filter box so Apply is always reachable. */}
+      <div className="sticky bottom-0 grid grid-cols-2 gap-2 bg-litter-card pb-1 pt-3">
         <button
           type="button"
           onClick={onReset}
@@ -197,7 +198,8 @@ export function SessionHistoryFilters({
 
   return (
     <>
-      <div className="sticky top-20 z-20 hidden rounded-2xl border border-litter-border bg-litter-card/95 p-4 shadow-sm backdrop-blur md:block">
+      {/* Own scroll while the pointer is over it; never taller than the screen. */}
+      <div className="sticky top-20 z-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain rounded-2xl border border-litter-border bg-litter-card/95 p-4 pb-0 shadow-sm backdrop-blur md:block">
         <FilterFields draft={draft} cats={cats} onChange={setDraft} onApply={apply} onReset={reset} />
       </div>
       <button
