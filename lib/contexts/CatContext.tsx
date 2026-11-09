@@ -53,12 +53,9 @@ import type {
 } from "@/lib/data/mockData";
 import type { CatSessionLog } from "@/lib/interfaces/CatSessionLog";
 import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
-import { buildCatBehaviorIndex } from "@/lib/presentation/catBehavior";
+import { buildCatBehaviorIndex, getCatBehaviorToday } from "@/lib/presentation/catBehavior";
 import type { CatBehaviorIndex } from "@/lib/presentation/behaviorStates";
-import {
-  ABNORMAL_DURATION_SECS,
-  DASHBOARD_VISIT_WARNING_COUNT,
-} from "@/lib/configs/behaviorThresholds";
+import { ABNORMAL_DURATION_SECS } from "@/lib/configs/behaviorThresholds";
 import type { CatProfileMutation } from "@/lib/utils/catCatalogSync";
 import { useCatBackup } from '@/lib/hooks/useCatBackup';
 
@@ -308,39 +305,16 @@ const deriveStatsForCat = (
   return localStats[catId] ?? emptyStats;
 };
 
+// Shared rollup: only counted visits (≥ 15 s, not Incomplete) reach the 7th-visit
+// rule, and the generic anomaly flag no longer decides on its own.
 const deriveLiveStatus = (
   cat: Cat,
-  stats: CatStats,
   sessions: Session[],
-  today = getLocalDateKey(),
-): Cat["status"] => {
-  let status = cat.status;
-  const todaySessions = sessions.filter(
-    (session) =>
-      session.catId === cat.id &&
-      session.sessionStatus !== "SESSION_INTERRUPTED" &&
-      getSessionActivityDateKey(session) === today,
-  );
-
-  if (stats.visits > DASHBOARD_VISIT_WARNING_COUNT) {
-    status = "abnormal";
-  }
-
-  if (
-    todaySessions.some(
-      (session) =>
-        session.anomaly &&
-        (session.anomalyType === "No exit timeout" ||
-          session.durationSecs >= ABNORMAL_DURATION_SECS),
-    )
-  ) {
-    status = "abnormal";
-  } else if (todaySessions.some((session) => session.anomaly)) {
-    status = "abnormal";
-  }
-
-  return status;
-};
+  behaviorIndex: CatBehaviorIndex,
+): Cat["status"] =>
+  getCatBehaviorToday(cat.id, sessions.filter((session) => session.catId === cat.id), behaviorIndex).state === "abnormal"
+    ? "abnormal"
+    : cat.status;
 
 const buildTrendData = (
   catId: string,
@@ -769,20 +743,11 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
 
   const cats = useMemo(
     () =>
-      visibleRawCats.map((cat) => {
-        const stats = deriveStatsForCat(
-          cat.id,
-          visibleFirebaseStats,
-          visibleSessions,
-          visibleDailyStats,
-          visibleLocalStats,
-        );
-        return {
-          ...cat,
-          status: deriveLiveStatus(cat, stats, visibleSessions),
-        };
-      }),
-    [visibleDailyStats, visibleLocalStats, visibleFirebaseStats, visibleRawCats, visibleSessions],
+      visibleRawCats.map((cat) => ({
+        ...cat,
+        status: deriveLiveStatus(cat, visibleSessions, behaviorIndex),
+      })),
+    [visibleRawCats, visibleSessions, behaviorIndex],
   );
 
   const saveProfile = async (mutation: CatProfileMutation) => {

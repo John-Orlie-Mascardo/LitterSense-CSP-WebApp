@@ -293,6 +293,7 @@ function PopulatedDashboardState({
   selectedHasData,
   selectedBaselineEstablished,
   selectedProvisional,
+  selectedBaselineDaysUsed,
   airQualityReadings,
   airQualityStatus,
   trendData,
@@ -316,6 +317,7 @@ function PopulatedDashboardState({
   readonly selectedHasData: boolean;
   readonly selectedBaselineEstablished: boolean;
   readonly selectedProvisional: boolean;
+  readonly selectedBaselineDaysUsed: number;
   readonly airQualityReadings: AirQualityReadings;
   readonly airQualityStatus: SensorDisplayStatus;
   readonly trendData: CatTrendPoint[] | null;
@@ -388,8 +390,8 @@ function PopulatedDashboardState({
           </div>
         )}
 
-        <BehaviorStateLegend compact collapsible className="mb-6 lg:hidden" />
-        <BehaviorStateLegend compact className="mb-6 hidden lg:block" />
+        <BehaviorStateLegend compact collapsible baselineDaysUsed={selectedBaselineDaysUsed} className="mb-6 lg:hidden" />
+        <BehaviorStateLegend compact baselineDaysUsed={selectedBaselineDaysUsed} className="mb-6 hidden lg:block" />
       </div>
 
       <div className="lg:pt-6">
@@ -547,8 +549,8 @@ export default function DashboardPage() {
   const stats = useMemo(() => getStatsByCatId(activeCatId), [activeCatId, getStatsByCatId]);
   const trendData = useMemo(() => getTrendData(activeCatId), [activeCatId, getTrendData]);
   const trendReferences = useMemo(
-    () => buildCatTrendReferences(getDetailsByCatId(activeCatId)?.baseline),
-    [activeCatId, getDetailsByCatId],
+    () => buildCatTrendReferences(behaviorIndex.baselineByCatId.get(activeCatId)),
+    [activeCatId, behaviorIndex],
   );
   const displaySessions = useMemo(
     () => cats.flatMap((cat) => getSessionsByCatId(cat.id)),
@@ -576,6 +578,7 @@ export default function DashboardPage() {
               baselineEstablished: hasEstablishedBaseline(today.baseline),
               state: today.state,
               provisional: today.provisional,
+              baselineDaysUsed: today.baseline?.daysUsed ?? 0,
             },
           ];
         }),
@@ -586,6 +589,7 @@ export default function DashboardPage() {
           readonly baselineEstablished: boolean;
           readonly state: BehaviorStateId;
           readonly provisional: boolean;
+          readonly baselineDaysUsed: number;
         }
       >,
     [behaviorIndex, cats, getSessionsByCatId, getStatsByCatId, getTrendData],
@@ -605,6 +609,7 @@ export default function DashboardPage() {
     baselineEstablished: false,
     state: "insufficient" as const,
     provisional: false,
+    baselineDaysUsed: 0,
   };
 
   const abnormalCats = useMemo(
@@ -706,6 +711,7 @@ export default function DashboardPage() {
             selectedHasData={selectedPresentation.hasData}
             selectedBaselineEstablished={selectedPresentation.baselineEstablished}
             selectedProvisional={selectedPresentation.provisional}
+            selectedBaselineDaysUsed={selectedPresentation.baselineDaysUsed}
             airQualityReadings={airQualityReadings}
             airQualityStatus={airQualityStatus}
             trendData={trendData}

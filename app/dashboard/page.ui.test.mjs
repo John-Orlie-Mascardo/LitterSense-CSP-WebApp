@@ -125,7 +125,7 @@ test("mobile state key precedes the chart and primary metric sections", () => {
     "export default function DashboardPage()",
   );
   const mobileStateKeyIndex = populatedDashboardState.indexOf(
-    '<BehaviorStateLegend compact collapsible className="mb-6 lg:hidden" />',
+    '<BehaviorStateLegend compact collapsible baselineDaysUsed={selectedBaselineDaysUsed} className="mb-6 lg:hidden" />',
   );
   const chartIndex = populatedDashboardState.indexOf("<CatBehaviorTrends");
   const catStatsIndex = populatedDashboardState.indexOf("Cat Stats");

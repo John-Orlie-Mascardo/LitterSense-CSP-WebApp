@@ -39,7 +39,6 @@ import { UNATTRIBUTED_GROUP_NAME } from "@/lib/presentation/reportSessionGroups"
 import {
   buildAggregateTrendReferences,
   buildCatTrendReferences,
-  type BaselineMetricsInput,
 } from "@/lib/presentation/trendCharts";
 
 export type ReportSession = Session & {
@@ -185,7 +184,6 @@ export function useReports() {
     cats,
     sessions: rawSessions,
     behaviorIndex,
-    getDetailsByCatId,
     getHealthLogsByCatId,
     getSessionsByCatId,
     getTrendData,
@@ -331,10 +329,8 @@ export function useReports() {
     }
 
     const selectedReportCats = actualCatId === "all" ? cats : cat ? [cat] : [];
-    const reportBaselines = selectedReportCats.flatMap((reportCat) => {
-      const baseline = getDetailsByCatId(reportCat.id)?.baseline;
-      return baseline ? [baseline as BaselineMetricsInput] : [];
-    });
+    const reportBaselines = selectedReportCats.map((reportCat) =>
+      behaviorIndex?.baselineByCatId.get(reportCat.id));
 
     const report: ReportData = {
       id: generateId(),
@@ -404,7 +400,7 @@ export function useReports() {
     }
 
     return report;
-  }, [behaviorIndex, cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
+  }, [behaviorIndex, cats, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
 
   const deleteReport = useCallback(async (reportId: string) => {
     if (!isCurrentOwner()) return;

@@ -13,7 +13,7 @@ import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { getPredictiveOverview } from "@/lib/utils/predictiveOverview";
 import {
-  BEHAVIOR_STATE_BY_ID,
+  getBehaviorStateSentence,
   formatMetricValue,
   hasEstablishedBaseline,
   hasRecordedCatData,
@@ -131,8 +131,8 @@ export default function PredictiveHealthPage() {
   const displayDuration = String(
     formatMetricValue(averageDuration, presentation.hasData),
   );
-  // Same evidence shape as before, now from the computed baseline (medians).
-  // Phase 4 adds the bands and days used; the prompt rules are unchanged.
+  // Evidence from the computed baseline: medians, both bands, and the days used.
+  // The prompt rules are unchanged.
   const baseline = computedBaseline?.established &&
     computedBaseline.medianVisitsPerDay !== null &&
     computedBaseline.medianDurationSecs !== null
@@ -140,8 +140,11 @@ export default function PredictiveHealthPage() {
         avgVisitsPerDay: computedBaseline.medianVisitsPerDay,
         avgDurationSecs: computedBaseline.medianDurationSecs,
         lastUpdated: computedBaseline.windowEnd,
+        ...(computedBaseline.visitBand ? { visitBand: computedBaseline.visitBand } : {}),
+        ...(computedBaseline.durationBand ? { durationBand: computedBaseline.durationBand } : {}),
       }
     : null;
+  const baselineDaysUsed = computedBaseline?.daysUsed ?? 0;
   const todayVisits = displayVisits;
   const todayAvgDurationSecs = todayVisits > 0
     ? (parseDurationLabelToSeconds(stats?.avgDuration ?? '') ?? parseDurationLabelToSeconds(averageDuration))
@@ -152,6 +155,7 @@ export default function PredictiveHealthPage() {
     todayVisits,
     todayAvgDurationSecs,
     baseline,
+    baselineDaysUsed,
     sessionCounts,
     trendData,
     environment,
@@ -160,7 +164,7 @@ export default function PredictiveHealthPage() {
   const analysis = analysisResult?.key === analysisKey
     ? analysisResult.analysis
     : null;
-  const analysisSummary = analysis?.summary ?? (presentation.baselineEstablished ? BEHAVIOR_STATE_BY_ID[presentation.state].description : `Early read available from ${overview.completed} completed visits and current environment readings. Select Analyze for a preliminary summary.`);
+  const analysisSummary = analysis?.summary ?? (presentation.baselineEstablished ? getBehaviorStateSentence(presentation.state) : `Early read available from ${overview.completed} completed visits and current environment readings. Select Analyze for a preliminary summary.`);
 
   const handleAnalyze = async () => {
     if (!user || !selectedCat || isAnalyzing || retryAfterSeconds > 0) return;
@@ -179,6 +183,7 @@ export default function PredictiveHealthPage() {
           todayVisits,
           todayAvgDurationSecs,
           baseline,
+          baselineDaysUsed,
           sessionCounts,
           trendData: trendData ?? [],
           environment,

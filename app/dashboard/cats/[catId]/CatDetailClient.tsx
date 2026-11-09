@@ -21,7 +21,6 @@ import {
   Pencil,
   Clock,
   Timer,
-  Wind,
   Tag,
   Info,
   Plus,
@@ -80,12 +79,15 @@ import {
   formatMetricValue,
   getBehaviorStateLabel,
   getIndexedSessionBehavior,
+  BASELINE_UPDATE_TEXT,
+  formatBaselineProgress,
   hasEstablishedBaseline,
   hasRecordedCatData,
   type BehaviorStateId,
   type CatBehaviorIndex,
 } from "@/lib/presentation/behaviorStates";
 import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import { filterShortVisits, SHOW_SHORT_VISITS_LABEL } from "@/lib/presentation/shortVisits";
 import type { PersonalBaseline } from "@/lib/utils/personalBaseline";
 import { BASELINE_MIN_DAYS } from "@/lib/configs/behaviorThresholds";
 import {
@@ -236,7 +238,6 @@ export default function CatDetailClient() {
   const healthLogs = getHealthLogsByCatId(catId);
   const sessionLog = deriveSessionLogCounts(sessions, behaviorIndex);
   const trendData = getTrendData(catId);
-  const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
   // Same shared rollup as Home, My Cats, and Predictive Health.
   const {
@@ -244,6 +245,7 @@ export default function CatDetailClient() {
     provisional: displayProvisional,
     baseline: computedBaseline,
   } = getCatBehaviorToday(catId, sessions, behaviorIndex);
+  const trendReferences = buildCatTrendReferences(computedBaseline);
 
   const requestedTab = searchParams.get("tab");
   const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
@@ -954,47 +956,65 @@ function OverviewTab({
       <div><p className="mb-2 text-xs text-litter-muted">All recorded sessions</p><SessionLogSummary log={sessionLog} /></div>
 
       {/* Baseline Profile */}
-      {baselineEstablished && baseline.visitBand && baseline.durationBand ? (
-        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
-            <div className="group relative">
-              <Info className="w-4 h-4 text-theme-muted cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                {/* NOTE(manuscript): This numeric baseline-period copy must match the capstone paper. */}
-                Baseline is recalculated every {BASELINE_MIN_DAYS} days using a rolling average of
-                recorded sessions.
+      {/* NOTE(manuscript): Baseline copy and numbers must match the capstone paper. */}
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
+        <div className="flex items-center gap-2 mb-1">
+          <Info className="w-4 h-4 text-theme-muted" aria-hidden="true" />
+          <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
+        </div>
+        <p className="text-xs text-theme-muted mb-3">{BASELINE_UPDATE_TEXT}</p>
+
+        {baselineEstablished &&
+        baseline.medianVisitsPerDay !== null &&
+        baseline.medianDurationSecs !== null &&
+        baseline.visitBand &&
+        baseline.durationBand ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-litter-card rounded-lg p-3">
+                <p className="text-theme-muted">Median visits/day</p>
+                <p className="font-semibold text-litter-text">
+                  {formatBandValue(baseline.medianVisitsPerDay)}
+                </p>
+                <p className="text-xs text-theme-muted mt-1">
+                  Upper limit: {formatBandValue(baseline.visitBand[1])}
+                </p>
+              </div>
+              <div className="bg-litter-card rounded-lg p-3">
+                <p className="text-theme-muted">Median duration</p>
+                <p className="font-semibold text-litter-text">
+                  {formatDuration(Math.round(baseline.medianDurationSecs))}
+                </p>
+                <p className="text-xs text-theme-muted mt-1">
+                  Upper limit: {formatDuration(Math.round(baseline.durationBand[1]))}
+                </p>
               </div>
             </div>
-          </div>
-
-          {/* NOTE(manuscript): All numeric baseline values below must match the capstone paper. */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual visits/day</p>
-              <p className="font-semibold text-litter-text">
-                {formatBandValue(baseline.visitBand[0])}–
-                {formatBandValue(baseline.visitBand[1])}
-              </p>
+            <p className="text-xs text-theme-muted mt-3">
+              Based on visits from {formatDate(baseline.windowStart)} to {formatDate(baseline.windowEnd)}
+            </p>
+          </>
+        ) : (
+          <div>
+            <p className="text-sm font-semibold text-litter-text">
+              {formatBaselineProgress(baseline?.daysUsed)}
+            </p>
+            <div
+              className="mt-2 h-2 rounded-full bg-litter-card overflow-hidden"
+              role="progressbar"
+              aria-label="Days with visits toward the baseline"
+              aria-valuemin={0}
+              aria-valuemax={BASELINE_MIN_DAYS}
+              aria-valuenow={Math.min(baseline?.daysUsed ?? 0, BASELINE_MIN_DAYS)}
+            >
+              <div
+                className="h-full bg-litter-primary"
+                style={{ width: `${(Math.min(baseline?.daysUsed ?? 0, BASELINE_MIN_DAYS) / BASELINE_MIN_DAYS) * 100}%` }}
+              />
             </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual duration</p>
-              <p className="font-semibold text-litter-text">
-                {formatDuration(Math.round(Math.max(0, baseline.durationBand[0])))} –{" "}
-                {formatDuration(Math.round(baseline.durationBand[1]))}
-              </p>
-            </div>
           </div>
-
-          <p className="text-xs text-theme-muted mt-3">
-            Based on visits from {formatDate(baseline.windowStart)} to {formatDate(baseline.windowEnd)}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border text-center">
-          <p className="text-sm text-litter-muted">Baseline data will appear once the device starts recording sessions.</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Recent Anomalies */}
       <div>
@@ -1034,11 +1054,28 @@ interface HistoryTabProps {
 
 function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
+  // Display only: short visits stay counted everywhere else.
+  const [showShortVisits, setShowShortVisits] = useState(false);
+  const { visible: lengthFilteredSessions, hiddenCount: hiddenShortVisits } =
+    filterShortVisits(sessions, showShortVisits);
   const filteredSessions =
-    filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
+    filter === "anomalies" ? lengthFilteredSessions.filter((s) => s.anomaly) : lengthFilteredSessions;
 
   return (
     <div>
+      <label className="flex items-center gap-2 mb-3 text-sm text-theme-secondary cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={showShortVisits}
+          onChange={(event) => setShowShortVisits(event.target.checked)}
+          className="h-4 w-4 accent-[#1B7A6E]"
+        />
+        {SHOW_SHORT_VISITS_LABEL}
+        {hiddenShortVisits > 0 && (
+          <span className="text-xs text-theme-muted">({hiddenShortVisits} hidden)</span>
+        )}
+      </label>
+
       {/* Filter bar */}
       <div className="flex gap-2 mb-4">
         <button
@@ -1187,22 +1224,6 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
           hasData={hasData}
           reference={references?.duration}
           baselineMessage={references ? undefined : "building"}
-          emptyMessage="No sessions were recorded in this 7-day period."
-        />
-      </div>
-
-      {/* Air quality change */}
-      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-        <div className="flex items-center gap-2 mb-3">
-          <Wind className="w-5 h-5 text-litter-primary" />
-          <h4 className="font-semibold text-litter-text">
-            Air quality change (7 days)
-          </h4>
-        </div>
-        <MetricTrendChart
-          data={getMetricTrendPoints(trendData, "airQuality")}
-          metric="airQuality"
-          hasData={hasData}
           emptyMessage="No sessions were recorded in this 7-day period."
         />
       </div>

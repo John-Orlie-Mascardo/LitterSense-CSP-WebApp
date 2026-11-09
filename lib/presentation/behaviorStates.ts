@@ -16,6 +16,8 @@
 
 import {
   ABNORMAL_DURATION_SECS,
+  BASELINE_MIN_DAYS,
+  BASELINE_WINDOW_DAYS,
   DASHBOARD_VISIT_WARNING_COUNT,
   INCOMPLETE_SESSION_FLOOR_SECS,
 } from "../configs/behaviorThresholds";
@@ -44,7 +46,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "normal",
     label: "Normal",
-    description: "Matches this cat’s usual pattern and set limits.",
+    description: "within your cat's usual range",
     dotClass: "bg-litter-normal",
     badgeClass: "bg-status-normal text-status-normal",
     severity: 20,
@@ -52,7 +54,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "watch",
     label: "Watch",
-    description: "Within set limits, but different from this cat’s usual pattern.",
+    description: "above your cat's usual range",
     dotClass: "bg-litter-watch",
     badgeClass: "bg-status-watch text-status-watch",
     severity: 50,
@@ -60,7 +62,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "abnormal",
     label: "Abnormal",
-    description: "A set activity limit was crossed.",
+    description: `a visit of ${ABNORMAL_DURATION_SECS / 60} minutes or longer, or ${DASHBOARD_VISIT_WARNING_COUNT + 1}+ visits today`,
     dotClass: "bg-litter-abnormal",
     badgeClass: "bg-status-abnormal text-status-abnormal",
     severity: 60,
@@ -68,7 +70,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "insufficient",
     label: "Insufficient data",
-    description: "More sessions are needed to build this cat’s usual pattern.",
+    description: "no visits recorded yet",
     dotClass: "bg-litter-insufficient",
     badgeClass: "bg-status-insufficient text-status-insufficient",
     severity: 10,
@@ -76,7 +78,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "incomplete",
     label: "Incomplete",
-    description: "The visit was too short, or its exit could not be confirmed.",
+    description: `under ${INCOMPLETE_SESSION_FLOOR_SECS} seconds, or the exit wasn't confirmed`,
     dotClass: "bg-litter-incomplete",
     badgeClass: "bg-status-incomplete text-status-incomplete",
     severity: 40,
@@ -94,6 +96,68 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
 export const BEHAVIOR_STATE_BY_ID = Object.fromEntries(
   BEHAVIOR_STATES.map((state) => [state.id, state]),
 ) as Record<BehaviorStateId, BehaviorStateDefinition>;
+
+/** "X of 7 days": progress toward an established baseline. */
+export function formatBaselineProgress(daysUsed: number | null | undefined): string {
+  const days = Math.min(Math.max(0, Math.floor(daysUsed ?? 0)), BASELINE_MIN_DAYS);
+  return `${days} of ${BASELINE_MIN_DAYS} days`;
+}
+
+/** Shown wherever the cat's baseline numbers are explained. */
+export const BASELINE_UPDATE_TEXT =
+  `Updated daily from this cat's last ${BASELINE_WINDOW_DAYS} days (median). Needs ${BASELINE_MIN_DAYS} days with visits.`;
+
+/**
+ * Normal (provisional) wording. With a cat's day count it reads "(3 of 7 days)";
+ * on an all-cats key with no single cat it says how many days are needed.
+ */
+export function getProvisionalNormalDescription(daysUsed?: number | null): string {
+  const progress = daysUsed === null || daysUsed === undefined
+    ? `needs ${BASELINE_MIN_DAYS} days with visits`
+    : formatBaselineProgress(daysUsed);
+  return `within safe limits; your cat's own range is still being learned (${progress})`;
+}
+
+export interface BehaviorStateKeyEntry {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  readonly dotClass: string;
+}
+
+/**
+ * The behavior state key (legend): five states, with Normal's provisional variant
+ * listed under it. Unattributed is left out: that code path is dormant.
+ */
+export function getBehaviorStateKeyEntries(daysUsed?: number | null): readonly BehaviorStateKeyEntry[] {
+  const entry = (id: BehaviorStateId): BehaviorStateKeyEntry => ({
+    key: id,
+    label: BEHAVIOR_STATE_BY_ID[id].label,
+    description: BEHAVIOR_STATE_BY_ID[id].description,
+    dotClass: BEHAVIOR_STATE_BY_ID[id].dotClass,
+  });
+  return [
+    entry("normal"),
+    {
+      key: "normal-provisional",
+      label: getBehaviorStateLabel("normal", true),
+      description: getProvisionalNormalDescription(daysUsed),
+      dotClass: "border-2 border-litter-normal bg-transparent",
+    },
+    entry("watch"),
+    entry("abnormal"),
+    entry("insufficient"),
+    entry("incomplete"),
+  ];
+}
+
+/** A state's key wording as a standalone sentence ("Within your cat's usual range."). */
+export function getBehaviorStateSentence(state: BehaviorStateId, provisional = false, daysUsed?: number | null): string {
+  const description = provisional && state === "normal"
+    ? getProvisionalNormalDescription(daysUsed)
+    : BEHAVIOR_STATE_BY_ID[state].description;
+  return `${description.charAt(0).toUpperCase()}${description.slice(1)}.`;
+}
 
 /**
  * The parts of the computed personal baseline (lib/utils/personalBaseline.ts)

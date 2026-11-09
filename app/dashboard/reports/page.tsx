@@ -44,7 +44,7 @@ import {
 } from "@/lib/utils/formatters";
 import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
 import {
-  BEHAVIOR_STATE_BY_ID,
+  getBehaviorStateSentence,
   formatMetricValue,
   getMostSevereState,
 } from "@/lib/presentation/behaviorStates";
@@ -433,7 +433,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
   const sessionGroups = buildReportSessionGroups(report.sessions, reportCats);
   const hasReportData = report.sessions.length > 0;
   const reportState = getMostSevereState(sessionGroups.map((group) => group.state));
-  const reportStateDefinition = BEHAVIOR_STATE_BY_ID[reportState];
+  const reportStateSentence = getBehaviorStateSentence(reportState);
 
   return (
     <div className="reports-print-document bg-litter-card rounded-2xl shadow-sm border border-litter-border overflow-hidden">
@@ -502,7 +502,7 @@ function ReportPreview({ report, chartWidth }: ReportPreviewProps) {
         </div>
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-theme-overlay p-3">
           <BehaviorStateBadge state={reportState} />
-          <span className="text-sm text-theme-secondary">{reportStateDefinition.description}</span>
+          <span className="text-sm text-theme-secondary">{reportStateSentence}</span>
         </div>
       </div>
 

@@ -14,10 +14,22 @@ const DISPLAY_STATES = new Set<BehaviorStateId>([
   "unattributed",
 ]);
 
+type Band = readonly [number, number];
+
 type BaselineMetrics = {
+  /** The computed baseline's medians (the field names predate the median baseline). */
   readonly avgVisitsPerDay: number;
   readonly avgDurationSecs: number;
   readonly lastUpdated: string;
+  /** Lower and upper limit (median ± max(2.5 × MAD, minimum width)). */
+  readonly visitBand?: Band;
+  readonly durationBand?: Band;
+};
+
+/** The baseline's range as sent to Gemini: medians and limits, never negative. */
+export type BaselineRangeEvidence = {
+  readonly visitsPerDay: { readonly median: number; readonly lowerLimit: number; readonly upperLimit: number };
+  readonly durationSecs: { readonly median: number; readonly lowerLimit: number; readonly upperLimit: number };
 };
 
 type SessionCounts = {
@@ -42,6 +54,8 @@ export interface PredictiveHealthRequest {
   readonly todayVisits: number | null;
   readonly todayAvgDurationSecs: number | null;
   readonly baseline: BaselineMetrics | null;
+  /** Qualifying days in the 14-day baseline window (7 are needed), with or without a baseline. */
+  readonly baselineDaysUsed?: number;
   readonly sessionCounts: SessionCounts;
   readonly trendData: readonly {
     readonly day: string;
@@ -55,6 +69,8 @@ export interface PredictiveHealthAnalysis {
   readonly preliminary?: boolean;
   readonly summary: string;
   readonly baselineComparison: string;
+  readonly baselineRange?: BaselineRangeEvidence | null;
+  readonly baselineDaysUsed?: number | null;
   readonly observedChanges: readonly string[];
   readonly dataQuality: string;
   readonly safeNextStep: string;
@@ -88,16 +104,34 @@ export function isPredictiveHealthAnalysis(
 const isFiniteNumberInRange = (value: unknown, min: number, max: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
+/** undefined = absent; null = malformed; otherwise a [lower, upper] pair. */
+const parseBand = (value: unknown, limit: number): Band | null | undefined => {
+  if (value === undefined) return undefined;
+  if (
+    !Array.isArray(value) || value.length !== 2 ||
+    !isFiniteNumberInRange(value[0], -limit, limit) ||
+    !isFiniteNumberInRange(value[1], 0, limit) ||
+    Number(value[0]) > Number(value[1])
+  ) {
+    return null;
+  }
+  return [Number(value[0]), Number(value[1])];
+};
+
 const parseBaseline = (value: unknown): BaselineMetrics | null | undefined => {
   if (value === null) return null;
   if (!isRecord(value)) return undefined;
   const { avgVisitsPerDay, avgDurationSecs, lastUpdated } = value;
+  const visitBand = parseBand(value.visitBand, 1000);
+  const durationBand = parseBand(value.durationBand, 86400);
   if (
     !isFiniteNumberInRange(avgVisitsPerDay, 0.01, 1000) ||
     !isFiniteNumberInRange(avgDurationSecs, 1, 86400) ||
     typeof lastUpdated !== "string" ||
     lastUpdated.trim().length < 1 ||
-    lastUpdated.length > 64
+    lastUpdated.length > 64 ||
+    visitBand === null ||
+    durationBand === null
   ) {
     return undefined;
   }
@@ -105,6 +139,8 @@ const parseBaseline = (value: unknown): BaselineMetrics | null | undefined => {
     avgVisitsPerDay: Number(avgVisitsPerDay),
     avgDurationSecs: Math.round(Number(avgDurationSecs)),
     lastUpdated: lastUpdated.trim(),
+    ...(visitBand ? { visitBand } : {}),
+    ...(durationBand ? { durationBand } : {}),
   };
 };
 
@@ -144,6 +180,7 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   const states = ["detected", "clear", "unavailable"];
   if (environment !== undefined && (!isRecord(environment) || !states.includes(String(environment.ammonia)) || !states.includes(String(environment.h2s)))) return null;
   if (value.evidenceDays !== undefined && !isFiniteNumberInRange(value.evidenceDays, 0, 7)) return null;
+  if (value.baselineDaysUsed !== undefined && !isFiniteNumberInRange(value.baselineDaysUsed, 0, 14)) return null;
   if (
     typeof idToken !== "string" || idToken.length < 1 || idToken.length > 4096 ||
     typeof catName !== "string" || catName.trim().length < 1 || catName.length > 80 ||
@@ -179,6 +216,7 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   return {
     ...(environment ? { environment: environment as PredictiveHealthRequest["environment"] } : {}),
     ...(typeof value.evidenceDays === "number" ? { evidenceDays: value.evidenceDays } : {}),
+    ...(typeof value.baselineDaysUsed === "number" ? { baselineDaysUsed: Math.round(value.baselineDaysUsed) } : {}),
     idToken,
     catName: catName.trim(),
     displayState: displayState as BehaviorStateId,
@@ -273,6 +311,25 @@ const getSafeNextStep = (state: BehaviorStateId) => {
   }
 };
 
+const roundTenth = (value: number) => Math.round(value * 10) / 10;
+
+/** Medians and limits from the computed baseline; null until a baseline with both bands exists. */
+const buildBaselineRangeEvidence = (baseline: BaselineMetrics | null): BaselineRangeEvidence | null =>
+  baseline?.visitBand && baseline.durationBand
+    ? {
+        visitsPerDay: {
+          median: roundTenth(baseline.avgVisitsPerDay),
+          lowerLimit: roundTenth(Math.max(0, baseline.visitBand[0])),
+          upperLimit: roundTenth(baseline.visitBand[1]),
+        },
+        durationSecs: {
+          median: Math.round(baseline.avgDurationSecs),
+          lowerLimit: Math.round(Math.max(0, baseline.durationBand[0])),
+          upperLimit: Math.round(baseline.durationBand[1]),
+        },
+      }
+    : null;
+
 export function buildPredictiveHealthEvidence(
   request: PredictiveHealthRequest,
 ): PredictiveHealthEvidence {
@@ -324,6 +381,8 @@ export function buildPredictiveHealthEvidence(
 
   return {
     baselineComparison,
+    baselineRange: buildBaselineRangeEvidence(baseline),
+    baselineDaysUsed: request.baselineDaysUsed ?? null,
     observedChanges: observedChanges.slice(0, 5),
     dataQuality,
     safeNextStep: getSafeNextStep(request.displayState),
@@ -342,6 +401,8 @@ export function buildPredictiveHealthPrompt(request: PredictiveHealthRequest) {
       catName: request.catName,
       officialBehaviorState: request.displayState,
       baselineComparison: evidence.baselineComparison,
+      baselineRange: evidence.baselineRange,
+      baselineDaysUsed: evidence.baselineDaysUsed,
       observedChanges: evidence.observedChanges,
       dataQuality: evidence.dataQuality,
       safeNextStep: evidence.safeNextStep,
