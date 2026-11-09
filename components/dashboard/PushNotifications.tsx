@@ -11,8 +11,10 @@ export function PushNotifications() {
     if (!user || !('serviceWorker' in navigator)) return;
     const renew = () => { if ('Notification' in window && Notification.permission === 'granted') void getFirebaseMessagingToken().catch(() => { setNotice({ title: 'Notifications need attention', body: 'Open Settings and turn push notifications off and on for this device.' }); }); };
     const receive = (event: MessageEvent) => { if (event.data?.type === 'littersense-push') setNotice({ title: String(event.data.title), body: String(event.data.body) }); };
-    renew(); window.addEventListener('focus', renew); window.addEventListener('online', renew); navigator.serviceWorker.addEventListener('message', receive);
-    return () => { window.removeEventListener('focus', renew); window.removeEventListener('online', renew); navigator.serviceWorker.removeEventListener('message', receive); };
+    // Android home-screen apps report "visible" when reopened, often without a window focus event.
+    const onVisible = () => { if (document.visibilityState === 'visible') renew(); };
+    renew(); window.addEventListener('focus', renew); window.addEventListener('online', renew); document.addEventListener('visibilitychange', onVisible); navigator.serviceWorker.addEventListener('message', receive);
+    return () => { window.removeEventListener('focus', renew); window.removeEventListener('online', renew); document.removeEventListener('visibilitychange', onVisible); navigator.serviceWorker.removeEventListener('message', receive); };
   }, [user]);
   if (!notice) return null;
   return <div role="status" className="fixed bottom-24 right-4 z-[70] max-w-sm rounded-2xl border border-litter-border bg-litter-card p-4 text-theme-text shadow-lg"><strong>{notice.title}</strong><p className="mt-2 text-sm">{notice.body}</p><button className="mt-3 text-litter-primary" onClick={() => setNotice(null)}>Dismiss</button></div>;
