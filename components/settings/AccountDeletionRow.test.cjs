@@ -35,7 +35,7 @@ function loadComponent() {
   return sandboxModule.exports.AccountDeletionRow;
 }
 
-test("pending deletion renders a disabled Request pending button", () => {
+test("an older pending request lets the owner delete now instead of waiting for an admin", () => {
   const AccountDeletionRow = loadComponent();
   const html = renderToStaticMarkup(React.createElement(AccountDeletionRow, {
     status: "pending",
@@ -45,10 +45,9 @@ test("pending deletion renders a disabled Request pending button", () => {
     onRequest: () => {},
   }));
 
-  assert.match(html, /Request pending/);
-  assert.match(html, /<button[^>]*disabled=""/);
-  assert.match(html, /continue using the app/i);
-  assert.doesNotMatch(html, />Delete Account</);
+  assert.match(html, /Deletion requested/);
+  assert.match(html, />Delete now</);
+  assert.doesNotMatch(html, /disabled=""/);
 });
 
 test("no deletion request renders the enabled request action", () => {
@@ -65,7 +64,7 @@ test("no deletion request renders the enabled request action", () => {
   assert.doesNotMatch(html, /disabled=""/);
 });
 
-test("failed deletion warns that cleanup may be partial and stays disabled", () => {
+test("failed deletion warns that cleanup may be partial and lets the owner try again", () => {
   const AccountDeletionRow = loadComponent();
   const html = renderToStaticMarkup(React.createElement(AccountDeletionRow, {
     status: "failed",
@@ -77,6 +76,21 @@ test("failed deletion warns that cleanup may be partial and stays disabled", () 
 
   assert.match(html, /did not complete/i);
   assert.match(html, /some account data may already have been removed/i);
-  assert.match(html, /<button[^>]*disabled=""/);
+  assert.match(html, />Try again</);
+  assert.doesNotMatch(html, /disabled=""/);
   assert.doesNotMatch(html, /account and data are still available/i);
+});
+
+test("a deletion in progress stays locked", () => {
+  const AccountDeletionRow = loadComponent();
+  const html = renderToStaticMarkup(React.createElement(AccountDeletionRow, {
+    status: "processing",
+    requestedAt: null,
+    isLoading: false,
+    isSubmitting: false,
+    onRequest: () => {},
+  }));
+
+  assert.match(html, /Deletion processing/);
+  assert.match(html, /<button[^>]*disabled=""/);
 });

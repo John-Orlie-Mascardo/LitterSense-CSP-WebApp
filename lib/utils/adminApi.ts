@@ -43,7 +43,8 @@ export async function adminApiFetch(
   }
 
   return runAdminRequest(currentUser, input, init, {
-    fetcher: fetch,
+    // Wrapped: browsers throw "Illegal invocation" when fetch is called as dependencies.fetcher().
+    fetcher: (request, options) => fetch(request, options),
     leaveAdmin: (destination) => window.location.replace(destination),
   });
 }
