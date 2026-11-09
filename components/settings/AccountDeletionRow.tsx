@@ -29,7 +29,7 @@ export function AccountDeletionRow({
               Deletion requested
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
-              Your request is awaiting admin review. You can continue using the app in the meantime.
+              You no longer need to wait for an admin. Delete your account now with the typed confirmation.
             </p>
             {requestedAt && (
               <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-500">
@@ -42,10 +42,10 @@ export function AccountDeletionRow({
             )}
             <button
               type="button"
-              disabled
-              className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 opacity-70 dark:border-amber-700 dark:text-amber-300"
+              onClick={onRequest}
+              className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-700 dark:border-amber-700 dark:text-amber-300"
             >
-              Request pending
+              Delete now
             </button>
           </div>
         </div>
@@ -61,16 +61,22 @@ export function AccountDeletionRow({
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-litter-muted" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-litter-text">
-              {failed ? "Deletion needs admin attention" : "Deletion processing"}
+              {failed ? "Deletion did not finish" : "Deletion processing"}
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-litter-muted">
               {failed
-                ? "Deletion did not complete. An admin can retry it; some account data may already have been removed."
+                ? "Deletion did not complete; some account data may already have been removed. Try again to finish it."
                 : "An administrator is processing your request."}
             </p>
-            <button type="button" disabled className="mt-3 text-xs font-semibold text-litter-muted">
-              {failed ? "Request retained" : "Processing"}
-            </button>
+            {failed ? (
+              <button type="button" onClick={onRequest} className="mt-3 rounded-lg border border-litter-border px-3 py-2 text-xs font-semibold text-red-500">
+                Try again
+              </button>
+            ) : (
+              <button type="button" disabled className="mt-3 text-xs font-semibold text-litter-muted">
+                Processing
+              </button>
+            )}
           </div>
         </div>
       </div>
