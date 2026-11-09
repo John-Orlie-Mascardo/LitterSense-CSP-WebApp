@@ -54,6 +54,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ToastContainer, type ToastParams } from "@/components/ui/Toast";
 import { AccountDeletionRow } from "@/components/settings/AccountDeletionRow";
+import { AuthLoadingScreen } from "@/components/ui/AuthLoadingScreen";
 import { useTheme } from "@/components/theme-provider";
 import { useSettings, type UserSettings } from "@/lib/hooks/useSettings";
 import { useCats } from "@/lib/contexts/CatContext";
@@ -310,9 +311,9 @@ export default function SettingsPage() {
         router.replace("/login");
         return;
       }
-      addToast(error instanceof Error ? error.message : "Failed to delete account. Please try again.", "error");
-    } finally {
+      // Only a failure stays on this page; success and sign-in-again keep the loading screen until /login.
       setIsSubmittingDeletion(false);
+      addToast(error instanceof Error ? error.message : "Failed to delete account. Please try again.", "error");
     }
   };
 
@@ -1491,6 +1492,13 @@ export default function SettingsPage() {
         cancelText="OK"
         variant="danger"
       />
+      {isSubmittingDeletion && (
+        <AuthLoadingScreen
+          overlay
+          message="Deleting your account…"
+          detail="This can take a few seconds. Please don't close this page."
+        />
+      )}
       <ConfirmDialog isOpen={showSignOutConfirm} onClose={() => setShowSignOutConfirm(false)} onConfirm={handleSignOut}
         title="Sign Out" message="Are you sure you want to sign out?" confirmText="Sign Out" variant="info" />
     </div>

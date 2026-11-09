@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Users, PawPrint, Trash2, UserCheck } from "lucide-react";
 import {
   PieChart,
@@ -20,6 +20,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { ToastContainer } from "@/components/ui/Toast";
 import { AuditLogList } from "@/components/admin/AuditLogList";
 import { summarizeAdminOverview } from "@/lib/utils/adminOverview";
+import { tooltipAwayFromCenter } from "@/lib/presentation/chartTooltip";
 
 const GENDER_COLORS: Record<string, string> = {
   Male: "var(--color-primary)",
@@ -47,6 +48,8 @@ export default function AdminOverviewPage() {
     dismissToast,
   } = useAdmin();
   const { requests, isLoading: requestsLoading } = useDeleteRequest();
+  // Open the gender tooltip away from the donut's center so it never covers the total.
+  const [genderTooltipSide, setGenderTooltipSide] = useState({ x: false, y: false });
 
   const agg = useMemo(() => {
     return summarizeAdminOverview(users, requests);
@@ -127,7 +130,13 @@ export default function AdminOverviewPage() {
               Across all registered users
             </p>
 
-            <div className="relative">
+            <div
+              className="relative"
+              onMouseMove={(event) => {
+                const next = tooltipAwayFromCenter({ x: event.clientX, y: event.clientY }, event.currentTarget.getBoundingClientRect());
+                if (next.x !== genderTooltipSide.x || next.y !== genderTooltipSide.y) setGenderTooltipSide(next);
+              }}
+            >
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
@@ -146,6 +155,11 @@ export default function AdminOverviewPage() {
                   </Pie>
                   <RechartsTooltip
                     contentStyle={tooltipStyle}
+                    itemStyle={{ color: "var(--color-text)" }}
+                    labelStyle={{ color: "var(--color-text)" }}
+                    reverseDirection={genderTooltipSide}
+                    allowEscapeViewBox={{ x: true, y: true }}
+                    offset={16}
                     formatter={(
                       value: number | undefined,
                       name: string | undefined,

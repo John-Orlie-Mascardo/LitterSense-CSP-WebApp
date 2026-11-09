@@ -180,3 +180,10 @@ test("account deletion asks for the typed phrase, then an OK/Delete confirmation
 test("a too-old sign-in during deletion signs the owner out to sign in again", () => {
   assert.match(source, /error instanceof AccountDeletionError && error\.reauthenticate/);
 });
+
+test("deleting shows a full-screen loading screen that stays until the move to sign-in", () => {
+  assert.match(source, /\{isSubmittingDeletion && \(\s*<AuthLoadingScreen\s+overlay\s+message="Deleting your account…"/);
+  const handler = sourceBetween("const handleSubmitDeletion = async () => {", "// Edit profile form");
+  assert.doesNotMatch(handler, /finally \{\s*setIsSubmittingDeletion\(false\);/, "success must not hide the screen before navigating");
+  assert.match(handler, /setIsSubmittingDeletion\(false\);\s*addToast\(error instanceof Error/);
+});
