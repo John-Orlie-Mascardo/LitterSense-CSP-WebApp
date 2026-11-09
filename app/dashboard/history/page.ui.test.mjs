@@ -86,3 +86,14 @@ test("state chips size columns to fit long names like Unattributed instead of ov
   assert.doesNotMatch(filterSource, /grid-cols-2 gap-2 sm:grid-cols-3/);
   assert.match(filterSource, /<span className="min-w-0 break-words">\{state\.label\}<\/span>/);
 });
+
+test("the visit list starts with 10 sessions and grows with Show more", () => {
+  assert.match(pageSource, /visibleSessions\.slice\(0, sessionLimit\)/);
+  assert.match(pageSource, /SESSIONS_PER_STEP = 10/);
+  assert.match(pageSource, />\s*Show more\s*</);
+});
+
+test("older visits are fetched only after every loaded visit is shown", () => {
+  assert.match(pageSource, /const allLoadedShown = sessionLimit >= visibleSessions\.length;/);
+  assert.match(pageSource, /\{allLoadedShown && <div ref=\{sentinelRef\}/);
+});

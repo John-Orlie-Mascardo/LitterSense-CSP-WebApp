@@ -39,6 +39,9 @@ import {
   SHOW_SHORT_VISITS_LABEL,
 } from "@/lib/presentation/shortVisits";
 
+// Visits shown at first, and how many each "Show more" click adds.
+const SESSIONS_PER_STEP = 10;
+
 function BatchSkeletons() {
   return (
     <div className="space-y-3" aria-label="Loading more sessions">
@@ -71,9 +74,18 @@ export default function SessionHistoryPage() {
     () => filterShortVisits(history.sessions, showShortVisits),
     [history.sessions, showShortVisits],
   );
+  // The limit goes back to 10 whenever the filters change.
+  const [shown, setShown] = useState({ key: filterKey, limit: SESSIONS_PER_STEP });
+  const sessionLimit = shown.key === filterKey ? shown.limit : SESSIONS_PER_STEP;
+  const showMoreSessions = () => setShown({ key: filterKey, limit: sessionLimit + SESSIONS_PER_STEP });
+  const allLoadedShown = sessionLimit >= visibleSessions.length;
+  const shownSessions = useMemo(
+    () => visibleSessions.slice(0, sessionLimit),
+    [sessionLimit, visibleSessions],
+  );
   const groups = useMemo(
-    () => groupHistorySessions(visibleSessions),
-    [visibleSessions],
+    () => groupHistorySessions(shownSessions),
+    [shownSessions],
   );
   const catById = useMemo(
     () => new Map(cats.map((cat) => [cat.id, cat])),
@@ -107,13 +119,13 @@ export default function SessionHistoryPage() {
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel || !hasMore || !allLoadedShown) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting) void loadMore();
     }, { rootMargin: "240px" });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  }, [allLoadedShown, hasMore, loadMore]);
 
   const resetFilters = () => applyFilters(getDefaultHistoryFilters());
 
@@ -124,7 +136,7 @@ export default function SessionHistoryPage() {
         <header className="mb-6">
           <h1 className="font-display text-2xl font-bold text-litter-text sm:text-3xl">Session History</h1>
           <p className="mt-1 text-sm text-litter-muted">
-            Showing {visibleSessions.length} sessions from {formatHistoryRange(filters.startDate, filters.endDate)}
+            Showing {shownSessions.length} sessions from {formatHistoryRange(filters.startDate, filters.endDate)}
           </p>
           <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-sm text-theme-secondary">
             <input
@@ -212,9 +224,15 @@ export default function SessionHistoryPage() {
               </div>
             )}
             {history.isLoadingMore && <div className="mt-4"><BatchSkeletons /></div>}
-            <div ref={sentinelRef} className="h-1" aria-hidden="true" />
-            {history.hasMore && !history.isInitialLoading && (
-              <button type="button" onClick={() => void history.loadMore()} disabled={history.isLoadingMore} className="mt-4 w-full rounded-xl border border-litter-border bg-litter-card px-4 py-3 text-sm font-semibold text-litter-primary disabled:opacity-50">
+            {/* Older visits are fetched only once every loaded visit is on screen. */}
+            {allLoadedShown && <div ref={sentinelRef} className="h-1" aria-hidden="true" />}
+            {!allLoadedShown && !history.isInitialLoading && (
+              <button type="button" onClick={showMoreSessions} className="mt-4 w-full rounded-xl border border-litter-border bg-litter-card px-4 py-3 text-sm font-semibold text-litter-primary">
+                Show more
+              </button>
+            )}
+            {allLoadedShown && history.hasMore && !history.isInitialLoading && (
+              <button type="button" onClick={() => { showMoreSessions(); void history.loadMore(); }} disabled={history.isLoadingMore} className="mt-4 w-full rounded-xl border border-litter-border bg-litter-card px-4 py-3 text-sm font-semibold text-litter-primary disabled:opacity-50">
                 Load more
               </button>
             )}
