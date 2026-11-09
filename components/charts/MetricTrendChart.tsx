@@ -134,9 +134,9 @@ export function MetricTrendChart({
     primaryValue: point.value,
     secondaryValue: secondaryValues.get(point.label),
   }));
-  const normalRange = config.normalRange ?? (reference
+  const normalRange = reference
     ? { min: reference.normalMin, max: reference.normalMax }
-    : null);
+    : null;
   const primaryDomain = getTrendYAxisDomain(metric, data, reference);
   const secondaryDomain = secondary
     ? getTrendYAxisDomain(secondary.metric, secondary.data, secondary.reference)

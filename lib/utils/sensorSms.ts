@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { findCatIdByRfid, type SensorSyncRequest } from "./sensorSync";
 import { normalizeGasUltrasonic } from "./gasUltrasonic";
-import { INCOMPLETE_SESSION_FLOOR_SECS, DASHBOARD_DURATION_UPPER_MINS, DASHBOARD_VISIT_WARNING_COUNT } from "../configs/behaviorThresholds";
+import { ABNORMAL_DURATION_SECS, INCOMPLETE_SESSION_FLOOR_SECS, DASHBOARD_VISIT_WARNING_COUNT } from "../configs/behaviorThresholds";
 
 type SmsAccount = { cats: Array<{ id: string; rfidTag: string }> };
 
@@ -13,7 +13,7 @@ export function buildSmsVisits(account: SmsAccount, normalized: SensorSyncReques
     const matches = tags.filter((tag) => findCatIdByRfid([tag], event.rfidCard, event.rfidHex));
     if (matches.length !== 1) return [];
     const catId = matches[0][0];
-    const reason = event.status === "NO_EXIT_TIMEOUT" ? "No exit timeout" : event.durationSecs >= DASHBOARD_DURATION_UPPER_MINS * 60 ? "Extended duration" : event.status === "ABNORMAL" ? "Abnormal activity" : "";
+    const reason = event.status === "NO_EXIT_TIMEOUT" ? "No exit timeout" : event.durationSecs >= ABNORMAL_DURATION_SECS ? "Extended duration" : event.status === "ABNORMAL" ? "Abnormal activity" : "";
     return [{ catId, eventId: event.eventId, occurredAt: event.endedAt, durationSecs: event.durationSecs, reason }];
   });
 }

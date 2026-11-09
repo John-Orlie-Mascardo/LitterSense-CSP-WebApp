@@ -3,7 +3,7 @@
  *
  * Shared semantic badge for LitterSense behavior classifications.
  *
- * DONE: six-state styling, optional dot, compact and standard sizes
+ * DONE: six-state styling, Normal (provisional) label, optional dot, compact and standard sizes
  * PLACEHOLDER: none
  *
  * NEXT: use this component for new behavior badges instead of duplicating copy.
@@ -11,16 +11,19 @@
 
 import {
   BEHAVIOR_STATE_BY_ID,
+  getBehaviorStateLabel,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
 
 export function BehaviorStateBadge({
   state,
+  provisional = false,
   compact = false,
   showDot = true,
   className = "",
 }: {
   readonly state: BehaviorStateId;
+  readonly provisional?: boolean;
   readonly compact?: boolean;
   readonly showDot?: boolean;
   readonly className?: string;
@@ -36,8 +39,7 @@ export function BehaviorStateBadge({
       {showDot ? (
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${definition.dotClass}`} />
       ) : null}
-      {definition.label}
+      {getBehaviorStateLabel(state, provisional)}
     </span>
   );
 }
-

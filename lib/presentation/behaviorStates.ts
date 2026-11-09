@@ -3,14 +3,25 @@
  *
  * Presentation-only definitions and derivation helpers for six behavior states.
  *
- * DONE: shared copy/colors, baseline gating, upstream status mapping, severity, no-data formatting
+ * DONE: shared copy/colors, computed-baseline gating, Watch, Normal (provisional),
+ * upstream status mapping, severity, no-data formatting
  * PLACEHOLDER: none
+ *
+ * Check order (BASELINE_BRIEF, Nov 8): Unattributed → Incomplete → Abnormal →
+ * Watch → Normal / Normal (provisional) / Insufficient data.
  *
  * NEXT: manuscript owners must approve any state-copy change before a frontend
  * developer edits this single source of truth.
  */
 
-import { INCOMPLETE_SESSION_FLOOR_SECS } from "../configs/behaviorThresholds";
+import {
+  ABNORMAL_DURATION_SECS,
+  BASELINE_MIN_DAYS,
+  BASELINE_WINDOW_DAYS,
+  DASHBOARD_VISIT_WARNING_COUNT,
+  INCOMPLETE_SESSION_FLOOR_SECS,
+} from "../configs/behaviorThresholds";
+import type { PersonalBaseline } from "../utils/personalBaseline";
 
 export type BehaviorStateId =
   | "normal"
@@ -35,7 +46,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "normal",
     label: "Normal",
-    description: "Matches this cat’s usual pattern and set limits.",
+    description: "within your cat's usual range",
     dotClass: "bg-litter-normal",
     badgeClass: "bg-status-normal text-status-normal",
     severity: 20,
@@ -43,7 +54,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "watch",
     label: "Watch",
-    description: "Within set limits, but different from this cat’s usual pattern.",
+    description: "above your cat's usual range",
     dotClass: "bg-litter-watch",
     badgeClass: "bg-status-watch text-status-watch",
     severity: 50,
@@ -51,7 +62,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "abnormal",
     label: "Abnormal",
-    description: "A set activity limit was crossed.",
+    description: `a visit of ${ABNORMAL_DURATION_SECS / 60} minutes or longer, or ${DASHBOARD_VISIT_WARNING_COUNT + 1}+ visits today`,
     dotClass: "bg-litter-abnormal",
     badgeClass: "bg-status-abnormal text-status-abnormal",
     severity: 60,
@@ -59,7 +70,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "insufficient",
     label: "Insufficient data",
-    description: "More sessions are needed to build this cat’s usual pattern.",
+    description: "no visits recorded yet",
     dotClass: "bg-litter-insufficient",
     badgeClass: "bg-status-insufficient text-status-insufficient",
     severity: 10,
@@ -67,7 +78,7 @@ export const BEHAVIOR_STATES: readonly BehaviorStateDefinition[] = [
   {
     id: "incomplete",
     label: "Incomplete",
-    description: "The visit was too short, or its exit could not be confirmed.",
+    description: `under ${INCOMPLETE_SESSION_FLOOR_SECS} seconds, or the exit wasn't confirmed`,
     dotClass: "bg-litter-incomplete",
     badgeClass: "bg-status-incomplete text-status-incomplete",
     severity: 40,
@@ -86,15 +97,103 @@ export const BEHAVIOR_STATE_BY_ID = Object.fromEntries(
   BEHAVIOR_STATES.map((state) => [state.id, state]),
 ) as Record<BehaviorStateId, BehaviorStateDefinition>;
 
-type BaselineLike = {
-  readonly avgVisitsPerDay?: number;
-  readonly avgDurationSecs?: number;
-  readonly lastUpdated?: string;
-};
+/** "X of 7 days": progress toward an established baseline. */
+export function formatBaselineProgress(daysUsed: number | null | undefined): string {
+  const days = Math.min(Math.max(0, Math.floor(daysUsed ?? 0)), BASELINE_MIN_DAYS);
+  return `${days} of ${BASELINE_MIN_DAYS} days`;
+}
 
-type DetailsLike = {
-  readonly baseline?: BaselineLike | null;
-} | null | undefined;
+/** Shown wherever the cat's baseline numbers are explained. */
+export const BASELINE_UPDATE_TEXT =
+  `Updated daily from this cat's last ${BASELINE_WINDOW_DAYS} days (median). Needs ${BASELINE_MIN_DAYS} days with visits.`;
+
+/**
+ * Normal (provisional) wording. With a cat's day count it reads "(3 of 7 days)";
+ * on an all-cats key with no single cat it says how many days are needed.
+ */
+export function getProvisionalNormalDescription(daysUsed?: number | null): string {
+  const progress = daysUsed === null || daysUsed === undefined
+    ? `needs ${BASELINE_MIN_DAYS} days with visits`
+    : formatBaselineProgress(daysUsed);
+  return `within safe limits; your cat's own range is still being learned (${progress})`;
+}
+
+export interface BehaviorStateKeyEntry {
+  readonly key: string;
+  readonly label: string;
+  readonly description: string;
+  readonly dotClass: string;
+}
+
+/**
+ * The behavior state key (legend): five states, with Normal's provisional variant
+ * listed under it. Unattributed is left out: that code path is dormant.
+ */
+export function getBehaviorStateKeyEntries(daysUsed?: number | null): readonly BehaviorStateKeyEntry[] {
+  const entry = (id: BehaviorStateId): BehaviorStateKeyEntry => ({
+    key: id,
+    label: BEHAVIOR_STATE_BY_ID[id].label,
+    description: BEHAVIOR_STATE_BY_ID[id].description,
+    dotClass: BEHAVIOR_STATE_BY_ID[id].dotClass,
+  });
+  return [
+    entry("normal"),
+    {
+      key: "normal-provisional",
+      label: getBehaviorStateLabel("normal", true),
+      description: getProvisionalNormalDescription(daysUsed),
+      dotClass: "border-2 border-litter-normal bg-transparent",
+    },
+    entry("watch"),
+    entry("abnormal"),
+    entry("insufficient"),
+    entry("incomplete"),
+  ];
+}
+
+/** A state's key wording as a standalone sentence ("Within your cat's usual range."). */
+export function getBehaviorStateSentence(state: BehaviorStateId, provisional = false, daysUsed?: number | null): string {
+  const description = provisional && state === "normal"
+    ? getProvisionalNormalDescription(daysUsed)
+    : BEHAVIOR_STATE_BY_ID[state].description;
+  return `${description.charAt(0).toUpperCase()}${description.slice(1)}.`;
+}
+
+/**
+ * The parts of the computed personal baseline (lib/utils/personalBaseline.ts)
+ * that state derivation needs. Bands may be null when a caller only knows that
+ * a baseline exists (for example, a saved report snapshot); Watch then cannot fire.
+ */
+export type BaselineBandsLike = Pick<
+  PersonalBaseline,
+  "established" | "visitBand" | "durationBand"
+>;
+
+/** Per-owner lookup built once from the loaded visits (see lib/presentation/catBehavior.ts). */
+export interface CatBehaviorIndex {
+  readonly baselineByCatId: ReadonlyMap<string, PersonalBaseline>;
+  /** For each counted visit: how many counted visits the cat had that Manila day, up to and including it. */
+  readonly countedVisitsTodayBySessionId: ReadonlyMap<string, number>;
+  readonly catIdsWithCountedVisits: ReadonlySet<string>;
+}
+
+/** A behavior state plus the "Normal (provisional)" flag: Normal before a baseline exists. */
+export interface BehaviorDisplay {
+  readonly state: BehaviorStateId;
+  readonly provisional: boolean;
+}
+
+const INCOMPLETE_STATUSES = new Set([
+  "SHORT_SESSION",
+  "NO_EXIT_TIMEOUT",
+  "SESSION_INTERRUPTED",
+  "FALSE_ENTRY_IGNORED",
+]);
+
+const display = (state: BehaviorStateId, provisional = false): BehaviorDisplay => ({
+  state,
+  provisional,
+});
 
 type RecordedDataInput = {
   readonly sessions?: readonly unknown[] | null;
@@ -108,14 +207,11 @@ type RecordedDataInput = {
   }[] | null;
 };
 
-export function hasEstablishedBaseline(details: DetailsLike) {
-  const baseline = details?.baseline;
-  return Boolean(
-    baseline &&
-      (baseline.avgVisitsPerDay ?? 0) > 0 &&
-      (baseline.avgDurationSecs ?? 0) > 0 &&
-      baseline.lastUpdated?.trim(),
-  );
+/** True only for a computed baseline with at least 7 qualifying days. Never provisional. */
+export function hasEstablishedBaseline(
+  baseline: BaselineBandsLike | null | undefined,
+): baseline is BaselineBandsLike & { readonly established: true } {
+  return baseline?.established === true;
 }
 
 export function hasRecordedCatData({ sessions, stats, trendData }: RecordedDataInput) {
@@ -128,70 +224,122 @@ export function hasRecordedCatData({ sessions, stats, trendData }: RecordedDataI
   );
 }
 
-export function getCatDisplayState({
-  persistedStatus,
-  hasData,
-  baselineEstablished,
-}: {
-  readonly persistedStatus?: string | null;
-  readonly hasData: boolean;
-  readonly baselineEstablished: boolean;
-}): BehaviorStateId {
-  if (!hasData) return "insufficient";
-
-  const normalizedStatus = persistedStatus?.toLowerCase();
-  if (normalizedStatus === "abnormal") return "abnormal";
-  if (!baselineEstablished) return "insufficient";
-  if (normalizedStatus === "watch") return "watch";
-  return "normal";
-}
-
-export function getSessionDisplayState({
-  durationSecs,
-  sessionStatus,
-  anomaly,
-  anomalyType,
-  isAttributed,
-  baselineEstablished,
-}: {
+export interface SessionBehaviorInput {
   readonly durationSecs?: number | null;
   readonly sessionStatus?: string | null;
+  /** Accepted for convenience; the generic anomaly flag never decides a state on its own. */
   readonly anomaly?: boolean;
   readonly anomalyType?: string | null;
   readonly isAttributed: boolean;
-  readonly baselineEstablished: boolean;
-}): BehaviorStateId {
-  if (!isAttributed) return "unattributed";
+  /** The cat's computed baseline. Absent or not established → Normal (provisional), never Watch. */
+  readonly baseline?: BaselineBandsLike | null;
+  /** Counted visits by this cat on this visit's Manila day, up to and including this one. */
+  readonly countedVisitsToday?: number | null;
+}
 
-  const normalizedStatus = sessionStatus?.toUpperCase();
+export function getSessionBehavior({
+  durationSecs,
+  sessionStatus,
+  anomalyType,
+  isAttributed,
+  baseline,
+  countedVisitsToday,
+}: SessionBehaviorInput): BehaviorDisplay {
+  if (!isAttributed) return display("unattributed");
+
+  const normalizedStatus = sessionStatus?.toUpperCase() ?? "";
   // Aggregate and active rows do not describe a completed visit's duration.
   const hasCompletedDuration = normalizedStatus !== "DAILY_SUMMARY" &&
     normalizedStatus !== "IN_PROGRESS" && typeof durationSecs === "number" &&
     Number.isFinite(durationSecs) && durationSecs >= 0;
+
+  // 1. Incomplete: kept on record, never counted.
   if (
     (hasCompletedDuration && durationSecs < INCOMPLETE_SESSION_FLOOR_SECS) ||
-    normalizedStatus === "SHORT_SESSION" ||
-    normalizedStatus === "NO_EXIT_TIMEOUT" ||
-    normalizedStatus === "SESSION_INTERRUPTED" ||
-    normalizedStatus === "FALSE_ENTRY_IGNORED" ||
-    anomalyType === "Short session"
+    INCOMPLETE_STATUSES.has(normalizedStatus) ||
+    anomalyType === "Short session" ||
+    anomalyType === "No exit timeout"
   ) {
-    return "incomplete";
+    return display("incomplete");
   }
+
+  // 2. Abnormal: fixed limits, with or without a baseline.
+  const visitsSoFar = countedVisitsToday ?? 0;
   if (
     normalizedStatus === "ABNORMAL" ||
-    normalizedStatus === "NO_EXIT_TIMEOUT" ||
-    anomalyType === "No exit timeout" ||
-    anomalyType === "Extended duration" ||
-    anomaly === true
+    (hasCompletedDuration && durationSecs >= ABNORMAL_DURATION_SECS) ||
+    visitsSoFar > DASHBOARD_VISIT_WARNING_COUNT
   ) {
-    return "abnormal";
+    return display("abnormal");
   }
-  if (normalizedStatus === "WATCH" && baselineEstablished) return "watch";
-  if (normalizedStatus === "DAILY_SUMMARY" || normalizedStatus === "IN_PROGRESS") {
-    return "insufficient";
+
+  if (!hasCompletedDuration) return display("insufficient");
+
+  // 3. Watch: above the cat's own range. Needs an established baseline; display only.
+  if (hasEstablishedBaseline(baseline)) {
+    const aboveDuration = baseline.durationBand !== null &&
+      durationSecs > baseline.durationBand[1];
+    const aboveVisits = baseline.visitBand !== null &&
+      visitsSoFar > baseline.visitBand[1];
+    if (aboveDuration || aboveVisits) {
+      return display("watch");
+    }
+    return display("normal");
   }
-  return baselineEstablished ? "normal" : "insufficient";
+
+  // 4. Counted visit, no baseline yet, no fixed limit crossed.
+  return display("normal", true);
+}
+
+export function getSessionDisplayState(input: SessionBehaviorInput): BehaviorStateId {
+  return getSessionBehavior(input).state;
+}
+
+/** Looks up the cat's baseline and same-day visit count for one session. */
+export function getIndexedSessionBehavior(
+  session: Omit<SessionBehaviorInput, "isAttributed" | "baseline" | "countedVisitsToday"> & {
+    readonly id: string;
+    readonly catId?: string | null;
+  },
+  index: CatBehaviorIndex | null | undefined,
+  isAttributed = Boolean(session.catId),
+): BehaviorDisplay {
+  return getSessionBehavior({
+    durationSecs: session.durationSecs,
+    sessionStatus: session.sessionStatus,
+    anomalyType: session.anomalyType,
+    isAttributed,
+    baseline: isAttributed && session.catId
+      ? index?.baselineByCatId.get(session.catId)
+      : null,
+    countedVisitsToday: index?.countedVisitsTodayBySessionId.get(session.id),
+  });
+}
+
+/**
+ * Cat-level summary. Insufficient data only when the cat has no counted visits
+ * at all; otherwise at least Normal (provisional until a baseline exists), raised
+ * by the most severe of the given session states.
+ */
+export function summarizeCatBehavior({
+  sessionStates,
+  hasCountedVisits,
+  baseline,
+}: {
+  readonly sessionStates: readonly BehaviorDisplay[];
+  readonly hasCountedVisits: boolean;
+  readonly baseline?: BaselineBandsLike | null;
+}): BehaviorDisplay {
+  const states = sessionStates.map((session) => session.state);
+  if (hasCountedVisits) states.push("normal");
+  const state = getMostSevereState(states);
+  return display(state, state === "normal" && !hasEstablishedBaseline(baseline));
+}
+
+export function getBehaviorStateLabel(state: BehaviorStateId, provisional = false) {
+  return provisional && state === "normal"
+    ? "Normal (provisional)"
+    : BEHAVIOR_STATE_BY_ID[state].label;
 }
 
 export function getMostSevereState(

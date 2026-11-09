@@ -6,17 +6,10 @@
  * DONE: seconds-to-minutes display conversion, centralized ranges, aggregate references
  * PLACEHOLDER: graph series remain supplied by the existing mock-data pipeline
  *
- * NEXT: research owners must change deviation values only in the central threshold config.
+ * Bands come from the computed personal baseline (median ± 2.5 × MAD); no fixed ranges.
  */
 
-import {
-  BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
-  BASELINE_DURATION_DEVIATION_SECS,
-  BASELINE_VISIT_DEVIATION_COUNT,
-  DASHBOARD_DURATION_WARNING_MINS,
-  DASHBOARD_VISIT_WARNING_COUNT,
-  INCOMPLETE_SESSION_FLOOR_SECS,
-} from "@/lib/configs/behaviorThresholds";
+import type { PersonalBaseline } from "@/lib/utils/personalBaseline";
 
 export type TrendMetricId = "visits" | "duration" | "airQuality";
 
@@ -26,7 +19,6 @@ export interface TrendMetricConfig {
   readonly unit: string;
   readonly color: string;
   readonly allowDecimals: boolean;
-  readonly normalRange: { readonly min: number; readonly max: number } | null;
 }
 
 export interface TrendReference {
@@ -38,14 +30,6 @@ export interface TrendReference {
 export interface TrendReferenceSet {
   readonly visits: TrendReference;
   readonly duration: TrendReference;
-  readonly airQuality: TrendReference;
-}
-
-export interface BaselineMetricsInput {
-  readonly avgVisitsPerDay: number;
-  readonly avgDurationSecs: number;
-  readonly mq135DeltaPercent: number;
-  readonly lastUpdated?: string;
 }
 
 export interface TrendPointInput {
@@ -64,7 +48,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "visits",
     color: "#1B7A6E",
     allowDecimals: false,
-    normalRange: { min: 0, max: DASHBOARD_VISIT_WARNING_COUNT },
   },
   duration: {
     metricName: "Average Duration",
@@ -72,10 +55,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "minutes",
     color: "#E8924A",
     allowDecimals: true,
-    normalRange: {
-      min: roundForDisplay(INCOMPLETE_SESSION_FLOOR_SECS / 60),
-      max: DASHBOARD_DURATION_WARNING_MINS,
-    },
   },
   airQuality: {
     metricName: "Air quality change",
@@ -83,7 +62,6 @@ const TREND_METRIC_CONFIG: Readonly<Record<TrendMetricId, TrendMetricConfig>> = 
     unit: "%",
     color: "#1B7A6E",
     allowDecimals: true,
-    normalRange: null,
   },
 };
 
@@ -103,16 +81,12 @@ export function getTrendYAxisDomain(
   data: readonly { readonly value: number }[],
   reference?: TrendReference | null,
 ): readonly [number, number] {
-  const config = getTrendMetricConfig(metric);
   const values = data
     .map((point) => point.value)
     .filter(Number.isFinite);
   const candidates = [
     0,
     ...values,
-    ...(config.normalRange
-      ? [config.normalRange.min, config.normalRange.max]
-      : []),
     ...(reference
       ? [reference.baseline, reference.normalMin, reference.normalMax]
       : []),
@@ -124,95 +98,76 @@ export function getTrendYAxisDomain(
   return [lower, upper];
 }
 
+/** A computed baseline (personalBaseline.ts) whose medians and bands are filled in. */
+interface EstablishedBaseline extends PersonalBaseline {
+  readonly established: true;
+  readonly medianVisitsPerDay: number;
+  readonly medianDurationSecs: number;
+  readonly visitBand: readonly [number, number];
+  readonly durationBand: readonly [number, number];
+}
+
 const isEstablishedBaseline = (
-  baseline: BaselineMetricsInput | null | undefined,
-): baseline is BaselineMetricsInput => Boolean(
-  baseline &&
-  baseline.avgVisitsPerDay > 0 &&
-  baseline.avgDurationSecs > 0 &&
-  baseline.lastUpdated?.trim(),
+  baseline: PersonalBaseline | null | undefined,
+): baseline is EstablishedBaseline => Boolean(
+  baseline?.established &&
+  baseline.medianVisitsPerDay !== null &&
+  baseline.medianDurationSecs !== null &&
+  baseline.visitBand &&
+  baseline.durationBand,
 );
 
+// The lower limit can fall below zero (display only); a chart never shows negative visits or time.
+const atLeastZero = (value: number) => Math.max(0, value);
+
+/** The cat's band (median, lower and upper limit) from the computed baseline; null until it is established. */
 export function buildCatTrendReferences(
-  baseline: BaselineMetricsInput | null | undefined,
+  baseline: PersonalBaseline | null | undefined,
 ): TrendReferenceSet | null {
   if (!isEstablishedBaseline(baseline)) return null;
 
-  const durationBaseline = baseline.avgDurationSecs / 60;
-  const durationDeviation = BASELINE_DURATION_DEVIATION_SECS / 60;
   return {
     visits: {
-      baseline: baseline.avgVisitsPerDay,
-      normalMin: Math.max(0, baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT),
-      normalMax: baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT,
+      baseline: roundForDisplay(baseline.medianVisitsPerDay),
+      normalMin: roundForDisplay(atLeastZero(baseline.visitBand[0])),
+      normalMax: roundForDisplay(baseline.visitBand[1]),
     },
     duration: {
-      baseline: roundForDisplay(durationBaseline),
-      normalMin: roundForDisplay(Math.max(0, durationBaseline - durationDeviation)),
-      normalMax: roundForDisplay(durationBaseline + durationDeviation),
-    },
-    airQuality: {
-      baseline: baseline.mq135DeltaPercent,
-      normalMin: 0,
-      normalMax:
-        baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
+      baseline: roundForDisplay(baseline.medianDurationSecs / 60),
+      normalMin: roundForDisplay(atLeastZero(baseline.durationBand[0]) / 60),
+      normalMax: roundForDisplay(baseline.durationBand[1] / 60),
     },
   };
 }
 
+/**
+ * All-cats band: visit values add up across cats; duration values are weighted by
+ * each cat's median visits per day. Only cats with an established baseline count.
+ */
 export function buildAggregateTrendReferences(
-  baselines: readonly BaselineMetricsInput[],
+  baselines: readonly (PersonalBaseline | null | undefined)[],
 ): TrendReferenceSet | null {
   const established = baselines.filter(isEstablishedBaseline);
   if (established.length === 0) return null;
 
-  const totalWeight = established.reduce(
-    (total, baseline) => total + baseline.avgVisitsPerDay,
-    0,
-  );
-  const weighted = (getValue: (baseline: BaselineMetricsInput) => number) =>
-    roundForDisplay(
-      established.reduce(
-        (total, baseline) =>
-          total + getValue(baseline) * baseline.avgVisitsPerDay,
-        0,
-      ) / totalWeight,
-    );
+  const sum = (getValue: (baseline: EstablishedBaseline) => number) =>
+    established.reduce((total, baseline) => total + getValue(baseline), 0);
+  const totalWeight = sum((baseline) => baseline.medianVisitsPerDay);
+  const weighted = (getValue: (baseline: EstablishedBaseline) => number) =>
+    roundForDisplay(totalWeight > 0
+      ? sum((baseline) => getValue(baseline) * baseline.medianVisitsPerDay) / totalWeight
+      : sum(getValue) / established.length);
 
   return {
     visits: {
       baseline: roundForDisplay(totalWeight),
-      normalMin: roundForDisplay(
-        established.reduce(
-          (total, baseline) =>
-            total + Math.max(0, baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT),
-          0,
-        ),
-      ),
-      normalMax: roundForDisplay(
-        established.reduce(
-          (total, baseline) =>
-            total + baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT,
-          0,
-        ),
-      ),
+      normalMin: roundForDisplay(sum((baseline) => atLeastZero(baseline.visitBand[0]))),
+      normalMax: roundForDisplay(sum((baseline) => baseline.visitBand[1])),
     },
     duration: {
-      baseline: weighted((baseline) => baseline.avgDurationSecs / 60),
-      normalMin: weighted((baseline) =>
-        Math.max(0, baseline.avgDurationSecs - BASELINE_DURATION_DEVIATION_SECS) / 60
-      ),
-      normalMax: weighted((baseline) =>
-        (baseline.avgDurationSecs + BASELINE_DURATION_DEVIATION_SECS) / 60
-      ),
-    },
-    airQuality: {
-      baseline: weighted((baseline) => baseline.mq135DeltaPercent),
-      normalMin: 0,
-      normalMax: weighted(
-        (baseline) =>
-          baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
-      ),
+      baseline: weighted((baseline) => baseline.medianDurationSecs / 60),
+      normalMin: weighted((baseline) => atLeastZero(baseline.durationBand[0]) / 60),
+      normalMax: weighted((baseline) => baseline.durationBand[1] / 60),
     },
   };
 }

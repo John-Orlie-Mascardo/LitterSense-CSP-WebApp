@@ -29,7 +29,6 @@ import { db } from "@/lib/configs/firebase";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useCats } from "@/lib/contexts/CatContext";
 import type { Session } from "@/lib/interfaces/Session";
-import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
 import {
   filterAndSortHistorySessions,
   HISTORY_BATCH_SIZE,
@@ -54,7 +53,7 @@ export function useSessionHistory(
   filters: HistoryFilters,
 ): SessionHistoryResult {
   const { user } = useAuth();
-  const { cats, catDetails, sessions: contextSessions, backupStatus } = useCats();
+  const { cats, behaviorIndex, sessions: contextSessions, backupStatus } = useCats();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -85,20 +84,15 @@ export function useSessionHistory(
     () => new Set(catIdsKey ? catIdsKey.split("\u001f") : []),
     [catIdsKey],
   );
-  const baselineCatIdsKey = cats
-    .filter((cat) => hasEstablishedBaseline(catDetails[cat.id]))
-    .map((cat) => cat.id)
-    .sort()
-    .join("\u001f");
-  const baselineCatIds = useMemo(
-    () => new Set(
-      baselineCatIdsKey ? baselineCatIdsKey.split("\u001f") : [],
-    ),
-    [baselineCatIdsKey],
-  );
+  // The index changes whenever a visit arrives. Page fetches read it through a
+  // ref so a new visit doesn't restart paging; the final filter below uses it directly.
+  const behaviorIndexRef = useRef(behaviorIndex);
+  useEffect(() => {
+    behaviorIndexRef.current = behaviorIndex;
+  }, [behaviorIndex]);
   const backupRows = useMemo(() => backupStatus.pendingCount > 0 || backupStatus.mode
-    ? filterAndSortHistorySessions(contextSessions, stableFilters, catIds, baselineCatIds)
-    : [], [backupStatus.pendingCount, backupStatus.mode, contextSessions, stableFilters, catIds, baselineCatIds]);
+    ? filterAndSortHistorySessions(contextSessions, stableFilters, catIds, behaviorIndex)
+    : [], [backupStatus.pendingCount, backupStatus.mode, contextSessions, stableFilters, catIds, behaviorIndex]);
   const fetchPage = useCallback(async (reset: boolean) => {
     if (!user || (!reset && loadingRef.current)) return;
 
@@ -192,7 +186,7 @@ export function useSessionHistory(
             normalized,
             stableFilters,
             catIds,
-            baselineCatIds,
+            behaviorIndexRef.current,
           ),
         );
         nextCursor = snapshot.docs.at(-1) ?? nextCursor;
@@ -223,7 +217,7 @@ export function useSessionHistory(
         setIsLoadingMore(false);
       }
     }
-  }, [baselineCatIds, catIds, stableFilters, user, backupStatus.operationalPrimary]);
+  }, [catIds, stableFilters, user, backupStatus.operationalPrimary]);
 
   useEffect(() => {
     if (ownerRef.current !== (user?.uid ?? null)) {
@@ -280,8 +274,8 @@ export function useSessionHistory(
     if (ownerRef.current !== user?.uid) return [];
     const merged = new Map(backupRows.map(row => [row.id, row]));
     for (const row of sessions) merged.set(row.id, row);
-    return filterAndSortHistorySessions([...merged.values()], stableFilters, catIds, baselineCatIds);
-  }, [backupRows, sessions, stableFilters, catIds, baselineCatIds, user?.uid]);
+    return filterAndSortHistorySessions([...merged.values()], stableFilters, catIds, behaviorIndex);
+  }, [backupRows, sessions, stableFilters, catIds, behaviorIndex, user?.uid]);
 
   return {
     sessions: visibleSessions,

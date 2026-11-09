@@ -12,7 +12,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, Radio, RotateCcw } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
@@ -23,7 +23,6 @@ import { SessionHistoryFilters } from "@/components/history/HistoryFilters";
 import { SessionHistorySkeleton } from "@/components/ui/AppLoadingSkeletons";
 import { useCats } from "@/lib/contexts/CatContext";
 import { useSessionHistory } from "@/lib/hooks/useSessionHistory";
-import { hasEstablishedBaseline } from "@/lib/presentation/behaviorStates";
 import {
   formatHistoryRange,
   getDefaultHistoryFilters,
@@ -35,6 +34,10 @@ import {
   serializeHistoryFilters,
   type HistoryFilters,
 } from "@/lib/presentation/sessionHistory";
+import {
+  filterShortVisits,
+  SHOW_SHORT_VISITS_LABEL,
+} from "@/lib/presentation/shortVisits";
 
 function BatchSkeletons() {
   return (
@@ -49,7 +52,7 @@ function BatchSkeletons() {
 export default function SessionHistoryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { cats, catDetails, isLoading: catsLoading } = useCats();
+  const { cats, behaviorIndex, isLoading: catsLoading } = useCats();
   const searchKey = searchParams.toString();
   const validCatIds = useMemo(() => cats.map((cat) => cat.id), [cats]);
   const filters = useMemo(
@@ -63,23 +66,20 @@ export default function SessionHistoryPage() {
   );
   const filterKey = serializeHistoryFilters(filters).toString();
   const history = useSessionHistory(filters);
+  const [showShortVisits, setShowShortVisits] = useState(false);
+  const { visible: visibleSessions, hiddenCount: hiddenShortVisits } = useMemo(
+    () => filterShortVisits(history.sessions, showShortVisits),
+    [history.sessions, showShortVisits],
+  );
   const groups = useMemo(
-    () => groupHistorySessions(history.sessions),
-    [history.sessions],
+    () => groupHistorySessions(visibleSessions),
+    [visibleSessions],
   );
   const catById = useMemo(
     () => new Map(cats.map((cat) => [cat.id, cat])),
     [cats],
   );
   const catIds = useMemo(() => new Set(validCatIds), [validCatIds]);
-  const baselineCatIds = useMemo(
-    () => new Set(
-      cats
-        .filter((cat) => hasEstablishedBaseline(catDetails[cat.id]))
-        .map((cat) => cat.id),
-    ),
-    [catDetails, cats],
-  );
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { hasMore, loadMore } = history;
 
@@ -124,8 +124,20 @@ export default function SessionHistoryPage() {
         <header className="mb-6">
           <h1 className="font-display text-2xl font-bold text-litter-text sm:text-3xl">Session History</h1>
           <p className="mt-1 text-sm text-litter-muted">
-            Showing {history.sessions.length} sessions from {formatHistoryRange(filters.startDate, filters.endDate)}
+            Showing {visibleSessions.length} sessions from {formatHistoryRange(filters.startDate, filters.endDate)}
           </p>
+          <label className="mt-3 flex cursor-pointer select-none items-center gap-2 text-sm text-theme-secondary">
+            <input
+              type="checkbox"
+              checked={showShortVisits}
+              onChange={(event) => setShowShortVisits(event.target.checked)}
+              className="h-4 w-4 accent-[#1B7A6E]"
+            />
+            {SHOW_SHORT_VISITS_LABEL}
+            {hiddenShortVisits > 0 && (
+              <span className="text-xs text-theme-muted">({hiddenShortVisits} hidden)</span>
+            )}
+          </label>
         </header>
 
         <div className="mb-6"><GasSensorHistory /></div>
@@ -148,7 +160,7 @@ export default function SessionHistoryPage() {
                 <p className="mt-1 text-sm text-litter-muted">Tap the key fob near the antenna to record the first visit.</p>
                 <p className="mt-1 text-sm text-litter-muted">Filters will be available after the first session is recorded.</p>
               </div>
-            ) : history.sessions.length === 0 && !history.error ? (
+            ) : visibleSessions.length === 0 && !history.error ? (
               <div className="rounded-2xl border border-litter-border bg-litter-card p-8 text-center">
                 <h2 className="font-semibold text-litter-text">
                   No sessions recorded between {formatHistoryRange(filters.startDate, filters.endDate)}.
@@ -169,7 +181,7 @@ export default function SessionHistoryPage() {
                       key={session.id}
                       cat={catById.get(session.catId) ?? null}
                       session={session}
-                      displayState={getHistorySessionState(session, catIds, baselineCatIds)}
+                      displayState={getHistorySessionState(session, catIds, behaviorIndex)}
                     />
                   );
 

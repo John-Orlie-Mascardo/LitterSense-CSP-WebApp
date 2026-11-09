@@ -3,7 +3,12 @@ import { ownerText } from "../presentation/ownerText";
  * Validates predictive-health input and builds a grounded, non-diagnostic report.
  */
 
-import type { BehaviorStateId } from "@/lib/presentation/behaviorStates";
+import {
+  getIndexedSessionBehavior,
+  type BehaviorStateId,
+  type CatBehaviorIndex,
+} from "@/lib/presentation/behaviorStates";
+import { isCountedVisit } from "@/lib/utils/personalBaseline";
 
 const DISPLAY_STATES = new Set<BehaviorStateId>([
   "normal",
@@ -14,10 +19,22 @@ const DISPLAY_STATES = new Set<BehaviorStateId>([
   "unattributed",
 ]);
 
+type Band = readonly [number, number];
+
 type BaselineMetrics = {
+  /** The computed baseline's medians (the field names predate the median baseline). */
   readonly avgVisitsPerDay: number;
   readonly avgDurationSecs: number;
   readonly lastUpdated: string;
+  /** Lower and upper limit (median ± max(2.5 × MAD, minimum width)). */
+  readonly visitBand?: Band;
+  readonly durationBand?: Band;
+};
+
+/** The baseline's range as sent to Gemini: medians and limits, never negative. */
+export type BaselineRangeEvidence = {
+  readonly visitsPerDay: { readonly median: number; readonly lowerLimit: number; readonly upperLimit: number };
+  readonly durationSecs: { readonly median: number; readonly lowerLimit: number; readonly upperLimit: number };
 };
 
 type SessionCounts = {
@@ -27,6 +44,9 @@ type SessionCounts = {
 };
 
 type PredictiveSession = {
+  readonly id: string;
+  readonly catId: string;
+  readonly durationSecs: number;
   readonly sessionStatus?: string | null;
   readonly summaryVisits?: number;
   readonly anomaly?: boolean;
@@ -39,9 +59,12 @@ export interface PredictiveHealthRequest {
   readonly idToken: string;
   readonly catName: string;
   readonly displayState: BehaviorStateId;
+  readonly displayProvisional: boolean;
   readonly todayVisits: number | null;
   readonly todayAvgDurationSecs: number | null;
   readonly baseline: BaselineMetrics | null;
+  /** Qualifying days in the 14-day baseline window (7 are needed), with or without a baseline. */
+  readonly baselineDaysUsed?: number;
   readonly sessionCounts: SessionCounts;
   readonly trendData: readonly {
     readonly day: string;
@@ -55,6 +78,8 @@ export interface PredictiveHealthAnalysis {
   readonly preliminary?: boolean;
   readonly summary: string;
   readonly baselineComparison: string;
+  readonly baselineRange?: BaselineRangeEvidence | null;
+  readonly baselineDaysUsed?: number | null;
   readonly observedChanges: readonly string[];
   readonly dataQuality: string;
   readonly safeNextStep: string;
@@ -88,16 +113,34 @@ export function isPredictiveHealthAnalysis(
 const isFiniteNumberInRange = (value: unknown, min: number, max: number) =>
   typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
+/** undefined = absent; null = malformed; otherwise a [lower, upper] pair. */
+const parseBand = (value: unknown, limit: number): Band | null | undefined => {
+  if (value === undefined) return undefined;
+  if (
+    !Array.isArray(value) || value.length !== 2 ||
+    !isFiniteNumberInRange(value[0], -limit, limit) ||
+    !isFiniteNumberInRange(value[1], 0, limit) ||
+    Number(value[0]) > Number(value[1])
+  ) {
+    return null;
+  }
+  return [Number(value[0]), Number(value[1])];
+};
+
 const parseBaseline = (value: unknown): BaselineMetrics | null | undefined => {
   if (value === null) return null;
   if (!isRecord(value)) return undefined;
   const { avgVisitsPerDay, avgDurationSecs, lastUpdated } = value;
+  const visitBand = parseBand(value.visitBand, 1000);
+  const durationBand = parseBand(value.durationBand, 86400);
   if (
     !isFiniteNumberInRange(avgVisitsPerDay, 0.01, 1000) ||
     !isFiniteNumberInRange(avgDurationSecs, 1, 86400) ||
     typeof lastUpdated !== "string" ||
     lastUpdated.trim().length < 1 ||
-    lastUpdated.length > 64
+    lastUpdated.length > 64 ||
+    visitBand === null ||
+    durationBand === null
   ) {
     return undefined;
   }
@@ -105,6 +148,8 @@ const parseBaseline = (value: unknown): BaselineMetrics | null | undefined => {
     avgVisitsPerDay: Number(avgVisitsPerDay),
     avgDurationSecs: Math.round(Number(avgDurationSecs)),
     lastUpdated: lastUpdated.trim(),
+    ...(visitBand ? { visitBand } : {}),
+    ...(durationBand ? { durationBand } : {}),
   };
 };
 
@@ -144,6 +189,8 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   const states = ["detected", "clear", "unavailable"];
   if (environment !== undefined && (!isRecord(environment) || !states.includes(String(environment.ammonia)) || !states.includes(String(environment.h2s)))) return null;
   if (value.evidenceDays !== undefined && !isFiniteNumberInRange(value.evidenceDays, 0, 7)) return null;
+  if (value.baselineDaysUsed !== undefined && !isFiniteNumberInRange(value.baselineDaysUsed, 0, 14)) return null;
+  if (value.displayProvisional !== undefined && typeof value.displayProvisional !== "boolean") return null;
   if (
     typeof idToken !== "string" || idToken.length < 1 || idToken.length > 4096 ||
     typeof catName !== "string" || catName.trim().length < 1 || catName.length > 80 ||
@@ -179,9 +226,11 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
   return {
     ...(environment ? { environment: environment as PredictiveHealthRequest["environment"] } : {}),
     ...(typeof value.evidenceDays === "number" ? { evidenceDays: value.evidenceDays } : {}),
+    ...(typeof value.baselineDaysUsed === "number" ? { baselineDaysUsed: Math.round(value.baselineDaysUsed) } : {}),
     idToken,
     catName: catName.trim(),
     displayState: displayState as BehaviorStateId,
+    displayProvisional: value.displayProvisional === true,
     todayVisits: todayVisits === null ? null : Math.round(Number(todayVisits)),
     todayAvgDurationSecs:
       todayAvgDurationSecs === null ? null : Math.round(Number(todayAvgDurationSecs)),
@@ -193,22 +242,16 @@ export function parsePredictiveHealthRequest(value: unknown): PredictiveHealthRe
 
 export function summarizePredictiveSessions(
   sessions: readonly PredictiveSession[],
+  behaviorIndex?: CatBehaviorIndex | null,
 ): SessionCounts {
   return sessions.reduce<SessionCounts>((counts, session) => {
-    const status = session.sessionStatus?.toUpperCase() ?? "NORMAL";
-    const isIncomplete =
-      status === "SHORT_SESSION" || status === "SESSION_INTERRUPTED" || status === "NO_EXIT_TIMEOUT" || session.anomalyType === "Short session";
-    const isIgnored = status === "IN_PROGRESS" || status === "FALSE_ENTRY_IGNORED";
-    const isAbnormal =
-      !isIncomplete &&
-      (session.anomaly === true || status === "ABNORMAL" || status === "NO_EXIT_TIMEOUT");
+    const behavior = getIndexedSessionBehavior(session, behaviorIndex);
+    const counted = isCountedVisit(session);
 
     return {
-      completed:
-        counts.completed +
-        (isIncomplete || isIgnored ? 0 : Math.max(1, Math.round(session.summaryVisits ?? 1))),
-      incomplete: counts.incomplete + (isIncomplete ? 1 : 0),
-      abnormal: counts.abnormal + (isAbnormal ? 1 : 0),
+      completed: counts.completed + (counted ? 1 : 0),
+      incomplete: counts.incomplete + (behavior.state === "incomplete" ? 1 : 0),
+      abnormal: counts.abnormal + (behavior.state === "abnormal" ? 1 : 0),
     };
   }, { completed: 0, incomplete: 0, abnormal: 0 });
 }
@@ -273,6 +316,25 @@ const getSafeNextStep = (state: BehaviorStateId) => {
   }
 };
 
+const roundTenth = (value: number) => Math.round(value * 10) / 10;
+
+/** Medians and limits from the computed baseline; null until a baseline with both bands exists. */
+const buildBaselineRangeEvidence = (baseline: BaselineMetrics | null): BaselineRangeEvidence | null =>
+  baseline?.visitBand && baseline.durationBand
+    ? {
+        visitsPerDay: {
+          median: roundTenth(baseline.avgVisitsPerDay),
+          lowerLimit: roundTenth(Math.max(0, baseline.visitBand[0])),
+          upperLimit: roundTenth(baseline.visitBand[1]),
+        },
+        durationSecs: {
+          median: Math.round(baseline.avgDurationSecs),
+          lowerLimit: Math.round(Math.max(0, baseline.durationBand[0])),
+          upperLimit: Math.round(baseline.durationBand[1]),
+        },
+      }
+    : null;
+
 export function buildPredictiveHealthEvidence(
   request: PredictiveHealthRequest,
 ): PredictiveHealthEvidence {
@@ -324,6 +386,8 @@ export function buildPredictiveHealthEvidence(
 
   return {
     baselineComparison,
+    baselineRange: buildBaselineRangeEvidence(baseline),
+    baselineDaysUsed: request.baselineDaysUsed ?? null,
     observedChanges: observedChanges.slice(0, 5),
     dataQuality,
     safeNextStep: getSafeNextStep(request.displayState),
@@ -332,16 +396,22 @@ export function buildPredictiveHealthEvidence(
 
 export function buildPredictiveHealthPrompt(request: PredictiveHealthRequest) {
   const evidence = buildPredictiveHealthEvidence(request);
+  const officialBehaviorState = request.displayState === "normal" && request.displayProvisional
+    ? "normal (provisional)"
+    : request.displayState;
   return [
     "Use Urine and Stool for environment readings; never use chemical names, chemical abbreviations, ppm units, confidence labels, or RFID Session labels. Write a plain-language behavioral health summary for a cat owner in two or three sentences and at most 90 words.",
-    `The app's official behavior state is \"${request.displayState}\". Explain it, but never change or contradict it.`,
+    `The app's official behavior state is \"${officialBehaviorState}\". Explain it, but never change or contradict it.`,
     "Use only the supplied verified evidence. Do not diagnose, predict a disease, name illnesses, invent causes, invent measurements, or claim certainty about the cat's health.",
     "When no personal baseline exists, give a useful preliminary early read using the available visits and environment. Label it preliminary and do not claim a personal baseline comparison. Even zero visits can support setup steps and available environment guidance.",
-    "State meanings: normal = matches the cat's usual pattern and limits; watch = within limits but different from the usual pattern; abnormal = a set activity limit was crossed; insufficient = more sessions are needed; incomplete = visit too short; unattributed = no collar tag was read.",
+    "State meanings: normal = a personal baseline exists and no Incomplete, Abnormal, or Watch rule fired; normal (provisional) = no personal baseline exists yet, the visit is counted, and no Abnormal rule fired; watch = a personal baseline exists, no Abnormal rule fired, and duration or today's counted visits are above that baseline's upper limit; abnormal = a set activity limit was crossed; insufficient = more sessions are needed; incomplete = visit too short; unattributed = no collar tag was read.",
     `Verified evidence: ${JSON.stringify({
       catName: request.catName,
-      officialBehaviorState: request.displayState,
+      officialBehaviorState,
+      provisional: request.displayProvisional,
       baselineComparison: evidence.baselineComparison,
+      baselineRange: evidence.baselineRange,
+      baselineDaysUsed: evidence.baselineDaysUsed,
       observedChanges: evidence.observedChanges,
       dataQuality: evidence.dataQuality,
       safeNextStep: evidence.safeNextStep,

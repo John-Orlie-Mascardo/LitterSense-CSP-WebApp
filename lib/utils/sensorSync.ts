@@ -1,3 +1,5 @@
+import { ABNORMAL_DURATION_SECS } from "../configs/behaviorThresholds";
+
 export const COUNTABLE_SESSION_STATUSES = [
   "NORMAL",
   "ABNORMAL",
@@ -159,7 +161,7 @@ const getVisitAnomaly = (
     status === "ABNORMAL" ||
     status === "NO_EXIT_TIMEOUT" ||
     status === "SHORT_SESSION" ||
-    durationSecs >= 300;
+    durationSecs >= ABNORMAL_DURATION_SECS;
 
   if (!isAnomaly) return { anomaly: false, anomalyType: null };
   if (status === "NO_EXIT_TIMEOUT") {

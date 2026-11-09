@@ -12,8 +12,6 @@
 
 import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
 
-import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
@@ -57,11 +55,9 @@ import { BehaviorStateBadge } from "@/components/behavior/BehaviorStateBadge";
 import { CatGridSkeleton } from "@/components/ui/AppLoadingSkeletons";
 import {
   formatMetricValue,
-  getSessionDisplayState,
-  getMostSevereState,
-  hasEstablishedBaseline,
   hasRecordedCatData,
 } from "@/lib/presentation/behaviorStates";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
 import type { Session } from "@/lib/interfaces/Session";
 
 const AVATAR_PREVIEW_SIZE = 128;
@@ -771,11 +767,9 @@ const formatLastVisit = (iso: string | undefined, hasData: boolean) => {
 };
 
 function CatCard({ cat, details, stats, sessions }: CatCardProps) {
+  const { behaviorIndex, historyLoading } = useCats();
   const hasData = hasRecordedCatData({ sessions, stats });
-  const baselineEstablished = hasEstablishedBaseline(details);
-  const displayState = getMostSevereState(sessions
-    .filter((session) => getSessionActivityDateKey(session) === getTodayDateKey())
-    .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished })));
+  const { state: displayState, provisional } = getCatBehaviorToday(cat.id, sessions, behaviorIndex);
 
   return (
     <div>
@@ -809,7 +803,7 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
             </div>
 
             {/* Status badge */}
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} compact className="shrink-0" />
+            <span className="text-xs text-litter-muted">Today</span>{historyLoading ? <span className="text-xs text-litter-muted shrink-0">Loading…</span> : <BehaviorStateBadge state={displayState} provisional={provisional} compact className="shrink-0" />}
           </div>
 
           {/* Divider */}
@@ -820,19 +814,19 @@ function CatCard({ cat, details, stats, sessions }: CatCardProps) {
             <div className="pr-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Visits</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatMetricValue(stats?.visits ?? 0, hasData)}
+                {historyLoading ? "Loading" : formatMetricValue(stats?.visits ?? 0, hasData)}
               </p>
             </div>
             <div className="px-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Duration</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatMetricValue(stats?.avgDuration, hasData)}
+                {historyLoading ? "Loading" : formatMetricValue(stats?.avgDuration, hasData)}
               </p>
             </div>
             <div className="pl-4">
               <p className="text-xs font-semibold text-litter-muted uppercase tracking-wider mb-1">Last Visit</p>
               <p className="font-bold text-litter-text text-lg">
-                {formatLastVisit(stats?.lastVisit, hasData)}
+                {historyLoading ? "Loading" : formatLastVisit(stats?.lastVisit, hasData)}
               </p>
             </div>
           </div>

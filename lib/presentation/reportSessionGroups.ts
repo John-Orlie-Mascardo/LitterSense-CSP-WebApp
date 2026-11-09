@@ -87,7 +87,13 @@ export function buildReportSessionGroups<TSession extends ReportSessionLike>(
         anomaly: session.anomaly,
         anomalyType: session.anomalyType,
         isAttributed: true,
-        baselineEstablished: cat.baselineEstablished,
+        // A saved report keeps only whether the computed baseline existed, not its
+        // bands, so a report can show Normal vs Normal (provisional) but not Watch.
+        baseline: {
+          established: cat.baselineEstablished,
+          visitBand: null,
+          durationBand: null,
+        },
       }),
     }));
 

@@ -31,6 +31,7 @@ import {
 import { generateId } from "../utils/formatters";
 import { normalizePastReport, sortPastReports } from "@/lib/utils/reportHistory";
 import { getReportConcernCount } from "@/lib/utils/reportAssessment";
+import { getCountedReportMetrics } from "@/lib/utils/reportMetrics";
 import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
@@ -39,7 +40,6 @@ import { UNATTRIBUTED_GROUP_NAME } from "@/lib/presentation/reportSessionGroups"
 import {
   buildAggregateTrendReferences,
   buildCatTrendReferences,
-  type BaselineMetricsInput,
 } from "@/lib/presentation/trendCharts";
 
 export type ReportSession = Session & {
@@ -184,7 +184,7 @@ export function useReports() {
   const {
     cats,
     sessions: rawSessions,
-    getDetailsByCatId,
+    behaviorIndex,
     getHealthLogsByCatId,
     getSessionsByCatId,
     getTrendData,
@@ -299,22 +299,17 @@ export function useReports() {
         catName: catNameById.get(log.catId) ?? "Unknown Cat",
       }));
 
-    const totalSessions = filteredSessions.reduce(
-      (sum, session) => sum + getVisitCount(session),
-      0,
-    );
     const daysDiff = getInclusiveDayCount(startDate, endDate);
-    const avgSessionsPerDay = Math.round((totalSessions / daysDiff) * 10) / 10;
-    const totalDuration = filteredSessions.reduce(
-      (sum, session) => sum + session.durationSecs * getVisitCount(session),
-      0,
-    );
-    const avgDurationSecs =
-      totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+    const {
+      countedSessions,
+      totalSessions,
+      avgSessionsPerDay,
+      avgDurationSecs,
+    } = getCountedReportMetrics(filteredSessions, daysDiff);
     const avgDuration = `${Math.floor(avgDurationSecs / 60)}m ${(
       avgDurationSecs % 60
     ).toString().padStart(2, "0")}s`;
-    const anomaliesDetected = getReportConcernCount(filteredSessions);
+    const anomaliesDetected = getReportConcernCount(filteredSessions, behaviorIndex);
 
     let overallStatus: "normal" | "abnormal" = "normal";
     let statusMessage = "No concerning patterns detected";
@@ -330,10 +325,8 @@ export function useReports() {
     }
 
     const selectedReportCats = actualCatId === "all" ? cats : cat ? [cat] : [];
-    const reportBaselines = selectedReportCats.flatMap((reportCat) => {
-      const baseline = getDetailsByCatId(reportCat.id)?.baseline;
-      return baseline ? [baseline as BaselineMetricsInput] : [];
-    });
+    const reportBaselines = selectedReportCats.map((reportCat) =>
+      behaviorIndex?.baselineByCatId.get(reportCat.id));
 
     const report: ReportData = {
       id: generateId(),
@@ -350,7 +343,7 @@ export function useReports() {
         id: reportCat.id,
         name: reportCat.name,
         avatar: reportCat.avatar,
-        baselineEstablished: hasEstablishedBaseline(getDetailsByCatId(reportCat.id)),
+        baselineEstablished: hasEstablishedBaseline(behaviorIndex?.baselineByCatId.get(reportCat.id)),
       })),
       summary: {
         totalSessions,
@@ -364,7 +357,7 @@ export function useReports() {
       healthLogs: filteredHealthLogs,
       trendData:
         actualCatId === "all"
-          ? buildAggregateTrendData(filteredSessions)
+          ? buildAggregateTrendData(countedSessions)
           : getTrendData(actualCatId),
       trendReferences: actualCatId === "all"
         ? buildAggregateTrendReferences(reportBaselines)
@@ -403,7 +396,7 @@ export function useReports() {
     }
 
     return report;
-  }, [cats, getDetailsByCatId, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
+  }, [behaviorIndex, cats, getHealthLogsByCatId, getSessionsByCatId, getTrendData, historyLoading, isCurrentOwner, ownerId, rawSessions, setCurrentReport, user]);
 
   const deleteReport = useCallback(async (reportId: string) => {
     if (!isCurrentOwner()) return;

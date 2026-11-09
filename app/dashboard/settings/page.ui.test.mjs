@@ -103,6 +103,28 @@ test("PDF and DOC exports omit settings data", () => {
   assert.doesNotMatch(exportHtml, /JSON\.stringify\(payload\.settings/);
 });
 
+test("exports label cat behavior from the shared current result, never saved cat.status", () => {
+  const exportHtml = sourceBetween(
+    "const buildExportHtml = (payload: ExportAllPayload) => {",
+    "const buildExportCsv = (payload: ExportAllPayload) => {",
+  );
+  const exportCsv = sourceBetween(
+    "const buildExportCsv = (payload: ExportAllPayload) => {",
+    "export default function SettingsPage()",
+  );
+  const payload = sourceBetween(
+    "const buildExportPayload = (): ExportAllPayload => ({",
+    "const handleExportAll = (format: ExportAllFormat) => {",
+  );
+
+  assert.match(payload, /getCatBehaviorToday/);
+  assert.match(payload, /getBehaviorStateLabel\(current\.state, current\.provisional\)/);
+  assert.match(exportHtml, /payload\.catBehaviorLabels\[cat\.id\]/);
+  assert.match(exportCsv, /payload\.catBehaviorLabels\[cat\.id\]/);
+  assert.doesNotMatch(exportHtml, /cat\.status/);
+  assert.doesNotMatch(exportCsv, /cat\.status/);
+});
+
 test("owner photos upload to Storage before Auth and mirror the URL to Firestore", () => {
   const saveHandler = sourceBetween(
     "const handleSaveProfile = async",

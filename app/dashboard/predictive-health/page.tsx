@@ -13,17 +13,17 @@ import { useCats } from "@/lib/contexts/CatContext";
 import { useDeviceSensors } from "@/lib/hooks/useDeviceSensors";
 import { getPredictiveOverview } from "@/lib/utils/predictiveOverview";
 import {
-  BEHAVIOR_STATE_BY_ID,
+  getBehaviorStateSentence,
+  formatBaselineProgress,
   formatMetricValue,
-  getCatDisplayState,
   hasEstablishedBaseline,
   hasRecordedCatData,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
-import { getFallbackAverageDuration } from "@/lib/utils/dashboardBehaviorMetrics";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import type { PersonalBaseline } from "@/lib/utils/personalBaseline";
 import {
   isPredictiveHealthAnalysis,
-  parseDurationLabelToSeconds,
   summarizePredictiveSessions,
   type PredictiveHealthAnalysis,
 } from "@/lib/utils/predictiveHealth";
@@ -32,6 +32,8 @@ type CatPresentation = {
   readonly hasData: boolean;
   readonly baselineEstablished: boolean;
   readonly state: BehaviorStateId;
+  readonly provisional: boolean;
+  readonly computedBaseline: PersonalBaseline | null;
 };
 
 export default function PredictiveHealthPage() {
@@ -40,7 +42,8 @@ export default function PredictiveHealthPage() {
   const {
     cats,
     isLoading,
-    getDetailsByCatId,
+    historyLoading,
+    behaviorIndex,
     getSessionsByCatId,
     getStatsByCatId,
     getTrendData,
@@ -67,27 +70,26 @@ export default function PredictiveHealthPage() {
     ? selectedCatId
     : cats[0]?.id ?? "";
   const selectedCat = cats.find((cat) => cat.id === activeCatId);
-  const stats = getStatsByCatId(activeCatId);
-  const details = getDetailsByCatId(activeCatId);
-  const storedTrendData = getTrendData(activeCatId);
   const selectedSessions = useMemo(
     () => getSessionsByCatId(activeCatId),
     [activeCatId, getSessionsByCatId],
   );
   const sessionCounts = useMemo(
-    () => summarizePredictiveSessions(selectedSessions),
-    [selectedSessions],
+    () => summarizePredictiveSessions(selectedSessions, behaviorIndex),
+    [behaviorIndex, selectedSessions],
   );
 
   const catPresentations = useMemo(
     () =>
       Object.fromEntries(
         cats.map((cat) => {
+          const catSessions = getSessionsByCatId(cat.id);
           const catStats = getStatsByCatId(cat.id);
           const catTrendData = getTrendData(cat.id);
-          const baselineEstablished = hasEstablishedBaseline(getDetailsByCatId(cat.id));
+          // Same shared rollup as Home's highest-severity state.
+          const today = getCatBehaviorToday(cat.id, catSessions, behaviorIndex);
           const hasData = hasRecordedCatData({
-            sessions: getSessionsByCatId(cat.id),
+            sessions: catSessions,
             stats: catStats,
             trendData: catTrendData,
           });
@@ -96,56 +98,61 @@ export default function PredictiveHealthPage() {
             cat.id,
             {
               hasData,
-              baselineEstablished,
-              state: getCatDisplayState({
-                persistedStatus: cat.status,
-                hasData,
-                baselineEstablished,
-              }),
+              baselineEstablished: hasEstablishedBaseline(today.baseline),
+              state: today.state,
+              provisional: today.provisional,
+              computedBaseline: today.baseline,
             },
           ];
         }),
       ) as Record<string, CatPresentation>,
-    [cats, getDetailsByCatId, getSessionsByCatId, getStatsByCatId, getTrendData],
+    [behaviorIndex, cats, getSessionsByCatId, getStatsByCatId, getTrendData],
   );
 
-  const presentation = catPresentations[activeCatId] ?? {
+  const presentation: CatPresentation = catPresentations[activeCatId] ?? {
     hasData: false,
     baselineEstablished: false,
     state: "insufficient" as const,
+    provisional: false,
+    computedBaseline: null,
   };
+  const computedBaseline = presentation.computedBaseline;
   const overview = getPredictiveOverview(selectedSessions, presentation.baselineEstablished);
-  const trendData = overview.trendData.length ? overview.trendData : storedTrendData;
+  const trendData = overview.trendData;
   const gasAvailable = !sensorError && sensors?.gasUltrasonicOnline === true;
   const gasState = (raw: number | null | undefined): "detected" | "clear" | "unavailable" => gasAvailable && (raw === 0 || raw === 1) ? raw === 0 ? "detected" : "clear" : "unavailable";
   const environment = { ammonia: gasState(sensors?.mq135Raw), h2s: gasState(sensors?.mq136Raw) };
-  const displayVisits = Math.max(stats?.visits ?? 0, overview.todayCount);
-  const averageDuration = getFallbackAverageDuration(
-    stats?.avgDuration,
-    trendData,
-    selectedSessions,
-    activeCatId,
-  );
+  const displayVisits = overview.todayCount;
+  const averageDuration = overview.todayAvgDurationSecs === null
+    ? "--"
+    : `${Math.floor(overview.todayAvgDurationSecs / 60)}m ${String(overview.todayAvgDurationSecs % 60).padStart(2, "0")}s`;
   const displayDuration = String(
     formatMetricValue(averageDuration, presentation.hasData),
   );
-  const baseline = presentation.baselineEstablished && details?.baseline
+  // Evidence from the computed baseline: medians, both bands, and the days used.
+  // The prompt receives these computed values without making a Gemini call here.
+  const baseline = computedBaseline?.established &&
+    computedBaseline.medianVisitsPerDay !== null &&
+    computedBaseline.medianDurationSecs !== null
     ? {
-        avgVisitsPerDay: details.baseline.avgVisitsPerDay,
-        avgDurationSecs: details.baseline.avgDurationSecs,
-        lastUpdated: details.baseline.lastUpdated,
+        avgVisitsPerDay: computedBaseline.medianVisitsPerDay,
+        avgDurationSecs: computedBaseline.medianDurationSecs,
+        lastUpdated: computedBaseline.windowEnd,
+        ...(computedBaseline.visitBand ? { visitBand: computedBaseline.visitBand } : {}),
+        ...(computedBaseline.durationBand ? { durationBand: computedBaseline.durationBand } : {}),
       }
     : null;
+  const baselineDaysUsed = computedBaseline?.daysUsed ?? 0;
   const todayVisits = displayVisits;
-  const todayAvgDurationSecs = todayVisits > 0
-    ? (parseDurationLabelToSeconds(stats?.avgDuration ?? '') ?? parseDurationLabelToSeconds(averageDuration))
-    : null;
+  const todayAvgDurationSecs = overview.todayAvgDurationSecs;
   const analysisKey = JSON.stringify({
     activeCatId,
     displayState: presentation.state,
+    displayProvisional: presentation.provisional,
     todayVisits,
     todayAvgDurationSecs,
     baseline,
+    baselineDaysUsed,
     sessionCounts,
     trendData,
     environment,
@@ -154,7 +161,7 @@ export default function PredictiveHealthPage() {
   const analysis = analysisResult?.key === analysisKey
     ? analysisResult.analysis
     : null;
-  const analysisSummary = analysis?.summary ?? (presentation.baselineEstablished ? BEHAVIOR_STATE_BY_ID[presentation.state].description : `Early read available from ${overview.completed} completed visits and current environment readings. Select Analyze for a preliminary summary.`);
+  const analysisSummary = analysis?.summary ?? (presentation.baselineEstablished ? getBehaviorStateSentence(presentation.state) : `Early read available from ${overview.completed} completed visits and current environment readings. Select Analyze for a preliminary summary.`);
 
   const handleAnalyze = async () => {
     if (!user || !selectedCat || isAnalyzing || retryAfterSeconds > 0) return;
@@ -170,9 +177,11 @@ export default function PredictiveHealthPage() {
           idToken,
           catName: selectedCat.name,
           displayState: presentation.state,
+          displayProvisional: presentation.provisional,
           todayVisits,
           todayAvgDurationSecs,
           baseline,
+          baselineDaysUsed,
           sessionCounts,
           trendData: trendData ?? [],
           environment,
@@ -232,7 +241,7 @@ export default function PredictiveHealthPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {isLoading || historyLoading ? (
           <div className="rounded-xl border border-litter-border bg-litter-card p-8 text-center text-sm text-litter-muted">
             Loading behavioral data...
           </div>
@@ -255,6 +264,7 @@ export default function PredictiveHealthPage() {
                   cat={cat}
                   isActive={cat.id === activeCatId}
                   displayState={catPresentations[cat.id]?.state ?? "insufficient"}
+                  provisional={catPresentations[cat.id]?.provisional ?? false}
                   onClick={() => {
                     setSelectedCatId(cat.id);
                     setAnalysisError("");
@@ -272,30 +282,36 @@ export default function PredictiveHealthPage() {
                       Behavioral Baseline
                     </h2>
                   </div>
-                  {presentation.baselineEstablished ? <BehaviorStateBadge state={presentation.state} /> : <span className="rounded-full bg-litter-primary-light px-3 py-1 text-xs font-semibold text-litter-primary">Building baseline</span>}
+                  <div className="flex flex-col items-end gap-1">
+                    <BehaviorStateBadge state={presentation.state} provisional={presentation.provisional} />
+                    {!presentation.baselineEstablished && (
+                      <span className="text-xs text-litter-muted">{formatBaselineProgress(baselineDaysUsed)}</span>
+                    )}
+                  </div>
                 </div>
 
-                {presentation.baselineEstablished && details?.baseline ? (
+                {baseline && computedBaseline ? (
                   <div className="mt-5 grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-litter-muted">Average visits per day</p>
+                      <p className="text-xs text-litter-muted">Median visits per day</p>
                       <p className="mt-1 text-xl font-bold text-litter-text">
-                        {details.baseline.avgVisitsPerDay}
+                        {Number(baseline.avgVisitsPerDay.toFixed(1))}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-litter-muted">Average duration</p>
+                      <p className="text-xs text-litter-muted">Median duration</p>
                       <p className="mt-1 text-xl font-bold text-litter-text">
-                        {(details.baseline.avgDurationSecs / 60).toFixed(1)} min
+                        {(baseline.avgDurationSecs / 60).toFixed(1)} min
                       </p>
                     </div>
                     <p className="col-span-2 text-xs text-litter-muted">
-                      Last updated {new Date(details.baseline.lastUpdated).toLocaleDateString()}
+                      Based on visits from {computedBaseline.windowStart} to {computedBaseline.windowEnd}
                     </p>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm leading-relaxed text-litter-muted">
-                    {overview.progress}
+                    {/* Same day count as the badge above; the baseline is computed, never saved. */}
+                    {`${overview.completed} counted visits recorded. ${formatBaselineProgress(baselineDaysUsed)} with visits. The usual range appears once 7 days are recorded.`}
                   </p>
                 )}
               </section>

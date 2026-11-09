@@ -1,36 +1,41 @@
 /**
  * BehaviorStateLegend.tsx
  *
- * Shared six-state reference key used by Home, Reports, and print output.
+ * Shared behavior state key used by Home, Reports, and print output: five states,
+ * with Normal's provisional variant listed under Normal.
  *
  * DONE: shared copy rendering, responsive grid, optional mobile disclosure,
- * reference-only semantics
+ * reference-only semantics, "X of 7 days" for the selected cat
  * PLACEHOLDER: none
  *
  * NEXT: manuscript owners approve wording changes in behaviorStates.ts only.
  */
 
 import { ChevronDown } from "lucide-react";
-import { BEHAVIOR_STATES } from "@/lib/presentation/behaviorStates";
+import { getBehaviorStateKeyEntries } from "@/lib/presentation/behaviorStates";
 
 export function BehaviorStateLegend({
   compact = false,
   collapsible = false,
+  baselineDaysUsed,
   className = "",
 }: {
   readonly compact?: boolean;
   readonly collapsible?: boolean;
+  /** The selected cat's qualifying baseline days; omit when the key covers several cats. */
+  readonly baselineDaysUsed?: number | null;
   readonly className?: string;
 }) {
+  const entries = getBehaviorStateKeyEntries(baselineDaysUsed);
   const legendEntries = (
     <div className={`grid ${compact ? "gap-2" : "gap-3 sm:grid-cols-2"}`}>
-      {BEHAVIOR_STATES.map((state) => (
-        <div key={state.id} className="flex items-start gap-3">
-          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${state.dotClass}`} />
+      {entries.map((entry) => (
+        <div key={entry.key} className="flex items-start gap-3">
+          <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${entry.dotClass}`} />
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-litter-text">{state.label}</p>
+            <p className="text-xs font-semibold text-litter-text">{entry.label}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-litter-muted">
-              {state.description}
+              {entry.description}
             </p>
           </div>
         </div>
@@ -51,10 +56,10 @@ export function BehaviorStateLegend({
             </span>
             <span className="flex items-center gap-2" aria-hidden="true">
               <span className="flex gap-1">
-                {BEHAVIOR_STATES.map((state) => (
+                {entries.map((entry) => (
                   <span
-                    key={state.id}
-                    className={`h-2 w-2 rounded-full ${state.dotClass}`}
+                    key={entry.key}
+                    className={`h-2 w-2 rounded-full ${entry.dotClass}`}
                   />
                 ))}
               </span>

@@ -17,6 +17,7 @@ import Image from "next/image";
 import type { Cat } from "@/lib/data/data";
 import {
   BEHAVIOR_STATE_BY_ID,
+  getBehaviorStateLabel,
   type BehaviorStateId,
 } from "@/lib/presentation/behaviorStates";
 
@@ -24,10 +25,11 @@ interface CatChipProps {
   cat: Cat;
   isActive: boolean;
   displayState: BehaviorStateId;
+  provisional?: boolean;
   onClick: () => void;
 }
 
-export function CatChip({ cat, isActive, displayState, onClick }: CatChipProps) {
+export function CatChip({ cat, isActive, displayState, provisional = false, onClick }: CatChipProps) {
   const stateDefinition = BEHAVIOR_STATE_BY_ID[displayState];
   return (
     <button
@@ -64,7 +66,7 @@ export function CatChip({ cat, isActive, displayState, onClick }: CatChipProps) 
           className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 ${
             isActive ? "border-litter-primary" : "border-white"
           } ${stateDefinition.dotClass}`}
-          aria-label={stateDefinition.label}
+          aria-label={getBehaviorStateLabel(displayState, provisional)}
         />
       </div>
 

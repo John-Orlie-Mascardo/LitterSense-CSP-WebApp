@@ -13,8 +13,6 @@
 
 import { usePhotoUpload } from "@/lib/hooks/usePhotoUpload";
 
-import { getSessionActivityDateKey, getLocalDateKey as getTodayDateKey } from "@/lib/utils/sessionDate";
-
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -23,7 +21,6 @@ import {
   Pencil,
   Clock,
   Timer,
-  Wind,
   Tag,
   Info,
   Plus,
@@ -65,7 +62,6 @@ import {
   calculateAge,
   formatDuration,
   formatDate,
-  getDeltaLabel,
   getHealthLogTypeColor,
   generateId,
 } from "@/lib/utils/formatters";
@@ -80,20 +76,19 @@ import {
 import { formatSessionTimeLabel, getSessionSortValue } from "@/lib/utils/sessionTime";
 import {
   formatMetricValue,
-  getSessionDisplayState,
-  getMostSevereState,
+  getBehaviorStateLabel,
+  getIndexedSessionBehavior,
+  BASELINE_UPDATE_TEXT,
+  formatBaselineProgress,
   hasEstablishedBaseline,
   hasRecordedCatData,
-  BEHAVIOR_STATE_BY_ID,
   type BehaviorStateId,
+  type CatBehaviorIndex,
 } from "@/lib/presentation/behaviorStates";
-import {
-  BASELINE_AIR_QUALITY_DEVIATION_PERCENT,
-  BASELINE_DURATION_DEVIATION_SECS,
-  BASELINE_ODOR_DEVIATION_PERCENT,
-  BASELINE_PERIOD_DAYS,
-  BASELINE_VISIT_DEVIATION_COUNT,
-} from "@/lib/configs/behaviorThresholds";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import { filterShortVisits, SHOW_SHORT_VISITS_LABEL } from "@/lib/presentation/shortVisits";
+import type { PersonalBaseline } from "@/lib/utils/personalBaseline";
+import { BASELINE_MIN_DAYS } from "@/lib/configs/behaviorThresholds";
 import {
   buildCatTrendReferences,
   getMetricTrendPoints,
@@ -231,6 +226,8 @@ export default function CatDetailClient() {
     removeCat,
     addHealthLog,
     removeHealthLog,
+    behaviorIndex,
+    historyLoading,
   } = useCats();
   const { data: sensorData } = useDeviceSensors();
 
@@ -239,14 +236,16 @@ export default function CatDetailClient() {
   const stats = getStatsByCatId(catId);
   const sessions = getSessionsByCatId(catId);
   const healthLogs = getHealthLogsByCatId(catId);
-  const sessionLog = deriveSessionLogCounts(sessions, hasEstablishedBaseline(details));
+  const sessionLog = deriveSessionLogCounts(sessions, behaviorIndex);
   const trendData = getTrendData(catId);
-  const trendReferences = buildCatTrendReferences(details?.baseline);
   const hasData = hasRecordedCatData({ sessions, stats, trendData });
-  const baselineEstablished = hasEstablishedBaseline(details);
-  const displayState = getMostSevereState(sessions
-    .filter((session) => getSessionActivityDateKey(session) === getTodayDateKey())
-    .map((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished })));
+  // Same shared rollup as Home, My Cats, and Predictive Health.
+  const {
+    state: displayState,
+    provisional: displayProvisional,
+    baseline: computedBaseline,
+  } = getCatBehaviorToday(catId, sessions, behaviorIndex);
+  const trendReferences = buildCatTrendReferences(computedBaseline);
 
   const requestedTab = searchParams.get("tab");
   const activeTab: CatDetailTabId = isCatDetailTabId(requestedTab)
@@ -547,7 +546,7 @@ export default function CatDetailClient() {
               RFID: {details?.rfidTag || "—"}
             </span>
 
-            <span className="text-xs text-litter-muted">Today</span><BehaviorStateBadge state={displayState} />
+            <span className="text-xs text-litter-muted">Today</span>{historyLoading ? <span className="text-xs text-litter-muted">Loading…</span> : <BehaviorStateBadge state={displayState} provisional={displayProvisional} />}
           </div>
         </section>
 
@@ -789,6 +788,11 @@ export default function CatDetailClient() {
           <TabBar tabs={tabs} activeTab={activeTab} onChange={handleTabChange} />
 
           <div className="p-4 sm:p-6">
+            {historyLoading && activeTab !== "health" ? (
+              <div role="status" className="flex items-center justify-center gap-2 py-12 text-sm text-litter-muted">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading visit history…
+              </div>
+            ) : (
             <div>
               {activeTab === "overview" && (
                 <OverviewTab
@@ -797,13 +801,16 @@ export default function CatDetailClient() {
                   details={details ?? null}
                   sessions={sessions}
                   displayState={displayState}
+                  displayProvisional={displayProvisional}
+                  baseline={computedBaseline}
+                  behaviorIndex={behaviorIndex}
                   hasData={hasData}
                   sessionLog={sessionLog}
                   sensorData={sensorData}
                 />
               )}
               {activeTab === "history" && (
-                <HistoryTab key="history" sessions={sessions} />
+                <HistoryTab key="history" sessions={sessions} behaviorIndex={behaviorIndex} />
               )}
               {activeTab === "trends" && (
                 <TrendsTab
@@ -824,6 +831,7 @@ export default function CatDetailClient() {
                 />
               )}
             </div>
+            )}
           </div>
         </div>
         {/* Generate Report CTA */}
@@ -854,16 +862,24 @@ interface OverviewTabProps {
   readonly details: CatDetails | null;
   readonly sessions: readonly Session[];
   readonly displayState: BehaviorStateId;
+  readonly displayProvisional: boolean;
+  readonly baseline: PersonalBaseline | null;
+  readonly behaviorIndex: CatBehaviorIndex;
   readonly hasData: boolean;
   readonly sessionLog: SessionLogCounts;
   readonly sensorData: ReturnType<typeof useDeviceSensors>["data"];
 }
+
+const formatBandValue = (value: number) => Number(Math.max(0, value).toFixed(1));
 
 function OverviewTab({
   stats,
   details,
   sessions,
   displayState,
+  displayProvisional,
+  baseline,
+  behaviorIndex,
   hasData,
   sessionLog,
   sensorData,
@@ -897,9 +913,14 @@ function OverviewTab({
       : { ...baseStats, visits: baseStats.visits + 1 };
   }, [details, sessions, sensorData, stats]);
 
-  const recentAnomalies = sessions.filter((session) => getSessionDisplayState({ ...session, isAttributed: Boolean(session.catId), baselineEstablished: hasEstablishedBaseline(details) }) === "abnormal").sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a)).slice(0, 3);
+  const recentAnomalies = sessions.filter((session) => getIndexedSessionBehavior(session, behaviorIndex).state === "abnormal").sort((a, b) => getSessionSortValue(b) - getSessionSortValue(a)).slice(0, 3);
   const hasDisplayedData = hasData || displayedStats.visits > 0;
   const summaryDisplayState = hasDisplayedData ? displayState : "insufficient";
+  const summaryProvisional = hasDisplayedData && displayProvisional;
+  const baselineEstablished = hasEstablishedBaseline(baseline);
+  const summaryStatusLabel = summaryDisplayState === "insufficient" && hasDisplayedData && !baselineEstablished
+    ? "No baseline yet"
+    : getBehaviorStateLabel(summaryDisplayState, summaryProvisional);
 
   return (
     <div className="space-y-6">
@@ -925,14 +946,14 @@ function OverviewTab({
             value={formatMetricValue(displayedStats.visits, hasDisplayedData)}
             label="Visits Today"
             status={summaryDisplayState}
-            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryStatusLabel}
           />
           <StatCard
             icon={Timer}
             value={formatMetricValue(stats?.avgDuration, hasDisplayedData)}
             label="Avg Duration"
             status={summaryDisplayState}
-            statusLabel={summaryDisplayState === "insufficient" && hasDisplayedData && !hasEstablishedBaseline(details) ? "No baseline yet" : BEHAVIOR_STATE_BY_ID[summaryDisplayState].label}
+            statusLabel={summaryStatusLabel}
           />
         </div>
       </div>
@@ -941,59 +962,65 @@ function OverviewTab({
       <div><p className="mb-2 text-xs text-litter-muted">All recorded sessions</p><SessionLogSummary log={sessionLog} /></div>
 
       {/* Baseline Profile */}
-      {details && hasEstablishedBaseline(details) ? (
-        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
-            <div className="group relative">
-              <Info className="w-4 h-4 text-theme-muted cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                {/* NOTE(manuscript): This numeric baseline-period copy must match the capstone paper. */}
-                Baseline is recalculated every {BASELINE_PERIOD_DAYS} days using a rolling average of
-                recorded sessions.
+      {/* NOTE(manuscript): Baseline copy and numbers must match the capstone paper. */}
+      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
+        <div className="flex items-center gap-2 mb-1">
+          <Info className="w-4 h-4 text-theme-muted" aria-hidden="true" />
+          <h3 className="font-semibold text-litter-text">Baseline Profile</h3>
+        </div>
+        <p className="text-xs text-theme-muted mb-3">{BASELINE_UPDATE_TEXT}</p>
+
+        {baselineEstablished &&
+        baseline.medianVisitsPerDay !== null &&
+        baseline.medianDurationSecs !== null &&
+        baseline.visitBand &&
+        baseline.durationBand ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-litter-card rounded-lg p-3">
+                <p className="text-theme-muted">Median visits/day</p>
+                <p className="font-semibold text-litter-text">
+                  {formatBandValue(baseline.medianVisitsPerDay)}
+                </p>
+                <p className="text-xs text-theme-muted mt-1">
+                  Upper limit: {formatBandValue(baseline.visitBand[1])}
+                </p>
+              </div>
+              <div className="bg-litter-card rounded-lg p-3">
+                <p className="text-theme-muted">Median duration</p>
+                <p className="font-semibold text-litter-text">
+                  {formatDuration(Math.round(baseline.medianDurationSecs))}
+                </p>
+                <p className="text-xs text-theme-muted mt-1">
+                  Upper limit: {formatDuration(Math.round(baseline.durationBand[1]))}
+                </p>
               </div>
             </div>
-          </div>
-
-          {/* NOTE(manuscript): All numeric baseline values below must match the capstone paper. */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual visits/day</p>
-              <p className="font-semibold text-litter-text">
-                {details.baseline.avgVisitsPerDay - BASELINE_VISIT_DEVIATION_COUNT}–
-                {details.baseline.avgVisitsPerDay + BASELINE_VISIT_DEVIATION_COUNT}
-              </p>
-            </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual duration</p>
-              <p className="font-semibold text-litter-text">
-                {formatDuration(details.baseline.avgDurationSecs - BASELINE_DURATION_DEVIATION_SECS)} –{" "}
-                {formatDuration(details.baseline.avgDurationSecs + BASELINE_DURATION_DEVIATION_SECS)}
-              </p>
-            </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual air quality change</p>
-              <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq135DeltaPercent + BASELINE_AIR_QUALITY_DEVIATION_PERCENT}%
-              </p>
-            </div>
-            <div className="bg-litter-card rounded-lg p-3">
-              <p className="text-theme-muted">Usual odor level change</p>
-              <p className="font-semibold text-litter-text">
-                &lt; {details.baseline.mq136DeltaPercent + BASELINE_ODOR_DEVIATION_PERCENT}%
-              </p>
+            <p className="text-xs text-theme-muted mt-3">
+              Based on visits from {formatDate(baseline.windowStart)} to {formatDate(baseline.windowEnd)}
+            </p>
+          </>
+        ) : (
+          <div>
+            <p className="text-sm font-semibold text-litter-text">
+              {formatBaselineProgress(baseline?.daysUsed)}
+            </p>
+            <div
+              className="mt-2 h-2 rounded-full bg-litter-card overflow-hidden"
+              role="progressbar"
+              aria-label="Days with visits toward the baseline"
+              aria-valuemin={0}
+              aria-valuemax={BASELINE_MIN_DAYS}
+              aria-valuenow={Math.min(baseline?.daysUsed ?? 0, BASELINE_MIN_DAYS)}
+            >
+              <div
+                className="h-full bg-litter-primary"
+                style={{ width: `${(Math.min(baseline?.daysUsed ?? 0, BASELINE_MIN_DAYS) / BASELINE_MIN_DAYS) * 100}%` }}
+              />
             </div>
           </div>
-
-          <p className="text-xs text-theme-muted mt-3">
-            Last updated {formatDate(details.baseline.lastUpdated)}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border text-center">
-          <p className="text-sm text-litter-muted">Baseline data will appear once the device starts recording sessions.</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Recent Anomalies */}
       <div>
@@ -1029,15 +1056,38 @@ function OverviewTab({
 // History Tab
 interface HistoryTabProps {
   readonly sessions: readonly Session[];
+  readonly behaviorIndex: CatBehaviorIndex;
 }
 
-function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
+function HistoryTab({ sessions, behaviorIndex }: Readonly<HistoryTabProps>) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
+  // Display only: short visits stay counted everywhere else.
+  const [showShortVisits, setShowShortVisits] = useState(false);
+  const { visible: lengthFilteredSessions, hiddenCount: hiddenShortVisits } =
+    filterShortVisits(sessions, showShortVisits);
   const filteredSessions =
-    filter === "anomalies" ? sessions.filter((s) => s.anomaly) : sessions;
+    filter === "anomalies"
+      ? lengthFilteredSessions.filter((session) => {
+          const state = getIndexedSessionBehavior(session, behaviorIndex).state;
+          return state === "abnormal" || state === "watch";
+        })
+      : lengthFilteredSessions;
 
   return (
     <div>
+      <label className="flex items-center gap-2 mb-3 text-sm text-theme-secondary cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={showShortVisits}
+          onChange={(event) => setShowShortVisits(event.target.checked)}
+          className="h-4 w-4 accent-[#1B7A6E]"
+        />
+        {SHOW_SHORT_VISITS_LABEL}
+        {hiddenShortVisits > 0 && (
+          <span className="text-xs text-theme-muted">({hiddenShortVisits} hidden)</span>
+        )}
+      </label>
+
       {/* Filter bar */}
       <div className="flex gap-2 mb-4">
         <button
@@ -1071,7 +1121,7 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
       ) : (
         <div className="space-y-2">
           {filteredSessions.map((session) => (
-            <SessionRow key={session.id} session={session} />
+            <SessionRow key={session.id} session={session} behaviorIndex={behaviorIndex} />
           ))}
         </div>
       )}
@@ -1079,9 +1129,13 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
   );
 }
 
-function SessionRow({ session }: Readonly<{ session: Session }>) {
-  const deltaLabel = getDeltaLabel(session.mq135Delta);
+function SessionRow({ session, behaviorIndex }: Readonly<{
+  session: Session;
+  behaviorIndex: CatBehaviorIndex;
+}>) {
   const isSummary = session.sessionStatus === "DAILY_SUMMARY";
+  const state = getIndexedSessionBehavior(session, behaviorIndex).state;
+  const isBehaviorAnomaly = state === "abnormal" || state === "watch";
   const summaryVisits = session.summaryVisits ?? 1;
   const summaryVisitLabel = summaryVisits === 1 ? "visit" : "visits";
   const timeLabel = isSummary
@@ -1091,7 +1145,7 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-xl border ${
-        session.anomaly
+        isBehaviorAnomaly
           ? "bg-status-warning border-status-warning"
           : "bg-litter-card border-litter-border"
       }`}
@@ -1111,17 +1165,10 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
         )}
       </div>
       <div className="flex items-center gap-3">
-        {isSummary ? (
+        {isSummary && (
           <span className="px-2 py-1 bg-litter-primary-light text-litter-primary text-xs rounded-full">
             Synced
           </span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
-            <span className="text-sm text-theme-secondary">
-              {session.mq135Delta}%
-            </span>
-          </div>
         )}
       </div>
     </div>
@@ -1185,24 +1232,6 @@ function TrendsTab({ trendData, references, hasData }: Readonly<TrendsTabProps>)
           metric="duration"
           hasData={hasData}
           reference={references?.duration}
-          baselineMessage={references ? undefined : "building"}
-          emptyMessage="No sessions were recorded in this 7-day period."
-        />
-      </div>
-
-      {/* Air quality change */}
-      <div className="bg-theme-overlay rounded-xl p-4 border border-litter-border">
-        <div className="flex items-center gap-2 mb-3">
-          <Wind className="w-5 h-5 text-litter-primary" />
-          <h4 className="font-semibold text-litter-text">
-            Air quality change (7 days)
-          </h4>
-        </div>
-        <MetricTrendChart
-          data={getMetricTrendPoints(trendData, "airQuality")}
-          metric="airQuality"
-          hasData={hasData}
-          reference={references?.airQuality}
           baselineMessage={references ? undefined : "building"}
           emptyMessage="No sessions were recorded in this 7-day period."
         />

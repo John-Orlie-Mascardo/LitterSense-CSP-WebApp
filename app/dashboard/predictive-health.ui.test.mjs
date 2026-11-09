@@ -36,6 +36,19 @@ test("predictive analysis lives on its own per-cat page linked before notificati
   assert.ok(analysisLinkIndex < notificationIndex);
 });
 
+test("Predictive Health state comes from the same rollup as Home, not the saved cat status", () => {
+  assert.match(predictivePageSource, /getCatBehaviorToday\(cat\.id, catSessions, behaviorIndex\)/);
+  assert.doesNotMatch(predictivePageSource, /getCatDisplayState|persistedStatus|details\.baseline/);
+});
+
+test("Predictive Health visibly carries Normal (provisional) and X of 7 days", () => {
+  assert.match(predictivePageSource, /provisional: today\.provisional/);
+  assert.match(predictivePageSource, /<BehaviorStateBadge state=\{presentation\.state\} provisional=\{presentation\.provisional\}/);
+  assert.match(predictivePageSource, /formatBaselineProgress\(baselineDaysUsed\)/);
+  assert.match(predictivePageSource, /displayProvisional: presentation\.provisional/);
+  assert.doesNotMatch(predictivePageSource, /Building baseline/);
+});
+
 test("AI hides confidence and chemical labels while retaining environment data", () => {
   assert.doesNotMatch(predictivePageSource, /Confidence:|Ammonia:|Hydrogen sulfide:/);
   assert.match(predictivePageSource, /Urine level:/);
