@@ -249,7 +249,7 @@ When an admin clicks **Reject**:
 | `/api/admin/login` | `POST` | Records interactive administrator login in audit logs. | Admin Bearer Token |
 | `/api/admin/delete-user` | `POST` | Executes multi-stage permanent deletion of user and data. | Admin Bearer Token |
 | `/api/admin/deletion-request/reject` | `POST` | Rejects pending deletion request and restores account status. | Admin Bearer Token |
-| `/api/admin/update-password` | `POST` | Resets a specified user's password via Admin Auth. | Admin Bearer Token |
+| `/api/admin/users/recovery` | `POST` | Emails the owner a password-reset link (optionally to a new email) after an identity check; audited; admin never sees the password. | Admin Bearer Token |
 | `lib/server/adminAuth.ts` | Code | Verifies Bearer ID token with revocation check and validates `admin === true`. | Server utility |
 | `lib/server/auditLog.ts` | Code | Writes immutable audit log entries to Firestore / Supabase. | Server utility |
 | `lib/utils/adminApi.ts` | Code | Authenticated fetch wrapper handling token injection and 401/403 redirects. | Client utility |

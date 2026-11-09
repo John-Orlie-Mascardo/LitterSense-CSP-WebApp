@@ -237,7 +237,7 @@ When an admin clicks **Reject**:
 | `/api/admin/login` | `POST` | Bearer Token (`admin: true`) | Logs interactive admin sign-ins in the audit log. |
 | `/api/admin/delete-user` | `POST` | Bearer Token (`admin: true`) | Executes ordered multi-stage permanent deletion of user, auth, and data. |
 | `/api/admin/deletion-request/reject` | `POST` | Bearer Token (`admin: true`) | Rejects a pending deletion request and restores account status to normal. |
-| `/api/admin/update-password` | `POST` | Bearer Token (`admin: true`) | Administrative reset for a user password via Firebase Admin SDK. |
+| `/api/admin/users/recovery` | `POST` | Bearer Token (`admin: true`) | Emails the owner a password-reset link (optionally to a new email) after an identity check; audited; admin never sees the password. |
 
 ---
 

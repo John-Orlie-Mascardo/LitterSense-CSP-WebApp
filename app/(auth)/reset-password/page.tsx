@@ -15,10 +15,13 @@ import {
   PASSWORD_POLICY_MESSAGE,
   isPasswordPolicySatisfied,
 } from "@/lib/utils/passwordPolicy";
+import { PasswordResetError, confirmPasswordResetToken } from "@/lib/utils/passwordReset";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  // `token`: LitterSense's own 30-minute link. `oobCode`: Firebase links sent before the switch.
+  const token = searchParams.get("token");
   const code = searchParams.get("oobCode");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +37,11 @@ function ResetPasswordContent() {
     let active = true;
 
     const checkCode = async () => {
+      // A LitterSense token is checked when the new password is submitted (checking uses it up).
+      if (token) {
+        setIsChecking(false);
+        return;
+      }
       if (!code) {
         setLinkError("This password reset link is missing or invalid.");
         setIsChecking(false);
@@ -56,11 +64,11 @@ function ResetPasswordContent() {
     return () => {
       active = false;
     };
-  }, [code]);
+  }, [code, token]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSaving || !code) return;
+    if (isSaving || (!code && !token)) return;
 
     if (!passwordMeetsPolicy) {
       setFormError(PASSWORD_POLICY_MESSAGE);
@@ -73,6 +81,19 @@ function ResetPasswordContent() {
 
     setIsSaving(true);
     setFormError("");
+    if (token) {
+      try {
+        await confirmPasswordResetToken(token, password);
+        setSaved(true);
+      } catch (caughtError) {
+        if (caughtError instanceof PasswordResetError && caughtError.expired) setLinkError(caughtError.message);
+        else setFormError(caughtError instanceof Error ? caughtError.message : "Could not update your password. Check your connection and try again.");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    if (!code) return;
     try {
       await confirmPasswordReset(auth, code, password);
       setSaved(true);
@@ -83,8 +104,16 @@ function ResetPasswordContent() {
         firebaseCode === "auth/password-does-not-meet-requirements"
       ) {
         setFormError(PASSWORD_POLICY_MESSAGE);
-      } else {
+      } else if (
+        firebaseCode === "auth/expired-action-code" ||
+        firebaseCode === "auth/invalid-action-code" ||
+        firebaseCode === "auth/user-disabled" ||
+        firebaseCode === "auth/user-not-found"
+      ) {
         setLinkError("This reset link is invalid or has expired. Request a new one.");
+      } else {
+        // Network or temporary errors: keep the form so the user can retry with the same link.
+        setFormError("Could not update your password. Check your connection and try again.");
       }
     } finally {
       setIsSaving(false);

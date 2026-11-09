@@ -38,8 +38,8 @@ test("reset requests prevent duplicate submissions", () => {
   assert.match(confirmationSource, /if \(isResending\) return;/);
 });
 
-test("the confirmation page resends through Firebase instead of a mock delay", () => {
-  assert.match(confirmationSource, /sendPasswordResetEmail/);
+test("the confirmation page resends a real 30-minute link instead of a mock delay", () => {
+  assert.match(confirmationSource, /requestPasswordReset\(email\)/);
   assert.doesNotMatch(confirmationSource, /Mock delay/);
   assert.doesNotMatch(confirmationSource, /setTimeout/);
 });

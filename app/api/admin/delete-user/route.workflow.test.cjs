@@ -87,6 +87,7 @@ function loadRoute({ initialStatus = "pending", failAt = "", authMissing = false
       if (name.endsWith('/operationalStore')) return { rfidPrimaryEnabled: () => false };
       if (name.endsWith('/operationalAdmin')) return {};
       if (name.endsWith('/operationalDeletion')) return {};
+      if (name.endsWith('/primaryAccountDeletion')) return {};
       if (name.endsWith('/operationalDevices')) return {};
       if (name === "next/server") return { NextResponse: Response };
       if (name === "@/lib/server/adminAuth") {

@@ -101,9 +101,8 @@ export function useRfidVisitTracker(
       const catToRecord = findCatByRfid(cats, catDetails, card, hex);
 
       if (!catToRecord) {
+        // No tag values in the browser console: they identify the owner's collar.
         console.debug("[RFID] completed session but no cat matched", {
-          card,
-          hex,
           completedSessionCount,
           lastSessionStatus,
         });

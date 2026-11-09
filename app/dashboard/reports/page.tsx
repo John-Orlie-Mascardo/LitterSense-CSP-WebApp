@@ -18,7 +18,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   FileText,
   Download,
-  Table,
   Trash2,
   ChevronDown,
   Loader2,
@@ -42,8 +41,6 @@ import {
   formatDate,
   generateId,
 } from "@/lib/utils/formatters";
-import { isReportSessionConcern } from "@/lib/utils/reportAssessment";
-import { isCountedVisit } from "@/lib/utils/personalBaseline";
 import {
   getBehaviorStateSentence,
   formatMetricValue,
@@ -69,13 +66,8 @@ const dateRanges: { value: DateRangeValue; label: string }[] = [
 
 const PRINT_CHART_WIDTH = 620;
 
-const csvCell = (value: string | number | boolean) => {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-};
-
 export default function ReportsPage() {
-  const { cats, isLoading: catsLoading, historyLoading, behaviorIndex } = useCats();
+  const { cats, isLoading: catsLoading, historyLoading } = useCats();
   const {
     isGenerating,
     progress,
@@ -154,33 +146,6 @@ export default function ReportsPage() {
     if (!currentReport) return;
     addToast("Opening print dialog. Choose Save as PDF to export.", "info");
     setPrinting(true);
-  };
-
-  const handleExportCSV = () => {
-    if (!currentReport) return;
-    const headers = "Cat,Date,Time,Visits,Duration,Anomaly\n";
-    const rows = currentReport.sessions
-      .map(
-        (s) =>
-          [
-            csvCell(s.catName),
-            csvCell(s.date),
-            csvCell(s.time || "--"),
-            // Incomplete visits (under 15 s, no exit, interrupted) count as 0, same as the screens.
-            csvCell(s.summaryVisits ?? (isCountedVisit(s) ? 1 : 0)),
-            csvCell(s.durationSecs),
-            csvCell(isReportSessionConcern(s, behaviorIndex) ? "Yes" : "No"),
-          ].join(",")
-      )
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `LitterSense_${currentReport.catName.replaceAll(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    addToast("CSV exported successfully", "success");
   };
 
   const handleDeletePastReport = async (id: string) => {
@@ -342,13 +307,6 @@ export default function ReportsPage() {
               >
                 <Download className="w-4 h-4" />
                 Export as PDF
-              </button>
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-3 border border-litter-border text-theme-secondary rounded-lg font-medium text-sm theme-row-hover"
-              >
-                <Table className="w-4 h-4" />
-                Export as CSV
               </button>
             </div>
           </div>

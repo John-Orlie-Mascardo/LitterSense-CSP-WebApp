@@ -95,7 +95,7 @@ test("Export All does not offer JSON downloads", () => {
 test("PDF and DOC exports omit settings data", () => {
   const exportHtml = sourceBetween(
     "const buildExportHtml = (payload: ExportAllPayload) => {",
-    "const buildExportCsv = (payload: ExportAllPayload) => {",
+    "export default function SettingsPage()",
   );
 
   assert.doesNotMatch(exportHtml, /<h2>Settings<\/h2>/);
@@ -106,10 +106,6 @@ test("PDF and DOC exports omit settings data", () => {
 test("exports label cat behavior from the shared current result, never saved cat.status", () => {
   const exportHtml = sourceBetween(
     "const buildExportHtml = (payload: ExportAllPayload) => {",
-    "const buildExportCsv = (payload: ExportAllPayload) => {",
-  );
-  const exportCsv = sourceBetween(
-    "const buildExportCsv = (payload: ExportAllPayload) => {",
     "export default function SettingsPage()",
   );
   const payload = sourceBetween(
@@ -120,9 +116,8 @@ test("exports label cat behavior from the shared current result, never saved cat
   assert.match(payload, /getCatBehaviorToday/);
   assert.match(payload, /getBehaviorStateLabel\(current\.state, current\.provisional\)/);
   assert.match(exportHtml, /payload\.catBehaviorLabels\[cat\.id\]/);
-  assert.match(exportCsv, /payload\.catBehaviorLabels\[cat\.id\]/);
   assert.doesNotMatch(exportHtml, /cat\.status/);
-  assert.doesNotMatch(exportCsv, /cat\.status/);
+  assert.doesNotMatch(source, /buildExportCsv|label: "CSV"|text\/csv/);
 });
 
 test("owner photos upload to Storage before Auth and mirror the URL to Firestore", () => {
@@ -168,4 +163,20 @@ test("setup guides match the device setup page wording", () => {
   ]) assert.ok(guide.includes(text), `Missing: ${text}`);
   assert.doesNotMatch(guide, /<input|<button|onClick|fetch\(/);
   assert.doesNotMatch(guide, /Serial Monitor/);
+});
+
+test("account deletion asks for the typed phrase, then an OK/Delete confirmation, then deletes directly", () => {
+  assert.match(source, /DELETE_ACCOUNT_PHRASE/);
+  assert.match(source, /if \(deleteAccountPhrase !== DELETE_ACCOUNT_PHRASE\) return;/);
+  assert.match(source, /onSubmit=\{handleDeletePhraseSubmit\}/);
+  assert.match(source, /deleteOwnAccount\(user, deleteAccountPhrase\)/);
+  assert.match(source, /confirmText="Delete"/);
+  assert.match(source, /cancelText="OK"/);
+  assert.doesNotMatch(source, /requestAccountDeletion\(/);
+  const deletionSheet = sourceBetween("{/* Step 1: type the exact phrase", "<ConfirmDialog isOpen={showSignOutConfirm}");
+  assert.doesNotMatch(deletionSheet, /â€/, "no garbled characters in the deletion sheet");
+});
+
+test("a too-old sign-in during deletion signs the owner out to sign in again", () => {
+  assert.match(source, /error instanceof AccountDeletionError && error\.reauthenticate/);
 });

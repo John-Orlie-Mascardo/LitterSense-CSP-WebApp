@@ -132,3 +132,26 @@ export function getBehaviorTrendLabel(trendData: TrendPoint[] | null) {
   if (last.visits < first.visits) return "Less active";
   return "Stable";
 }
+
+/**
+ * Merges each cat's 7-day trend into one "All cats" trend: visits are summed and the
+ * average duration is weighted by visits. Days line up by label. Null when no cat has data.
+ */
+export function combineCatTrends<T extends TrendPoint>(trends: ReadonlyArray<readonly T[] | null>): TrendPoint[] | null {
+  const present = trends.filter((trend): trend is readonly T[] => Array.isArray(trend) && trend.length > 0);
+  if (present.length === 0) return null;
+  const byDay = new Map<string, { visits: number; durationTotal: number }>();
+  for (const trend of present) {
+    for (const point of trend) {
+      const day = byDay.get(point.day) ?? { visits: 0, durationTotal: 0 };
+      day.visits += point.visits;
+      day.durationTotal += point.avgDuration * point.visits;
+      byDay.set(point.day, day);
+    }
+  }
+  return Array.from(byDay, ([day, total]) => ({
+    day,
+    visits: total.visits,
+    avgDuration: total.visits > 0 ? Math.round(total.durationTotal / total.visits) : 0,
+  }));
+}

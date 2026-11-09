@@ -60,3 +60,38 @@ export async function requestAccountDeletion(
 
   return { success: true, deletionStatus: "pending" };
 }
+
+/** The exact phrase the owner must type before self-delete (checked again on the server). */
+export const DELETE_ACCOUNT_PHRASE = "I agree to delete this account.";
+
+export class AccountDeletionError extends Error {
+  constructor(message: string, readonly reauthenticate = false) {
+    super(message);
+  }
+}
+
+/** Permanently deletes the signed-in owner's account. Throws `reauthenticate` when sign-in is too old. */
+export async function deleteOwnAccount(
+  user: TokenUser,
+  confirmation: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ success: true }> {
+  const idToken = await user.getIdToken();
+  const response = await fetcher("/api/account/delete", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ confirmation }),
+  });
+  const payload = await response.json().catch(() => ({})) as {
+    success?: boolean;
+    error?: string;
+    reauthenticate?: boolean;
+  };
+  if (!response.ok || payload.success !== true) {
+    throw new AccountDeletionError(payload.error ?? "Unable to delete the account.", payload.reauthenticate === true);
+  }
+  return { success: true };
+}

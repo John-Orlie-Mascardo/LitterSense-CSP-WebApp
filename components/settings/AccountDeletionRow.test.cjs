@@ -48,7 +48,7 @@ test("pending deletion renders a disabled Request pending button", () => {
   assert.match(html, /Request pending/);
   assert.match(html, /<button[^>]*disabled=""/);
   assert.match(html, /continue using the app/i);
-  assert.doesNotMatch(html, />Request Account Deletion</);
+  assert.doesNotMatch(html, />Delete Account</);
 });
 
 test("no deletion request renders the enabled request action", () => {
@@ -61,7 +61,7 @@ test("no deletion request renders the enabled request action", () => {
     onRequest: () => {},
   }));
 
-  assert.match(html, />Request Account Deletion</);
+  assert.match(html, />Delete Account</);
   assert.doesNotMatch(html, /disabled=""/);
 });
 

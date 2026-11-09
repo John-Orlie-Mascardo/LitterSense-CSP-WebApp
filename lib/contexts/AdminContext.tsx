@@ -23,6 +23,7 @@ import {
   readAdminAuditEntry,
   type AdminAuditEntry,
 } from "@/lib/utils/adminAudit";
+import { fetchSuspendedUserIds, setUserSuspended } from "@/lib/utils/adminUserStatus";
 
 // ─── Context Shape ─────────────────────────────────────────────────────────
 
@@ -34,7 +35,8 @@ interface AdminContextType {
   toasts: Omit<ToastParams, "onClose">[];
   addToast: (message: string, type?: ToastParams["type"]) => void;
   dismissToast: (id: string) => void;
-  handleSuspend: (userId: string) => void;
+  /** Suspends or restores the account on the server, then updates the list. */
+  handleSuspend: (userId: string) => Promise<{ auditSaved: boolean }>;
 }
 
 const AdminContext = createContext<AdminContextType>({
@@ -45,7 +47,7 @@ const AdminContext = createContext<AdminContextType>({
   toasts: [],
   addToast: () => {},
   dismissToast: () => {},
-  handleSuspend: () => {},
+  handleSuspend: async () => ({ auditSaved: false }),
 });
 
 export const useAdmin = () => useContext(AdminContext);
@@ -70,21 +72,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const handleSuspend = useCallback((userId: string) => {
+  const handleSuspend = useCallback(async (userId: string) => {
+    const current = users.find((u) => u.id === userId);
+    const suspend = current?.status !== "inactive";
+    const result = await setUserSuspended(userId, suspend);
     setUsers((prev) =>
       prev.map((u) =>
         u.id === userId
-          ? {
-              ...u,
-              status:
-                u.status === "active"
-                  ? ("inactive" as const)
-                  : ("active" as const),
-            }
+          ? { ...u, status: suspend ? ("inactive" as const) : ("active" as const) }
           : u
       )
     );
-  }, []);
+    return result;
+  }, [users]);
 
   useEffect(() => {
     async function fetchUsers() {
@@ -144,7 +144,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
-        setUsers(loadedUsers);
+        // The real status lives in Firebase Auth (disabled = suspended).
+        const suspendedIds = await fetchSuspendedUserIds().catch((statusError) => {
+          console.error("Failed to load account status:", statusError);
+          addToast("Could not load suspended status. Showing everyone as active.", "error");
+          return new Set<string>();
+        });
+        setUsers(loadedUsers.map((u) => suspendedIds.has(u.id) ? { ...u, status: "inactive" as const } : u));
       } catch (error) {
         console.error("Failed to fetch users:", error);
         addToast("Failed to load users from database.", "error");

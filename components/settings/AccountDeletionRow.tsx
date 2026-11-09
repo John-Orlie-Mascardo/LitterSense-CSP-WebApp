@@ -94,8 +94,8 @@ export function AccountDeletionRow({
           {isLoading
             ? "Checking deletion request…"
             : isSubmitting
-              ? "Submitting request…"
-              : "Request Account Deletion"}
+              ? "Deleting account…"
+              : "Delete Account"}
         </span>
       </span>
     </button>
