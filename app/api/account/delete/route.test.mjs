@@ -16,7 +16,7 @@ function transpile(file) {
   }).outputText;
 }
 
-function load({ authTime = nowSecs(), requestStatus = 0, primary = true } = {}) {
+function load({ authTime = nowSecs(), requestStatus = 0, primary = true, storageError = null } = {}) {
   const operations = [];
   class OperationalError extends Error { constructor(message, status) { super(message); this.status = status; } }
   const userRef = { listCollections: async () => [], delete: async () => operations.push("legacy-profile") };
@@ -41,7 +41,7 @@ function load({ authTime = nowSecs(), requestStatus = 0, primary = true } = {}) 
     "@/lib/configs/firebase-admin": {
       getAdminFirestore: () => db,
       getAdminAuth: () => ({ revokeRefreshTokens: async () => operations.push("revoke"), deleteUser: async () => operations.push("auth") }),
-      getAdminStorageBucket: () => ({ deleteFiles: async () => operations.push("legacy-media") }),
+      getAdminStorageBucket: () => ({ deleteFiles: async () => { if (storageError) throw storageError; operations.push("legacy-media"); } }),
     },
   };
   const requireModule = (name) => {
@@ -104,4 +104,19 @@ test("without the Supabase primary store the route refuses instead of half-delet
   const response = await f.route.POST(f.request({ confirmation: PHRASE }));
   assert.equal(response.status, 503);
   assert.deepEqual(f.operations, []);
+});
+
+test("a Firebase Storage bucket that doesn't exist (photos live in Supabase) doesn't block deletion", async () => {
+  const f = load({ storageError: Object.assign(new Error("The specified bucket does not exist."), { code: 404 }) });
+  const response = await f.route.POST(f.request({ confirmation: PHRASE }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(f.operations, ["request", "start", "revoke", "media", "legacy-profile", "auth", "finish"]);
+});
+
+test("other Storage errors still stop deletion so nothing is half-removed silently", async () => {
+  const f = load({ storageError: Object.assign(new Error("Permission denied"), { code: 403 }) });
+  const response = await f.route.POST(f.request({ confirmation: PHRASE }));
+  assert.equal(response.status, 500);
+  assert.equal(f.operations.includes("auth"), false);
+  assert.equal(f.operations.at(-1), "fail");
 });

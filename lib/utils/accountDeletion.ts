@@ -90,6 +90,13 @@ export async function deleteOwnAccount(
     error?: string;
     reauthenticate?: boolean;
   };
+  // 401 also covers a session revoked by a password reset, suspend or recovery.
+  if (response.status === 401) {
+    throw new AccountDeletionError(
+      payload.reauthenticate === true && payload.error ? payload.error : "For your security, sign in again, then delete your account.",
+      true,
+    );
+  }
   if (!response.ok || payload.success !== true) {
     throw new AccountDeletionError(payload.error ?? "Unable to delete the account.", payload.reauthenticate === true);
   }
