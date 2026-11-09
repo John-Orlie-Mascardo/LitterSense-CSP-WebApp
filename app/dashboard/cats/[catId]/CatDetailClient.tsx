@@ -62,7 +62,6 @@ import {
   calculateAge,
   formatDuration,
   formatDate,
-  getDeltaLabel,
   getHealthLogTypeColor,
   generateId,
 } from "@/lib/utils/formatters";
@@ -805,7 +804,7 @@ export default function CatDetailClient() {
                 />
               )}
               {activeTab === "history" && (
-                <HistoryTab key="history" sessions={sessions} />
+                <HistoryTab key="history" sessions={sessions} behaviorIndex={behaviorIndex} />
               )}
               {activeTab === "trends" && (
                 <TrendsTab
@@ -1050,16 +1049,22 @@ function OverviewTab({
 // History Tab
 interface HistoryTabProps {
   readonly sessions: readonly Session[];
+  readonly behaviorIndex: CatBehaviorIndex;
 }
 
-function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
+function HistoryTab({ sessions, behaviorIndex }: Readonly<HistoryTabProps>) {
   const [filter, setFilter] = useState<"all" | "anomalies">("all");
   // Display only: short visits stay counted everywhere else.
   const [showShortVisits, setShowShortVisits] = useState(false);
   const { visible: lengthFilteredSessions, hiddenCount: hiddenShortVisits } =
     filterShortVisits(sessions, showShortVisits);
   const filteredSessions =
-    filter === "anomalies" ? lengthFilteredSessions.filter((s) => s.anomaly) : lengthFilteredSessions;
+    filter === "anomalies"
+      ? lengthFilteredSessions.filter((session) => {
+          const state = getIndexedSessionBehavior(session, behaviorIndex).state;
+          return state === "abnormal" || state === "watch";
+        })
+      : lengthFilteredSessions;
 
   return (
     <div>
@@ -1109,7 +1114,7 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
       ) : (
         <div className="space-y-2">
           {filteredSessions.map((session) => (
-            <SessionRow key={session.id} session={session} />
+            <SessionRow key={session.id} session={session} behaviorIndex={behaviorIndex} />
           ))}
         </div>
       )}
@@ -1117,9 +1122,13 @@ function HistoryTab({ sessions }: Readonly<HistoryTabProps>) {
   );
 }
 
-function SessionRow({ session }: Readonly<{ session: Session }>) {
-  const deltaLabel = getDeltaLabel(session.mq135Delta);
+function SessionRow({ session, behaviorIndex }: Readonly<{
+  session: Session;
+  behaviorIndex: CatBehaviorIndex;
+}>) {
   const isSummary = session.sessionStatus === "DAILY_SUMMARY";
+  const state = getIndexedSessionBehavior(session, behaviorIndex).state;
+  const isBehaviorAnomaly = state === "abnormal" || state === "watch";
   const summaryVisits = session.summaryVisits ?? 1;
   const summaryVisitLabel = summaryVisits === 1 ? "visit" : "visits";
   const timeLabel = isSummary
@@ -1129,7 +1138,7 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-xl border ${
-        session.anomaly
+        isBehaviorAnomaly
           ? "bg-status-warning border-status-warning"
           : "bg-litter-card border-litter-border"
       }`}
@@ -1149,17 +1158,10 @@ function SessionRow({ session }: Readonly<{ session: Session }>) {
         )}
       </div>
       <div className="flex items-center gap-3">
-        {isSummary ? (
+        {isSummary && (
           <span className="px-2 py-1 bg-litter-primary-light text-litter-primary text-xs rounded-full">
             Synced
           </span>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${deltaLabel.color}`} />
-            <span className="text-sm text-theme-secondary">
-              {session.mq135Delta}%
-            </span>
-          </div>
         )}
       </div>
     </div>

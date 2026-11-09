@@ -1,3 +1,5 @@
+import { isCountedVisit } from "@/lib/utils/personalBaseline";
+
 type TrendPoint = {
   day: string;
   visits: number;
@@ -48,12 +50,6 @@ const getSessionDateKey = (session: DurationSession) => {
     : "";
 };
 
-const countableSessionVisitTotal = (session: DurationSession) => {
-  if (session.sessionStatus === "IN_PROGRESS" || session.sessionStatus === "SESSION_INTERRUPTED") return 0;
-  if (session.sessionStatus === "FALSE_ENTRY_IGNORED") return 0;
-  return Math.max(1, session.summaryVisits ?? 1);
-};
-
 const activeTrendPoints = (trendData: TrendPoint[] | null) =>
   (trendData ?? []).filter((point) => point.visits > 0 || point.avgDuration > 0);
 
@@ -84,7 +80,7 @@ export function getFallbackAverageDuration(
   if (trendAverage !== "--") return trendAverage;
 
   const catSessions = sessions.filter(
-    (session) => session.catId === catId && session.durationSecs > 0 && session.sessionStatus !== "SESSION_INTERRUPTED",
+    (session) => session.catId === catId && isCountedVisit(session),
   );
   if (catSessions.length === 0) return "--";
 
@@ -102,16 +98,27 @@ export function getDisplayTodayStats(
   todayDateKey: string,
 ) {
   const baseStats = currentStats ?? { visits: 0, avgDuration: "--" };
-  const recentVisitCount = recentSessions
-    .filter(
+  const todaySessions = recentSessions.filter(
       (session) =>
         session.catId === catId &&
         getSessionDateKey(session) === todayDateKey,
-    )
-    .reduce((total, session) => total + countableSessionVisitTotal(session), 0);
+    );
+  if (todaySessions.length === 0) return baseStats;
 
-  if (recentVisitCount <= baseStats.visits) return baseStats;
-  return { ...baseStats, visits: recentVisitCount };
+  const countedSessions = todaySessions.filter(isCountedVisit);
+  const totalDuration = countedSessions.reduce(
+    (total, session) => total + session.durationSecs,
+    0,
+  );
+
+  return {
+    visits: countedSessions.length,
+    avgDuration: formatDurationLabel(
+      countedSessions.length > 0
+        ? Math.round(totalDuration / countedSessions.length)
+        : 0,
+    ),
+  };
 }
 
 export function getBehaviorTrendLabel(trendData: TrendPoint[] | null) {

@@ -87,6 +87,8 @@ import {
 } from "@/lib/utils/accountDeletion";
 import { useTour } from "@/components/tour/TourProvider";
 import { PasswordChecklist } from "@/components/auth/PasswordChecklist";
+import { getCatBehaviorToday } from "@/lib/presentation/catBehavior";
+import { getBehaviorStateLabel } from "@/lib/presentation/behaviorStates";
 import {
   PASSWORD_POLICY_MESSAGE,
   getMissingPasswordRules,
@@ -125,6 +127,7 @@ const getPasswordStrength = (password: string): { strength: number; label: strin
 
 type ExportAllPayload = {
   cats: ReturnType<typeof useCats>["cats"];
+  catBehaviorLabels: Readonly<Record<string, string>>;
   catStats: ReturnType<typeof useCats>["catStats"];
   catDetails: ReturnType<typeof useCats>["catDetails"];
   sessions: ReturnType<typeof useCats>["sessions"];
@@ -162,7 +165,7 @@ const buildExportHtml = (payload: ExportAllPayload) => {
       return `
         <tr>
           <td>${escapeHtml(cat.name)}</td>
-          <td>${escapeHtml(cat.status)}</td>
+          <td>${escapeHtml(payload.catBehaviorLabels[cat.id])}</td>
           <td>${escapeHtml(details?.rfidTag)}</td>
           <td>${escapeHtml(stats?.visits ?? 0)}</td>
           <td>${escapeHtml(stats?.avgDuration ?? "--")}</td>
@@ -227,7 +230,7 @@ const buildExportCsv = (payload: ExportAllPayload) => {
     ...payload.cats.map((cat) => [
       cat.id,
       cat.name,
-      cat.status,
+      payload.catBehaviorLabels[cat.id] ?? "Insufficient data",
       payload.catDetails[cat.id]?.rfidTag ?? "",
       payload.catStats[cat.id]?.visits ?? 0,
       payload.catStats[cat.id]?.avgDuration ?? "",
@@ -278,6 +281,8 @@ export default function SettingsPage() {
     catDetails,
     sessions,
     healthLogs,
+    behaviorIndex,
+    getSessionsByCatId,
   } = useCats();
   const {
     deviceConfig,
@@ -568,6 +573,16 @@ export default function SettingsPage() {
 
   const buildExportPayload = (): ExportAllPayload => ({
     cats,
+    catBehaviorLabels: Object.fromEntries(
+      cats.map((cat) => {
+        const current = getCatBehaviorToday(
+          cat.id,
+          getSessionsByCatId(cat.id),
+          behaviorIndex,
+        );
+        return [cat.id, getBehaviorStateLabel(current.state, current.provisional)];
+      }),
+    ),
     catStats,
     catDetails,
     sessions,

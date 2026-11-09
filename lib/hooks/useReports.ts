@@ -31,6 +31,7 @@ import {
 import { generateId } from "../utils/formatters";
 import { normalizePastReport, sortPastReports } from "@/lib/utils/reportHistory";
 import { getReportConcernCount } from "@/lib/utils/reportAssessment";
+import { getCountedReportMetrics } from "@/lib/utils/reportMetrics";
 import { getSessionSortValue as getSessionSortTimestamp } from "../utils/sessionTime";
 import { ReportConfig } from "@/lib/interfaces/ReportConfig";
 import type { ReportData } from "@/lib/interfaces/ReportData";
@@ -298,22 +299,17 @@ export function useReports() {
         catName: catNameById.get(log.catId) ?? "Unknown Cat",
       }));
 
-    const totalSessions = filteredSessions.reduce(
-      (sum, session) => sum + getVisitCount(session),
-      0,
-    );
     const daysDiff = getInclusiveDayCount(startDate, endDate);
-    const avgSessionsPerDay = Math.round((totalSessions / daysDiff) * 10) / 10;
-    const totalDuration = filteredSessions.reduce(
-      (sum, session) => sum + session.durationSecs * getVisitCount(session),
-      0,
-    );
-    const avgDurationSecs =
-      totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0;
+    const {
+      countedSessions,
+      totalSessions,
+      avgSessionsPerDay,
+      avgDurationSecs,
+    } = getCountedReportMetrics(filteredSessions, daysDiff);
     const avgDuration = `${Math.floor(avgDurationSecs / 60)}m ${(
       avgDurationSecs % 60
     ).toString().padStart(2, "0")}s`;
-    const anomaliesDetected = getReportConcernCount(filteredSessions);
+    const anomaliesDetected = getReportConcernCount(filteredSessions, behaviorIndex);
 
     let overallStatus: "normal" | "abnormal" = "normal";
     let statusMessage = "No concerning patterns detected";
@@ -361,7 +357,7 @@ export function useReports() {
       healthLogs: filteredHealthLogs,
       trendData:
         actualCatId === "all"
-          ? buildAggregateTrendData(filteredSessions)
+          ? buildAggregateTrendData(countedSessions)
           : getTrendData(actualCatId),
       trendReferences: actualCatId === "all"
         ? buildAggregateTrendReferences(reportBaselines)

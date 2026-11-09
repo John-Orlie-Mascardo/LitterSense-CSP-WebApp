@@ -281,7 +281,7 @@ export function getSessionBehavior({
       durationSecs > baseline.durationBand[1];
     const aboveVisits = baseline.visitBand !== null &&
       visitsSoFar > baseline.visitBand[1];
-    if (normalizedStatus === "WATCH" || aboveDuration || aboveVisits) {
+    if (aboveDuration || aboveVisits) {
       return display("watch");
     }
     return display("normal");

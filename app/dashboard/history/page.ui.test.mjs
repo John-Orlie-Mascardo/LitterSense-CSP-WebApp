@@ -35,6 +35,13 @@ test("history persists filters and incrementally loads grouped session cards", (
   assert.match(pageSource, /displayState=\{getHistorySessionState/);
 });
 
+test("history has a display-only short-visit toggle that defaults to hidden", () => {
+  assert.match(pageSource, /useState\(false\)/);
+  assert.match(pageSource, /filterShortVisits\(history\.sessions, showShortVisits\)/);
+  assert.match(pageSource, /SHOW_SHORT_VISITS_LABEL/);
+  assert.match(pageSource, /type="checkbox"/);
+});
+
 test("history renders required first-run, filtered-empty, skeleton, and retry states", () => {
   assert.match(pageSource, /Waiting for RFID visits/);
   assert.match(pageSource, /No sessions recorded between/);

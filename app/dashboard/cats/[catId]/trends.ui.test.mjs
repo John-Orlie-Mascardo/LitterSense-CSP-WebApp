@@ -59,3 +59,10 @@ test("the History tab hides short visits by default behind a toggle", () => {
   assert.match(source, /\{SHOW_SHORT_VISITS_LABEL\}/);
   assert.match(source, /type="checkbox"/);
 });
+
+test("History uses shared Abnormal-or-Watch results and does not show gas percentages", () => {
+  assert.match(source, /getIndexedSessionBehavior\(session, behaviorIndex\)\.state/);
+  assert.match(source, /state === "abnormal" \|\| state === "watch"/);
+  assert.doesNotMatch(source, /session\.mq135Delta\}%/);
+  assert.doesNotMatch(source, /getDeltaLabel\(session\.mq135Delta\)/);
+});

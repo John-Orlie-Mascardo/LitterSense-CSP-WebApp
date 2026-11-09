@@ -56,6 +56,7 @@ import { deriveSessionLogCounts } from "@/lib/utils/sessionLogCounts";
 import { buildCatBehaviorIndex, getCatBehaviorToday } from "@/lib/presentation/catBehavior";
 import type { CatBehaviorIndex } from "@/lib/presentation/behaviorStates";
 import { ABNORMAL_DURATION_SECS } from "@/lib/configs/behaviorThresholds";
+import { isCountedVisit } from "@/lib/utils/personalBaseline";
 import type { CatProfileMutation } from "@/lib/utils/catCatalogSync";
 import { useCatBackup } from '@/lib/hooks/useCatBackup';
 
@@ -121,14 +122,6 @@ interface CatContextType {
 type FirestoreData = Record<string, unknown>;
 
 const CatContext = createContext<CatContextType | undefined>(undefined);
-
-const emptyStats: CatStats = {
-  visits: 0,
-  avgDuration: "--",
-  airQuality: "Normal",
-  litterLevel: 0,
-  lastVisit: "",
-};
 
 const formatLocalTime = (date = new Date()) =>
   date.toLocaleTimeString("en-US", {
@@ -261,48 +254,22 @@ const buildSessionsWithDailySummaries = (
 
 const deriveStatsForCat = (
   catId: string,
-  firebaseCatStats: Record<string, FirebaseCatStatsDoc>,
   sessions: Session[],
-  dailyStats: Record<string, FirebaseCatStatsDoc[]>,
-  localStats: Record<string, CatStats>,
   today = getLocalDateKey(),
 ): CatStats => {
   const todaySessions = sessions.filter(
     (session) =>
-      session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED" &&
+      session.catId === catId &&
       getSessionActivityDateKey(session) === today,
   );
-  if (todaySessions.length > 0) {
-    return statsFromTotals(
-      todaySessions.length,
-      todaySessions.reduce((sum, session) => sum + session.durationSecs, 0),
-      todaySessions[0]?.date
-        ? new Date(
-          getSessionSortValue(todaySessions[0]),
-        ).toISOString()
-        : "",
-    );
-  }
-
-  const firebaseStats = firebaseCatStats[catId];
-  if (firebaseStats?.date === today) {
-    return statsFromTotals(
-      firebaseStats.visits,
-      firebaseStats.totalDurationSecs,
-      firebaseStats.lastVisit,
-    );
-  }
-
-  const todayDailyStats = dailyStats[catId]?.find((day) => day.date === today);
-  if (todayDailyStats) {
-    return statsFromTotals(
-      todayDailyStats.visits,
-      todayDailyStats.totalDurationSecs,
-      todayDailyStats.lastVisit,
-    );
-  }
-
-  return localStats[catId] ?? emptyStats;
+  const countedSessions = todaySessions.filter(isCountedVisit);
+  return statsFromTotals(
+    countedSessions.length,
+    countedSessions.reduce((sum, session) => sum + session.durationSecs, 0),
+    countedSessions[0]
+      ? new Date(getSessionSortValue(countedSessions[0])).toISOString()
+      : "",
+  );
 };
 
 // Shared rollup: only counted visits (≥ 15 s, not Incomplete) reach the 7th-visit
@@ -311,15 +278,22 @@ const deriveLiveStatus = (
   cat: Cat,
   sessions: Session[],
   behaviorIndex: CatBehaviorIndex,
-): Cat["status"] =>
-  getCatBehaviorToday(cat.id, sessions.filter((session) => session.catId === cat.id), behaviorIndex).state === "abnormal"
-    ? "abnormal"
-    : cat.status;
+): Cat["status"] => {
+  const currentState = getCatBehaviorToday(
+    cat.id,
+    sessions.filter((session) => session.catId === cat.id),
+    behaviorIndex,
+  ).state;
+
+  if (currentState === "abnormal" || currentState === "watch") {
+    return currentState;
+  }
+  return "normal";
+};
 
 const buildTrendData = (
   catId: string,
   sessions: Session[],
-  dailyStats: FirebaseCatStatsDoc[],
 ): CatTrendPoint[] | null => {
   const monday = new Date();
   monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
@@ -333,33 +307,27 @@ const buildTrendData = (
     };
   });
 
-  const catSessions = sessions.filter((session) => session.catId === catId && session.sessionStatus !== "SESSION_INTERRUPTED");
-  const hasAnyData =
-    catSessions.length > 0 || dailyStats.some((day) => day.visits > 0);
+  const catSessions = sessions.filter((session) => session.catId === catId);
+  const hasAnyData = catSessions.some(isCountedVisit);
   if (!hasAnyData) return null;
 
   return days.map((day) => {
     const daySessions = catSessions.filter(
       (session) => getSessionActivityDateKey(session) === day.key,
     );
-    const dailySummary = dailyStats.find((stats) => stats.date === day.key);
-    const visits =
-      daySessions.length > 0 ? daySessions.length : dailySummary?.visits ?? 0;
-    const totalDuration = daySessions.reduce(
+    const countedSessions = daySessions.filter(isCountedVisit);
+    const visits = countedSessions.length;
+    const totalDuration = countedSessions.reduce(
       (sum, session) => sum + session.durationSecs,
       0,
     );
-    const summaryTotalDuration =
-      daySessions.length > 0
-        ? totalDuration
-        : dailySummary?.totalDurationSecs ?? totalDuration;
     const avgDuration =
-      visits > 0 ? Math.round(summaryTotalDuration / visits) : 0;
+      visits > 0 ? Math.round(totalDuration / visits) : 0;
     const mq135Delta =
-      daySessions.length > 0
+      countedSessions.length > 0
         ? Math.round(
-          daySessions.reduce((sum, session) => sum + session.mq135Delta, 0) /
-          daySessions.length,
+          countedSessions.reduce((sum, session) => sum + session.mq135Delta, 0) /
+          countedSessions.length,
         )
         : 0;
 
@@ -437,7 +405,7 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [healthLogs, setHealthLogs] = useState<HealthLog[]>([]);
   const [catSessionLogs, setCatSessionLogs] = useState<Record<string, CatSessionLog>>({});
-  const [firebaseCatStats, setFirebaseCatStats] = useState<
+  const [, setFirebaseCatStats] = useState<
     Record<string, FirebaseCatStatsDoc>
   >({});
   const [catDailyStats, setCatDailyStats] = useState<
@@ -644,7 +612,6 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   // Computed on read from the loaded visits; never stored (BASELINE_BRIEF).
   const behaviorIndex = useMemo(() => buildCatBehaviorIndex(visibleSessions), [visibleSessions]);
   const visibleDailyStats = useMemo(() => fallbackHistory ? {} : catDailyStats, [fallbackHistory, catDailyStats]);
-  const visibleFirebaseStats = useMemo(() => fallbackHistory ? {} : firebaseCatStats, [fallbackHistory, firebaseCatStats]);
   const visibleLocalStats = useMemo(() => fallbackHistory ? {} : catStats, [fallbackHistory, catStats]);
   const visibleHealthLogs = useMemo(() => ownerReady ? healthLogs : [], [ownerReady, healthLogs]);
   const visibleSessionLogs = useMemo(() => ownerReady ? catSessionLogs : {}, [ownerReady, catSessionLogs]);
@@ -733,12 +700,9 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
     (id: string): CatStats | undefined =>
       deriveStatsForCat(
         id,
-        visibleFirebaseStats,
         visibleSessions,
-        visibleDailyStats,
-        visibleLocalStats,
       ),
-    [visibleDailyStats, visibleLocalStats, visibleFirebaseStats, visibleSessions],
+    [visibleSessions],
   );
 
   const cats = useMemo(
@@ -925,8 +889,8 @@ export function CatProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getTrendData = useCallback(
-    (id: string) => buildTrendData(id, visibleSessions, visibleDailyStats[id] ?? []),
-    [visibleDailyStats, visibleSessions],
+    (id: string) => buildTrendData(id, visibleSessions),
+    [visibleSessions],
   );
 
   const getSessionLogByCatId = useCallback(

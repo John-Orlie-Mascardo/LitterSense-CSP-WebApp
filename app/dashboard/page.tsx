@@ -45,7 +45,6 @@ import { getSessionSortValue } from "@/lib/utils/sessionTime";
 import { buildRfidActivityVisits, mergeRfidActivityVisits, type RfidActivityVisit } from "@/lib/utils/rfidActivity";
 import {
   getDisplayTodayStats,
-  getFallbackAverageDuration,
 } from "@/lib/utils/dashboardBehaviorMetrics";
 import type { Cat } from "@/lib/interfaces/Cat";
 import type { Session } from "@/lib/interfaces/Session";
@@ -679,16 +678,7 @@ export default function DashboardPage() {
       ),
     [activeCatId, displaySessions, stats],
   );
-  const displayAvgDuration = useMemo(
-    () =>
-      getFallbackAverageDuration(
-        displayStats?.avgDuration,
-        trendData,
-        displaySessions,
-        activeCatId,
-      ),
-    [activeCatId, displaySessions, displayStats?.avgDuration, trendData],
-  );
+  const displayAvgDuration = displayStats?.avgDuration ?? "--";
   const todayDate = formatDate();
 
   return (

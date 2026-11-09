@@ -16,7 +16,19 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import vm from "node:vm";
-const { getDisplayTodayStats } = createRequire(import.meta.url)("../../lib/utils/dashboardBehaviorMetrics.ts");
+import ts from "typescript";
+const nodeRequire = createRequire(import.meta.url);
+const compileModule = (path, resolve) => {
+  const output = ts.transpileModule(readFileSync(new URL(path, import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const loaded = { exports: {} };
+  new Function("exports", "module", "require", output)(loaded.exports, loaded, resolve);
+  return loaded.exports;
+};
+const thresholds = compileModule("../../lib/configs/behaviorThresholds.ts", nodeRequire);
+const personalBaseline = compileModule("../../lib/utils/personalBaseline.ts", id => id === "@/lib/configs/behaviorThresholds" ? thresholds : nodeRequire(id));
+const { getDisplayTodayStats } = compileModule("../../lib/utils/dashboardBehaviorMetrics.ts", id => id === "@/lib/utils/personalBaseline" ? personalBaseline : nodeRequire(id));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(__dirname, "page.tsx"), "utf8");
@@ -173,8 +185,8 @@ test('background history loading keeps live RFID cards and gas readings availabl
   assert.doesNotMatch(gasCards, /historyLoading/);
 });
 
-test('today metrics use persisted sessions while Recent Activity can project pending RFID exits', () => {
-  const metrics = sourceBetween('const displayStats = useMemo(', 'const displayAvgDuration = useMemo(');
+test('today metrics do not treat unverified daily summaries as counted visits', () => {
+  const metrics = sourceBetween('const displayStats = useMemo(', 'const displayAvgDuration =');
   const summary = { catId: 'cat-a', date: '2026-10-09', sessionStatus: 'DAILY_SUMMARY', summaryVisits: 2 };
   const projectedExit = { catId: 'cat-a', date: '2026-10-09', sessionStatus: 'NORMAL', durationSecs: 30 };
   const result = {};
@@ -184,7 +196,7 @@ test('today metrics use persisted sessions while Recent Activity can project pen
     displaySessions: [summary], recentVisits: [{ session: projectedExit }, { session: summary }],
     getLocalDateKey: () => '2026-10-09',
   });
-  assert.equal(result.stats.visits, 2, 'the visible exit is already included in the daily summary');
+  assert.equal(result.stats.visits, 0, 'only session-level records can satisfy the counted-visit check');
 });
 
 test("behavior chart labels duration in minutes on the left and visits on the right", () => {
