@@ -346,7 +346,7 @@ export default function AdminUsersPage() {
                         <button
                           title="View user"
                           onClick={() => openView(u)}
-                          className="theme-icon-btn p-2 text-litter-muted hover:text-litter-primary transition-colors"
+                          className="theme-icon-btn inline-flex items-center justify-center p-2 text-litter-muted hover:text-litter-primary transition-colors"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -358,7 +358,7 @@ export default function AdminUsersPage() {
                           }
                           onClick={() => onSuspend(u.id)}
                           disabled={savingStatusId === u.id}
-                          className={`p-2 rounded-lg transition-colors ${
+                          className={`inline-flex items-center justify-center p-2 rounded-lg transition-colors ${
                             u.status === "active"
                               ? "theme-danger-btn text-litter-muted"
                               : "theme-icon-btn text-litter-primary"
@@ -437,14 +437,14 @@ export default function AdminUsersPage() {
                     <button
                       title="View user"
                       onClick={() => openView(u)}
-                      className="p-2 text-litter-muted hover:text-litter-primary transition-colors rounded-lg bg-litter-bg border border-litter-border"
+                      className="inline-flex items-center justify-center p-2 text-litter-muted hover:text-litter-primary transition-colors rounded-lg bg-litter-bg border border-litter-border"
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
                       title={u.status === "active" ? "Suspend user" : "Restore user"}
                       onClick={() => onSuspend(u.id)}
-                      className={`p-2 rounded-lg border transition-colors ${
+                      className={`inline-flex items-center justify-center p-2 rounded-lg border transition-colors ${
                         u.status === "active"
                           ? "bg-status-danger/10 text-status-danger border-status-danger/20"
                           : "bg-litter-primary-light text-litter-primary border-litter-primary/20"
