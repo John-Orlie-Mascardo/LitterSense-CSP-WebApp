@@ -48,7 +48,9 @@ async function fetchSpecial(owner: string, path: string, list = false) {
   const latestAudit = path === 'auditLogs' && list;
   const order = latestAudit ? 'data->createdAt->>value.desc,document_path.desc' : 'document_path.asc';
   const cap = latestAudit ? 50 : 5001;
-  const response = await smsStoreRequest(`operational_records?${owner === '@all' ? '' : `owner_id=eq.${encodeURIComponent(owner)}&`}document_path=${list ? 'like' : 'eq'}.${encodeURIComponent(list ? `${path}/*` : path)}&select=document_path,owner_id,data,revision&order=${order}&limit=${cap}`);
+  // Lists skip subcollection rows in the query itself; otherwise they fill PostgREST's 1000-row response cap and hide real documents.
+  const directChildren = list ? `&document_path=not.like.${encodeURIComponent(`${path}/*/*`)}` : '';
+  const response = await smsStoreRequest(`operational_records?${owner === '@all' ? '' : `owner_id=eq.${encodeURIComponent(owner)}&`}document_path=${list ? 'like' : 'eq'}.${encodeURIComponent(list ? `${path}/*` : path)}${directChildren}&select=document_path,owner_id,data,revision&order=${order}&limit=${cap}`);
   if (!response.ok) throw new OperationalError('Records unavailable');
   const rows = await response.json() as OperationalRecord[];
   if (rows.length > 5000) throw new OperationalError('Collection limit exceeded');
