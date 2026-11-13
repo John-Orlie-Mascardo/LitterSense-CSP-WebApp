@@ -17,7 +17,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
   ]),
   {
-    files: ["**/*.test.cjs", "theme-replace.js"],
+    files: ["**/*.test.cjs"],
     rules: {
       "@typescript-eslint/no-require-imports": "off",
     },

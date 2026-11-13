@@ -1,5 +1,3 @@
-export const SETUP_DEVICE_PROVISION_URL = "http://192.168.4.1/provision";
-
 const LOCALHOST_CONFIG_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 interface DeviceProvisioningBodyInput {
