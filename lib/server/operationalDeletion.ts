@@ -1,12 +1,5 @@
-import { smsStoreRequest } from '@/lib/utils/smsAccountSync';
-import { assertOperationalFoundation, OperationalError } from './operationalStore';
+import { OperationalError } from './operationalStore';
 import { mediaRequest, MEDIA_BUCKET } from './operationalMedia';
-export async function beginOperationalDeletion(uid: string, requestId: string) {
-  if (typeof uid !== 'string' || typeof requestId !== 'string' || !/^[^/\u0000-\u001f]{1,128}$/.test(uid) || !/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw new OperationalError('Invalid deletion request', 400);
-  await assertOperationalFoundation();
-  const response = await smsStoreRequest('rpc/operational_delete_account', { method: 'POST', body: JSON.stringify({ p_owner_id: uid, p_request_id: requestId }) });
-  if (!response.ok) throw new OperationalError('Approved account deletion could not start', response.status === 403 ? 403 : 503);
-}
 export async function deleteOwnerMedia(uid: string) {
   // List exact owner prefixes recursively. Always restart page zero after deletion.
   async function clear(prefix: string) {
@@ -25,8 +18,4 @@ export async function deleteOwnerMedia(uid: string) {
     throw new OperationalError('Photo cleanup exceeds safety limit');
   }
   await clear(`users/${uid}`);
-}
-export async function finishOperationalDeletion(uid: string, requestId: string) {
-  const response = await smsStoreRequest('rpc/operational_finish_deletion', { method: 'POST', body: JSON.stringify({ p_owner_id: uid, p_request_id: requestId }) });
-  if (!response.ok) throw new OperationalError('Deletion completion pending');
 }

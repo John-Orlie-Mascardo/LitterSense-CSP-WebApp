@@ -35,6 +35,8 @@ yarn-error.log*
 .pnpm-debug.log*
 .next-dev.*.log
 .firebase-debug.log*
+# deploy/check output saved in the repo root
+/*.log
 
 # env files (can opt-in for committing if needed)
 .env*

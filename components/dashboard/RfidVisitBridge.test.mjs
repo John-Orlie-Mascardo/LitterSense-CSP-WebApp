@@ -33,7 +33,6 @@ function harness(primary = false) {
     '@/lib/contexts/AuthContext': { useAuth: () => ({ user }) },
     '@/lib/hooks/useAirQualityReadings': { useAirQualityReadings },
     '@/lib/hooks/useDeviceSensors': { useDeviceSensors: () => sensor },
-    '@/lib/hooks/useRfidVisitTracker': { useRfidVisitTracker() {} },
     '@/lib/contexts/NotificationContext': { useNotifications: () => ({ addNotification }) },
     '@/lib/hooks/useSettings': { useSettings: () => ({ settings: { notifications } }) },
   };
