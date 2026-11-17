@@ -29,22 +29,31 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
+function isRendered(element: HTMLElement): boolean {
+  const style = window.getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+  return (
+    style.display !== "none" &&
+    style.visibility !== "hidden" &&
+    Number.parseFloat(style.opacity || "1") > 0 &&
+    rect.width > 0 &&
+    rect.height > 0
+  );
+}
+
+function getTargetCandidates(target: string): HTMLElement[] {
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(`[data-tour="${target}"]`),
+  );
+}
+
 function findVisibleTarget(target: string | null): VisibleTargetRect | null {
   if (!target) return null;
 
-  const candidates = document.querySelectorAll<HTMLElement>(
-    `[data-tour="${target}"]`,
-  );
-
-  for (const candidate of candidates) {
-    const style = window.getComputedStyle(candidate);
+  for (const candidate of getTargetCandidates(target)) {
     const rect = candidate.getBoundingClientRect();
     const isVisible =
-      style.display !== "none" &&
-      style.visibility !== "hidden" &&
-      Number.parseFloat(style.opacity || "1") > 0 &&
-      rect.width > 0 &&
-      rect.height > 0 &&
+      isRendered(candidate) &&
       rect.bottom > 0 &&
       rect.right > 0 &&
       rect.top < window.innerHeight &&
@@ -109,6 +118,16 @@ export function AppTour() {
       );
     };
 
+    // Targets below the fold (environment, recent visits) are off-screen and the tour locks body scroll, so bring them in.
+    if (activeStep.target) {
+      getTargetCandidates(activeStep.target)
+        .find(isRendered)
+        ?.scrollIntoView({
+          block: "center",
+          behavior: reducedMotion ? "auto" : "smooth",
+        });
+    }
+
     updateTarget();
     window.addEventListener("resize", updateTarget);
     window.addEventListener("scroll", updateTarget, true);
@@ -117,7 +136,7 @@ export function AppTour() {
       window.removeEventListener("resize", updateTarget);
       window.removeEventListener("scroll", updateTarget, true);
     };
-  }, [activeStep, isOpen]);
+  }, [activeStep, isOpen, reducedMotion]);
 
   useEffect(() => {
     if (!isOpen) return;
