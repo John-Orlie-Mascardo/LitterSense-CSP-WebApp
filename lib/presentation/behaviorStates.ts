@@ -130,24 +130,24 @@ export interface BehaviorStateKeyEntry {
  * listed under it. Unattributed is left out: that code path is dormant.
  */
 export function getBehaviorStateKeyEntries(daysUsed?: number | null): readonly BehaviorStateKeyEntry[] {
-  const entry = (id: BehaviorStateId): BehaviorStateKeyEntry => ({
+  const entry = (id: BehaviorStateId, description: string): BehaviorStateKeyEntry => ({
     key: id,
     label: BEHAVIOR_STATE_BY_ID[id].label,
-    description: BEHAVIOR_STATE_BY_ID[id].description,
+    description,
     dotClass: BEHAVIOR_STATE_BY_ID[id].dotClass,
   });
   return [
-    entry("normal"),
+    entry("normal", "Visit duration and the day's counted visits are within your cat's personal range, with no fixed limit reached."),
     {
       key: "normal-provisional",
       label: getBehaviorStateLabel("normal", true),
-      description: getProvisionalNormalDescription(daysUsed),
+      description: `${getBehaviorStateSentence("normal", true, daysUsed)} The personal baseline needs at least ${BASELINE_MIN_DAYS} days with counted visits within the previous ${BASELINE_WINDOW_DAYS} days.`,
       dotClass: "border-2 border-litter-normal bg-transparent",
     },
-    entry("watch"),
-    entry("abnormal"),
-    entry("insufficient"),
-    entry("incomplete"),
+    entry("watch", "Visit duration or the day's counted visits exceed your cat's personal upper limit, with no fixed limit reached. Applies only once a personal baseline exists."),
+    entry("abnormal", `A visit lasting ${ABNORMAL_DURATION_SECS / 60} minutes or longer, or ${DASHBOARD_VISIT_WARNING_COUNT + 1} or more counted visits by the same cat in one calendar day. Applies with or without a personal baseline.`),
+    entry("insufficient", "No counted visit has been recorded for the cat yet, such as immediately after registration."),
+    entry("incomplete", `A visit shorter than ${INCOMPLETE_SESSION_FLOOR_SECS} seconds, no confirmed exit within 15 minutes, or a visit interrupted before completion. Kept on record, but not counted as a visit or used in the baseline.`),
   ];
 }
 
